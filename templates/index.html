@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Fencing Tips</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+
+        .card {
+            background: white;
+            border-radius: 20px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        .upload-section {
+            text-align: center;
+        }
+
+        .upload-btn {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 30px;
+            border-radius: 50px;
+            font-size: 1.1em;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            width: 100%;
+            max-width: 300px;
+            margin: 10px 0;
+            transition: transform 0.2s;
+        }
+
+        .upload-btn:active {
+            transform: scale(0.95);
+        }
+
+        .upload-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .view-tips-btn {
+            display: inline-block;
+            background: white;
+            color: #667eea;
+            padding: 15px 30px;
+            border-radius: 50px;
+            font-size: 1.1em;
+            font-weight: 600;
+            text-decoration: none;
+            border: 2px solid #667eea;
+            width: 100%;
+            max-width: 300px;
+            margin: 10px 0;
+            transition: all 0.2s;
+        }
+
+        .view-tips-btn:active {
+            transform: scale(0.95);
+        }
+
+        .status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 10px;
+            display: none;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .status.processing {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+            display: none;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .recent-sessions {
+            margin-top: 20px;
+        }
+
+        .session-item {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .session-item:last-child {
+            border-bottom: none;
+        }
+
+        .session-date {
+            font-size: 0.9em;
+            color: #666;
+        }
+
+        .session-filename {
+            font-weight: 600;
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>⚔️ Fencing Tips</h1>
+            <p>Upload voice memos to build your competition notebook</p>
+        </div>
+
+        <div class="card upload-section">
+            <h2 style="margin-bottom: 20px;">Upload Voice Memo</h2>
+
+            <input type="file" id="audioFile" accept="audio/*,.m4a">
+            <label for="audioFile" class="upload-btn" id="uploadLabel">
+                📱 Choose Audio File
+            </label>
+
+            <div class="loader" id="loader"></div>
+            <div class="status" id="status"></div>
+        </div>
+
+        <div class="card" style="text-align: center;">
+            <a href="/tips" class="view-tips-btn">📖 View All Tips</a>
+        </div>
+
+        <div class="card recent-sessions" id="recentSessions" style="display: none;">
+            <h3 style="margin-bottom: 15px;">Recent Sessions</h3>
+            <div id="sessionsList"></div>
+        </div>
+    </div>
+
+    <script>
+        const fileInput = document.getElementById('audioFile');
+        const uploadLabel = document.getElementById('uploadLabel');
+        const loader = document.getElementById('loader');
+        const status = document.getElementById('status');
+        const recentSessions = document.getElementById('recentSessions');
+        const sessionsList = document.getElementById('sessionsList');
+
+        // Load recent sessions
+        loadRecentSessions();
+
+        fileInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            // Show processing state
+            loader.style.display = 'block';
+            status.style.display = 'block';
+            status.className = 'status processing';
+            status.textContent = 'Processing your voice memo... This may take a minute.';
+            uploadLabel.textContent = 'Processing...';
+            uploadLabel.disabled = true;
+
+            // Upload file
+            const formData = new FormData();
+            formData.append('audio', file);
+
+            try {
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+
+                // Show success
+                loader.style.display = 'none';
+                status.className = 'status success';
+                status.textContent = '✅ Success! Your tips have been added.';
+                uploadLabel.textContent = '📱 Choose Audio File';
+                uploadLabel.disabled = false;
+
+                // Reload recent sessions
+                loadRecentSessions();
+
+                // Clear file input
+                fileInput.value = '';
+
+            } catch (error) {
+                loader.style.display = 'none';
+                status.className = 'status error';
+                status.textContent = '❌ Error: ' + error.message;
+                uploadLabel.textContent = '📱 Choose Audio File';
+                uploadLabel.disabled = false;
+            }
+        });
+
+        async function loadRecentSessions() {
+            try {
+                const response = await fetch('/api/data');
+                const data = await response.json();
+
+                if (data.sessions && data.sessions.length > 0) {
+                    recentSessions.style.display = 'block';
+                    sessionsList.innerHTML = data.sessions.slice(0, 5).map(session => `
+                        <div class="session-item">
+                            <div class="session-date">${session.date}</div>
+                            <div class="session-filename">${session.filename}</div>
+                        </div>
+                    `).join('');
+                }
+            } catch (error) {
+                console.error('Failed to load sessions:', error);
+            }
+        }
+    </script>
+</body>
+</html>
