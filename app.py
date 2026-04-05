@@ -2,62 +2,72 @@
 """Flask web app for fencing tips - upload voice memos and get tips."""
 
 import os
-import json
 from pathlib import Path
-from datetime import datetime
-from flask import Flask, request, render_template, jsonify, send_from_directory
+from flask import Flask, request, render_template, jsonify
 from werkzeug.utils import secure_filename
 import openai
 import anthropic
 from dotenv import load_dotenv
+from database import (
+    load_data_from_db,
+    save_session_to_db,
+    update_tip_in_db,
+    delete_tip_from_db
+)
 
 load_dotenv()
 
 app = Flask(__name__)
-app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max file size
+app.config['MAX_CONTENT_LENGTH'] = 200 * 1024 * 1024  # 200MB max file size (for videos)
 app.config['UPLOAD_FOLDER'] = Path(__file__).parent / 'uploads'
 app.config['UPLOAD_FOLDER'].mkdir(exist_ok=True)
 
-DATA_FILE = Path(__file__).parent / 'fencing_data.json'
+ALLOWED_AUDIO_EXTENSIONS = {'.m4a', '.mp3', '.wav', '.aac', '.ogg', '.flac'}
+ALLOWED_VIDEO_EXTENSIONS = {'.mp4', '.mov', '.avi', '.mkv', '.m4v'}
 
 # Initialize API clients
 openai_client = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 claude_client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
 
-def load_data():
-    """Load existing fencing tips data."""
-    if DATA_FILE.exists():
-        with open(DATA_FILE, 'r') as f:
-            return json.load(f)
-    return {
-        "sessions": [],
-        "combined_advice": {
-            "patience_and_control": [],
-            "distance_management": [],
-            "reading_opponent": [],
-            "when_ahead": [],
-            "attack_execution": [],
-            "defense_and_retreat": []
-        }
-    }
+def extract_audio_from_video(video_path):
+    """Extract audio from video file and save as temporary audio file."""
+    from moviepy.editor import VideoFileClip
 
+    audio_path = video_path.with_suffix('.mp3')
 
-def save_data(data):
-    """Save fencing tips data."""
-    with open(DATA_FILE, 'w') as f:
-        json.dump(data, f, indent=2)
+    try:
+        video = VideoFileClip(str(video_path))
+        video.audio.write_audiofile(str(audio_path), verbose=False, logger=None)
+        video.close()
+        return audio_path
+    except Exception as e:
+        raise Exception(f"Failed to extract audio from video: {str(e)}")
 
 
 def transcribe(file_path):
-    """Transcribe audio file using Whisper."""
-    with open(file_path, "rb") as f:
-        result = openai_client.audio.transcriptions.create(
-            model="whisper-1",
-            file=f,
-            response_format="text",
-        )
-    return result
+    """Transcribe audio/video file using Whisper."""
+    file_ext = file_path.suffix.lower()
+    audio_path = file_path
+    extracted_audio = False
+
+    # If it's a video, extract audio first
+    if file_ext in ALLOWED_VIDEO_EXTENSIONS:
+        audio_path = extract_audio_from_video(file_path)
+        extracted_audio = True
+
+    try:
+        with open(audio_path, "rb") as f:
+            result = openai_client.audio.transcriptions.create(
+                model="whisper-1",
+                file=f,
+                response_format="text",
+            )
+        return result
+    finally:
+        # Clean up extracted audio file
+        if extracted_audio and audio_path.exists():
+            audio_path.unlink()
 
 
 def extract_fencing_advice(transcript, filename):
@@ -115,7 +125,7 @@ def index():
 @app.route('/tips')
 def tips():
     """View all tips."""
-    data = load_data()
+    data = load_data_from_db()
     return render_template('tips.html', data=data)
 
 
@@ -139,30 +149,14 @@ def upload():
         transcript = transcribe(filepath)
         advice = extract_fencing_advice(transcript, filename)
 
-        # Load existing data
-        data = load_data()
-
-        # Add to combined advice (remove duplicates)
-        for category, points in advice.items():
-            if category in data['combined_advice']:
-                for point in points:
-                    if point.lower() not in [p.lower() for p in data['combined_advice'][category]]:
-                        data['combined_advice'][category].append(point)
-
-        # Add session
-        session = {
-            'date': datetime.now().strftime('%Y-%m-%d %H:%M'),
-            'filename': filename,
-            'transcript': transcript,
-            'advice': advice
-        }
-        data['sessions'].insert(0, session)  # Most recent first
-
-        # Save data
-        save_data(data)
+        # Save to database
+        session = save_session_to_db(filename, transcript, advice)
 
         # Clean up uploaded file
         filepath.unlink()
+
+        # Get updated data
+        data = load_data_from_db()
 
         return jsonify({
             'success': True,
@@ -171,13 +165,16 @@ def upload():
         })
 
     except Exception as e:
+        # Clean up file on error
+        if filepath.exists():
+            filepath.unlink()
         return jsonify({'error': str(e)}), 500
 
 
 @app.route('/api/data')
 def get_data():
     """Get all data as JSON."""
-    return jsonify(load_data())
+    return jsonify(load_data_from_db())
 
 
 @app.route('/api/edit-tip', methods=['POST'])
@@ -191,20 +188,14 @@ def edit_tip():
     if not all([category, old_text, new_text]):
         return jsonify({'error': 'Missing required fields'}), 400
 
-    data = load_data()
-
-    if category not in data['combined_advice']:
-        return jsonify({'error': 'Invalid category'}), 400
-
-    # Find and replace the tip
-    tips = data['combined_advice'][category]
-    if old_text in tips:
-        index = tips.index(old_text)
-        tips[index] = new_text
-        save_data(data)
-        return jsonify({'success': True})
-    else:
-        return jsonify({'error': 'Tip not found'}), 404
+    try:
+        success = update_tip_in_db(category, old_text, new_text)
+        if success:
+            return jsonify({'success': True})
+        else:
+            return jsonify({'error': 'Tip not found'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/api/delete-tip', methods=['POST'])
@@ -217,19 +208,14 @@ def delete_tip():
     if not all([category, text]):
         return jsonify({'error': 'Missing required fields'}), 400
 
-    data = load_data()
-
-    if category not in data['combined_advice']:
-        return jsonify({'error': 'Invalid category'}), 400
-
-    # Find and remove the tip
-    tips = data['combined_advice'][category]
-    if text in tips:
-        tips.remove(text)
-        save_data(data)
-        return jsonify({'success': True})
-    else:
-        return jsonify({'error': 'Tip not found'}), 404
+    try:
+        success = delete_tip_from_db(category, text)
+        if success:
+            return jsonify({'success': True})
+        else:
+            return jsonify({'error': 'Tip not found'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 if __name__ == '__main__':
