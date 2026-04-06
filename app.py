@@ -2,8 +2,10 @@
 """Flask web app for fencing tips - upload voice memos and get tips."""
 
 import os
+import json
+from datetime import datetime
 from pathlib import Path
-from flask import Flask, request, render_template, jsonify
+from flask import Flask, request, render_template, jsonify, Response
 from werkzeug.utils import secure_filename
 import openai
 import anthropic
@@ -12,7 +14,8 @@ from database import (
     load_data_from_db,
     save_session_to_db,
     update_tip_in_db,
-    delete_tip_from_db
+    delete_tip_from_db,
+    restore_data_to_db
 )
 
 load_dotenv()
@@ -175,6 +178,38 @@ def upload():
 def get_data():
     """Get all data as JSON."""
     return jsonify(load_data_from_db())
+
+
+@app.route('/api/backup')
+def backup():
+    """Full database backup as downloadable JSON."""
+    data = load_data_from_db()
+    data['exported_at'] = datetime.utcnow().isoformat()
+
+    filename = f'fencing_backup_{datetime.utcnow():%Y%m%d_%H%M%S}.json'
+    return Response(
+        json.dumps(data, indent=2),
+        mimetype='application/json',
+        headers={'Content-Disposition': f'attachment; filename={filename}'}
+    )
+
+
+@app.route('/api/restore', methods=['POST'])
+def restore():
+    """Restore database from a backup JSON file."""
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file uploaded'}), 400
+
+    file = request.files['file']
+    if not file.filename.endswith('.json'):
+        return jsonify({'error': 'File must be a .json backup'}), 400
+
+    try:
+        data = json.loads(file.read().decode('utf-8'))
+        result = restore_data_to_db(data)
+        return jsonify({'success': True, **result})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/api/edit-tip', methods=['POST'])

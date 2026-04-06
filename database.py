@@ -166,6 +166,49 @@ def update_tip_in_db(category, old_text, new_text):
         db.close()
 
 
+def restore_data_to_db(data):
+    """Restore database from a backup JSON export. Skips duplicates."""
+    db = get_db()
+    sessions_added = 0
+    tips_added = 0
+
+    try:
+        # Restore sessions
+        for s in data.get('sessions', []):
+            existing = db.query(Session).filter_by(
+                filename=s['filename'],
+                transcript=s.get('transcript', '')
+            ).first()
+            if not existing:
+                session = Session(
+                    date=datetime.strptime(s['date'], '%Y-%m-%d %H:%M'),
+                    filename=s['filename'],
+                    transcript=s.get('transcript', ''),
+                    advice_json=json.dumps(s.get('advice', {}))
+                )
+                db.add(session)
+                sessions_added += 1
+
+        # Restore tips
+        for category, tips_list in data.get('combined_advice', {}).items():
+            for text in tips_list:
+                existing = db.query(Tip).filter_by(
+                    category=category, text=text
+                ).first()
+                if not existing:
+                    db.add(Tip(category=category, text=text))
+                    tips_added += 1
+
+        db.commit()
+        return {'sessions_added': sessions_added, 'tips_added': tips_added}
+
+    except Exception as e:
+        db.rollback()
+        raise e
+    finally:
+        db.close()
+
+
 def delete_tip_from_db(category, text):
     """Delete a tip from the database."""
     db = get_db()
