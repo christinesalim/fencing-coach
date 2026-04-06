@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Private Lessons</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #e53e3e 0%, #c53030 100%);
+            min-height: 100vh;
+            padding: 20px;
+            padding-bottom: 80px;
+            color: #333;
+        }
+
+        .container { max-width: 700px; margin: 0 auto; }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+            position: relative;
+        }
+
+        .header h1 { font-size: 2em; margin-bottom: 10px; }
+        .header p { opacity: 0.9; font-size: 1.1em; }
+
+        .sign-out {
+            position: absolute;
+            top: 0; right: 0;
+            color: rgba(255,255,255,0.7);
+            font-size: 13px;
+            text-decoration: none;
+        }
+
+        .back-btn {
+            display: inline-block;
+            background: white;
+            color: #e53e3e;
+            padding: 10px 20px;
+            border-radius: 50px;
+            text-decoration: none;
+            font-weight: 600;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 20px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        .card h2 { font-size: 1.2em; margin-bottom: 16px; color: #1a1a2e; }
+
+        /* Add lesson form */
+        .form-group { margin-bottom: 14px; }
+
+        label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: #555;
+            margin-bottom: 5px;
+        }
+
+        input[type="text"], textarea {
+            width: 100%;
+            padding: 12px 14px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            font-size: 15px;
+            font-family: inherit;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        input[type="text"]:focus, textarea:focus { border-color: #e53e3e; }
+        textarea { resize: vertical; min-height: 80px; }
+
+        .btn-primary {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #e53e3e 0%, #c53030 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 4px;
+        }
+
+        .btn-primary:active { opacity: 0.9; }
+
+        /* Lesson cards */
+        .lesson {
+            background: white;
+            border-radius: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+
+        .video-wrapper {
+            position: relative;
+            padding-bottom: 56.25%;
+            height: 0;
+            background: #000;
+        }
+
+        .video-wrapper iframe {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            border: none;
+        }
+
+        .video-placeholder {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #1a1a2e;
+        }
+
+        .video-placeholder a {
+            color: white;
+            font-size: 15px;
+            text-decoration: none;
+            background: rgba(255,255,255,0.15);
+            padding: 12px 20px;
+            border-radius: 10px;
+        }
+
+        .lesson-body { padding: 20px; }
+
+        .lesson-title {
+            font-size: 1.1em;
+            font-weight: 700;
+            color: #1a1a2e;
+            margin-bottom: 8px;
+        }
+
+        .lesson-date {
+            font-size: 12px;
+            color: #999;
+            margin-bottom: 10px;
+        }
+
+        .lesson-description {
+            font-size: 14px;
+            color: #555;
+            line-height: 1.6;
+            white-space: pre-wrap;
+        }
+
+        .lesson-actions { margin-top: 14px; text-align: right; }
+
+        .btn-delete {
+            background: none;
+            border: none;
+            color: #e74c3c;
+            font-size: 13px;
+            cursor: pointer;
+            padding: 4px 8px;
+        }
+
+        .empty-state {
+            text-align: center;
+            color: white;
+            opacity: 0.8;
+            padding: 40px 0;
+        }
+
+        .status {
+            padding: 12px;
+            border-radius: 10px;
+            margin-top: 12px;
+            font-size: 14px;
+            display: none;
+        }
+
+        .status.success { background: #d4edda; color: #155724; display: block; }
+        .status.error { background: #f8d7da; color: #721c24; display: block; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Private Lessons</h1>
+            <p>Video library for Ethan's training</p>
+            <a href="/logout" class="sign-out">Sign out</a>
+        </div>
+
+        <a href="/" class="back-btn">← Back</a>
+
+        <!-- Add lesson form -->
+        <div class="card">
+            <h2>Add a Lesson</h2>
+            <div class="form-group">
+                <label>Title</label>
+                <input type="text" id="title" placeholder="e.g. Footwork drill - March 2026">
+            </div>
+            <div class="form-group">
+                <label>YouTube URL</label>
+                <input type="text" id="youtubeUrl" placeholder="https://www.youtube.com/watch?v=...">
+            </div>
+            <div class="form-group">
+                <label>Description</label>
+                <textarea id="description" placeholder="Key points from this lesson..."></textarea>
+            </div>
+            <button class="btn-primary" onclick="addLesson()">Add Lesson</button>
+            <div class="status" id="formStatus"></div>
+        </div>
+
+        <!-- Lessons list -->
+        <div id="lessonsList">
+            {% if lessons %}
+                {% for lesson in lessons %}
+                <div class="lesson" id="lesson-{{ lesson.id }}">
+                    <div class="video-wrapper">
+                        {% set embed_url = lesson.youtube_url %}
+                        {% if 'watch?v=' in lesson.youtube_url %}
+                            {% set video_id = lesson.youtube_url.split('watch?v=')[1].split('&')[0] %}
+                            <iframe src="https://www.youtube.com/embed/{{ video_id }}" allowfullscreen></iframe>
+                        {% elif 'youtu.be/' in lesson.youtube_url %}
+                            {% set video_id = lesson.youtube_url.split('youtu.be/')[1].split('?')[0] %}
+                            <iframe src="https://www.youtube.com/embed/{{ video_id }}" allowfullscreen></iframe>
+                        {% else %}
+                            <div class="video-placeholder">
+                                <a href="{{ lesson.youtube_url }}" target="_blank">Watch on YouTube</a>
+                            </div>
+                        {% endif %}
+                    </div>
+                    <div class="lesson-body">
+                        <div class="lesson-title">{{ lesson.title }}</div>
+                        <div class="lesson-date">{{ lesson.created_at }}</div>
+                        {% if lesson.description %}
+                        <div class="lesson-description">{{ lesson.description }}</div>
+                        {% endif %}
+                        <div class="lesson-actions">
+                            <button class="btn-delete" onclick="deleteLesson({{ lesson.id }})">Delete</button>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty-state" id="emptyState">
+                    <p>No lessons yet. Add your first one above.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <script>
+        async function addLesson() {
+            const title = document.getElementById('title').value.trim();
+            const youtubeUrl = document.getElementById('youtubeUrl').value.trim();
+            const description = document.getElementById('description').value.trim();
+            const status = document.getElementById('formStatus');
+
+            if (!title || !youtubeUrl) {
+                status.className = 'status error';
+                status.textContent = 'Title and YouTube URL are required.';
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/add-lesson', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title, youtube_url: youtubeUrl, description })
+                });
+                const data = await response.json();
+
+                if (data.error) throw new Error(data.error);
+
+                // Clear form
+                document.getElementById('title').value = '';
+                document.getElementById('youtubeUrl').value = '';
+                document.getElementById('description').value = '';
+                status.className = 'status success';
+                status.textContent = 'Lesson added!';
+
+                // Reload page to show new lesson with embedded video
+                setTimeout(() => location.reload(), 800);
+
+            } catch (error) {
+                status.className = 'status error';
+                status.textContent = 'Error: ' + error.message;
+            }
+        }
+
+        async function deleteLesson(id) {
+            if (!confirm('Delete this lesson?')) return;
+
+            try {
+                const response = await fetch('/api/delete-lesson', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id })
+                });
+                const data = await response.json();
+                if (data.error) throw new Error(data.error);
+                document.getElementById('lesson-' + id).remove();
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+    </script>
+</body>
+</html>

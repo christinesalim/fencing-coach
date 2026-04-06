@@ -16,7 +16,10 @@ from database import (
     save_session_to_db,
     update_tip_in_db,
     delete_tip_from_db,
-    restore_data_to_db
+    restore_data_to_db,
+    get_lessons_from_db,
+    add_lesson_to_db,
+    delete_lesson_from_db
 )
 
 load_dotenv()
@@ -256,6 +259,47 @@ def restore():
         data = json.loads(file.read().decode('utf-8'))
         result = restore_data_to_db(data)
         return jsonify({'success': True, **result})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/lessons')
+@login_required
+def lessons():
+    """Private lessons page."""
+    return render_template('lessons.html', lessons=get_lessons_from_db())
+
+
+@app.route('/api/add-lesson', methods=['POST'])
+@login_required
+def add_lesson():
+    data = request.get_json()
+    title = data.get('title', '').strip()
+    youtube_url = data.get('youtube_url', '').strip()
+    description = data.get('description', '').strip()
+
+    if not title or not youtube_url:
+        return jsonify({'error': 'Title and YouTube URL are required'}), 400
+
+    try:
+        lesson = add_lesson_to_db(title, youtube_url, description)
+        return jsonify({'success': True, 'lesson': lesson})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/delete-lesson', methods=['POST'])
+@login_required
+def delete_lesson():
+    data = request.get_json()
+    lesson_id = data.get('id')
+    if not lesson_id:
+        return jsonify({'error': 'Missing lesson id'}), 400
+    try:
+        success = delete_lesson_from_db(lesson_id)
+        if success:
+            return jsonify({'success': True})
+        return jsonify({'error': 'Lesson not found'}), 404
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

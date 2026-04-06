@@ -31,6 +31,17 @@ class Tip(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class Lesson(Base):
+    """Represents a private lesson with a YouTube video link."""
+    __tablename__ = 'lessons'
+
+    id = Column(Integer, primary_key=True)
+    title = Column(String(255))
+    youtube_url = Column(String(500))
+    description = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 # Database setup
 def get_database_url():
     """Get database URL from environment or use SQLite for local dev."""
@@ -159,6 +170,63 @@ def update_tip_in_db(category, old_text, new_text):
 
         return False
 
+    except Exception as e:
+        db.rollback()
+        raise e
+    finally:
+        db.close()
+
+
+def get_lessons_from_db():
+    """Get all lessons ordered by most recent first."""
+    db = get_db()
+    try:
+        lessons = db.query(Lesson).order_by(Lesson.created_at.desc()).all()
+        return [
+            {
+                'id': l.id,
+                'title': l.title,
+                'youtube_url': l.youtube_url,
+                'description': l.description,
+                'created_at': l.created_at.strftime('%B %d, %Y')
+            }
+            for l in lessons
+        ]
+    finally:
+        db.close()
+
+
+def add_lesson_to_db(title, youtube_url, description):
+    """Add a new lesson."""
+    db = get_db()
+    try:
+        lesson = Lesson(title=title, youtube_url=youtube_url, description=description)
+        db.add(lesson)
+        db.commit()
+        return {
+            'id': lesson.id,
+            'title': lesson.title,
+            'youtube_url': lesson.youtube_url,
+            'description': lesson.description,
+            'created_at': lesson.created_at.strftime('%B %d, %Y')
+        }
+    except Exception as e:
+        db.rollback()
+        raise e
+    finally:
+        db.close()
+
+
+def delete_lesson_from_db(lesson_id):
+    """Delete a lesson by id."""
+    db = get_db()
+    try:
+        lesson = db.query(Lesson).filter_by(id=lesson_id).first()
+        if lesson:
+            db.delete(lesson)
+            db.commit()
+            return True
+        return False
     except Exception as e:
         db.rollback()
         raise e
