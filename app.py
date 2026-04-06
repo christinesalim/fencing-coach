@@ -4,8 +4,9 @@
 import os
 import json
 from datetime import datetime
+from functools import wraps
 from pathlib import Path
-from flask import Flask, request, render_template, jsonify, Response
+from flask import Flask, request, render_template, jsonify, Response, session, redirect, url_for
 from werkzeug.utils import secure_filename
 import openai
 import anthropic
@@ -21,6 +22,7 @@ from database import (
 load_dotenv()
 
 app = Flask(__name__)
+app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-change-in-production')
 app.config['MAX_CONTENT_LENGTH'] = 200 * 1024 * 1024  # 200MB max file size (for videos)
 app.config['UPLOAD_FOLDER'] = Path(__file__).parent / 'uploads'
 app.config['UPLOAD_FOLDER'].mkdir(exist_ok=True)
@@ -119,13 +121,43 @@ def extract_fencing_advice(transcript, filename):
         return json.loads(text.strip())
 
 
+def login_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get('logged_in'):
+            return redirect(url_for('login', next=request.path))
+        return f(*args, **kwargs)
+    return decorated
+
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    error = None
+    if request.method == 'POST':
+        password = request.form.get('password', '')
+        if password == os.environ.get('APP_PASSWORD', ''):
+            session['logged_in'] = True
+            next_page = request.args.get('next', '/')
+            return redirect(next_page)
+        error = 'Incorrect password'
+    return render_template('login.html', error=error)
+
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('login'))
+
+
 @app.route('/')
+@login_required
 def index():
     """Main page."""
     return render_template('index.html')
 
 
 @app.route('/tips')
+@login_required
 def tips():
     """View all tips."""
     data = load_data_from_db()
@@ -133,6 +165,7 @@ def tips():
 
 
 @app.route('/upload', methods=['POST'])
+@login_required
 def upload():
     """Handle file upload and processing."""
     if 'audio' not in request.files:
@@ -175,12 +208,14 @@ def upload():
 
 
 @app.route('/api/data')
+@login_required
 def get_data():
     """Get all data as JSON."""
     return jsonify(load_data_from_db())
 
 
 @app.route('/api/backup')
+@login_required
 def backup():
     """Full database backup as downloadable JSON."""
     data = load_data_from_db()
@@ -195,6 +230,7 @@ def backup():
 
 
 @app.route('/api/restore', methods=['POST'])
+@login_required
 def restore():
     """Restore database from a backup JSON file."""
     if 'file' not in request.files:
@@ -213,6 +249,7 @@ def restore():
 
 
 @app.route('/api/edit-tip', methods=['POST'])
+@login_required
 def edit_tip():
     """Edit a specific tip."""
     data_json = request.get_json()
@@ -234,6 +271,7 @@ def edit_tip():
 
 
 @app.route('/api/delete-tip', methods=['POST'])
+@login_required
 def delete_tip():
     """Delete a specific tip."""
     data_json = request.get_json()
