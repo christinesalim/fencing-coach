@@ -30,9 +30,21 @@ app.config['UPLOAD_FOLDER'].mkdir(exist_ok=True)
 ALLOWED_AUDIO_EXTENSIONS = {'.m4a', '.mp3', '.wav', '.aac', '.ogg', '.flac'}
 ALLOWED_VIDEO_EXTENSIONS = {'.mp4', '.mov', '.avi', '.mkv', '.m4v'}
 
-# Initialize API clients
-openai_client = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
-claude_client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+# API clients — initialized lazily so missing env vars don't crash startup
+_openai_client = None
+_claude_client = None
+
+def get_openai_client():
+    global _openai_client
+    if _openai_client is None:
+        _openai_client = openai.OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+    return _openai_client
+
+def get_claude_client():
+    global _claude_client
+    if _claude_client is None:
+        _claude_client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+    return _claude_client
 
 
 def extract_audio_from_video(video_path):
@@ -63,7 +75,7 @@ def transcribe(file_path):
 
     try:
         with open(audio_path, "rb") as f:
-            result = openai_client.audio.transcriptions.create(
+            result = get_openai_client().audio.transcriptions.create(
                 model="whisper-1",
                 file=f,
                 response_format="text",
@@ -77,7 +89,7 @@ def transcribe(file_path):
 
 def extract_fencing_advice(transcript, filename):
     """Extract actionable fencing advice from transcript."""
-    message = claude_client.messages.create(
+    message = get_claude_client().messages.create(
         model="claude-sonnet-4-6",
         max_tokens=2048,
         messages=[
