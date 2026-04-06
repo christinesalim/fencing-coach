@@ -179,7 +179,7 @@
         <div class="card upload-section">
             <h2 style="margin-bottom: 20px;">Upload Voice Memo</h2>
 
-            <input type="file" id="audioFile" accept="audio/*,video/*,.m4a,.mp4,.mov">
+            <input type="file" id="audioFile" accept="audio/*,video/*,.m4a,.mp4,.mov" multiple>
             <label for="audioFile" class="upload-btn" id="uploadLabel">
                 📱 Choose Audio/Video File
             </label>
@@ -210,53 +210,55 @@
         loadRecentSessions();
 
         fileInput.addEventListener('change', async (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
+            const files = Array.from(e.target.files);
+            if (!files.length) return;
 
-            // Show processing state
             loader.style.display = 'block';
             status.style.display = 'block';
-            status.className = 'status processing';
-            status.textContent = 'Processing your voice memo... This may take a minute.';
-            uploadLabel.textContent = 'Processing...';
             uploadLabel.disabled = true;
 
-            // Upload file
-            const formData = new FormData();
-            formData.append('audio', file);
+            let succeeded = 0;
+            let failed = 0;
 
-            try {
-                const response = await fetch('/upload', {
-                    method: 'POST',
-                    body: formData
-                });
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                status.className = 'status processing';
+                status.textContent = `Processing ${file.name} (${i + 1} of ${files.length})...`;
 
-                const data = await response.json();
+                const formData = new FormData();
+                formData.append('audio', file);
 
-                if (data.error) {
-                    throw new Error(data.error);
+                try {
+                    const response = await fetch('/upload', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const data = await response.json();
+                    if (data.error) throw new Error(data.error);
+                    succeeded++;
+                } catch (error) {
+                    failed++;
+                    console.error(`Failed: ${file.name} — ${error.message}`);
                 }
-
-                // Show success
-                loader.style.display = 'none';
-                status.className = 'status success';
-                status.textContent = '✅ Success! Your tips have been added.';
-                uploadLabel.textContent = '📱 Choose Audio File';
-                uploadLabel.disabled = false;
-
-                // Reload recent sessions
-                loadRecentSessions();
-
-                // Clear file input
-                fileInput.value = '';
-
-            } catch (error) {
-                loader.style.display = 'none';
-                status.className = 'status error';
-                status.textContent = '❌ Error: ' + error.message;
-                uploadLabel.textContent = '📱 Choose Audio File';
-                uploadLabel.disabled = false;
             }
+
+            loader.style.display = 'none';
+            uploadLabel.disabled = false;
+            uploadLabel.textContent = '📱 Choose Audio File';
+            fileInput.value = '';
+
+            if (failed === 0) {
+                status.className = 'status success';
+                status.textContent = `✅ ${succeeded} file${succeeded > 1 ? 's' : ''} processed successfully.`;
+            } else if (succeeded === 0) {
+                status.className = 'status error';
+                status.textContent = `❌ All ${failed} files failed to process.`;
+            } else {
+                status.className = 'status success';
+                status.textContent = `✅ ${succeeded} succeeded, ${failed} failed. Check console for details.`;
+            }
+
+            loadRecentSessions();
         });
 
         async function loadRecentSessions() {
