@@ -73,6 +73,7 @@
 
         input[type="text"], input[type="date"], input[type="number"], select {
             width: 100%;
+            max-width: 100%;
             padding: 12px 14px;
             border: 2px solid #e0e0e0;
             border-radius: 12px;
@@ -81,6 +82,9 @@
             outline: none;
             transition: border-color 0.2s;
             background: white;
+            -webkit-appearance: none;
+            appearance: none;
+            box-sizing: border-box;
         }
 
         input[type="text"]:focus, input[type="date"]:focus, input[type="number"]:focus, select:focus {
@@ -92,7 +96,14 @@
             gap: 12px;
         }
 
-        .form-row .form-group { flex: 1; }
+        .form-row .form-group { flex: 1; min-width: 0; }
+
+        @media (max-width: 480px) {
+            .form-row {
+                flex-direction: column;
+                gap: 0;
+            }
+        }
 
         .btn-primary {
             width: 100%;
@@ -307,7 +318,7 @@
             <!-- Upload section -->
             <div style="text-align:center;">
                 <p style="color:#777;margin-bottom:16px;font-size:14px;">Upload a photo of the pool sheet to extract results automatically.</p>
-                <input type="file" id="poolPhoto" accept="image/*" capture="environment">
+                <input type="file" id="poolPhoto" accept="image/*">
                 <label for="poolPhoto" class="upload-btn">Upload Pool Sheet Photo</label>
             </div>
 
