@@ -3,6 +3,8 @@
 
 import os
 import json
+import uuid
+import base64
 from datetime import datetime
 from functools import wraps
 from pathlib import Path
@@ -19,7 +21,22 @@ from database import (
     restore_data_to_db,
     get_lessons_from_db,
     add_lesson_to_db,
-    delete_lesson_from_db
+    delete_lesson_from_db,
+    add_lesson_r2,
+    get_lessons_filtered,
+    get_lesson,
+    update_lesson,
+    delete_lesson_r2,
+    add_tags_to_lesson,
+    remove_tag_from_lesson,
+    get_all_tags,
+    create_tournament,
+    get_tournaments,
+    get_tournament,
+    update_tournament,
+    delete_tournament,
+    save_pool_results_to_db,
+    get_pool_results
 )
 
 load_dotenv()
@@ -36,6 +53,7 @@ ALLOWED_VIDEO_EXTENSIONS = {'.mp4', '.mov', '.avi', '.mkv', '.m4v'}
 # API clients — initialized lazily so missing env vars don't crash startup
 _openai_client = None
 _claude_client = None
+_r2_client = None
 
 def get_openai_client():
     global _openai_client
@@ -48,6 +66,18 @@ def get_claude_client():
     if _claude_client is None:
         _claude_client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
     return _claude_client
+
+def get_r2_client():
+    global _r2_client
+    if _r2_client is None:
+        import boto3
+        _r2_client = boto3.client('s3',
+            endpoint_url=f"https://{os.environ.get('R2_ACCOUNT_ID', '')}.r2.cloudflarestorage.com",
+            aws_access_key_id=os.environ.get('R2_ACCESS_KEY_ID', ''),
+            aws_secret_access_key=os.environ.get('R2_SECRET_ACCESS_KEY', ''),
+            region_name='auto'
+        )
+    return _r2_client
 
 
 def extract_audio_from_video(video_path):
@@ -134,6 +164,41 @@ def extract_fencing_advice(transcript, filename):
         elif "```" in text:
             text = text.split("```")[1].split("```")[0]
         return json.loads(text.strip())
+
+
+def analyze_lesson_transcript(transcript):
+    """Generate title, summary, category, and tags from a lesson transcript."""
+    client = get_claude_client()
+    message = client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=512,
+        messages=[{
+            "role": "user",
+            "content": f"""Analyze this fencing lesson coaching transcript and return JSON:
+
+{{
+  "title": "<short descriptive title, under 50 chars, e.g. 'Parry 4 Riposte - correct form'>",
+  "summary": "<2-3 sentence description focusing on the technique taught and key corrections>",
+  "category": "offense" or "defense" or null,
+  "tags": ["<specific fencing technique tags like: flick, parry 4, riposte, fleche, footwork>"]
+}}
+
+Rules for tags:
+- Only include tags you're confident about from what the coach is teaching
+- Use standard fencing terminology (lowercase)
+- Include specific techniques, not vague terms
+- Typically 2-5 tags per lesson
+
+Transcript:
+{transcript}"""
+        }]
+    )
+    text = message.content[0].text
+    if "```json" in text:
+        text = text.split("```json")[1].split("```")[0]
+    elif "```" in text:
+        text = text.split("```")[1].split("```")[0]
+    return json.loads(text.strip())
 
 
 def login_required(f):
@@ -267,7 +332,7 @@ def restore():
 @login_required
 def lessons():
     """Private lessons page."""
-    return render_template('lessons.html', lessons=get_lessons_from_db())
+    return render_template('lessons.html')
 
 
 @app.route('/api/add-lesson', methods=['POST'])
@@ -302,6 +367,241 @@ def delete_lesson():
         return jsonify({'error': 'Lesson not found'}), 404
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/lessons/upload', methods=['POST'])
+@login_required
+def api_upload_lesson():
+    """Upload video and create lesson with R2 storage."""
+    if 'video' not in request.files:
+        return jsonify({'error': 'No video file uploaded'}), 400
+
+    file = request.files['video']
+    if file.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
+
+    # Get optional form fields
+    title = request.form.get('title', '').strip()
+    description = request.form.get('description', '').strip()
+    category = request.form.get('category', '').strip() or None
+    lesson_date_str = request.form.get('lesson_date', '').strip()
+    tags_str = request.form.get('tags', '').strip()
+
+    user_tags = [t.strip() for t in tags_str.split(',') if t.strip()] if tags_str else []
+
+    # Parse lesson date
+    lesson_date = None
+    if lesson_date_str:
+        try:
+            lesson_date = datetime.strptime(lesson_date_str, '%Y-%m-%d')
+        except ValueError:
+            pass
+
+    # Save file temporarily
+    original_filename = secure_filename(file.filename)
+    file_ext = Path(original_filename).suffix.lower()
+    temp_filename = f"{uuid.uuid4()}{file_ext}"
+    filepath = app.config['UPLOAD_FOLDER'] / temp_filename
+    file.save(filepath)
+
+    try:
+        file_size = filepath.stat().st_size
+
+        # Extract duration via moviepy
+        duration = None
+        try:
+            from moviepy.editor import VideoFileClip
+            clip = VideoFileClip(str(filepath))
+            duration = clip.duration
+            clip.close()
+        except Exception:
+            pass
+
+        # Determine mime type
+        mime_map = {'.mp4': 'video/mp4', '.mov': 'video/quicktime', '.avi': 'video/x-msvideo',
+                    '.mkv': 'video/x-matroska', '.m4v': 'video/x-m4v'}
+        mime_type = mime_map.get(file_ext, 'video/mp4')
+
+        # Generate R2 object key and upload
+        r2_key = f"lessons/{uuid.uuid4()}{file_ext}"
+        bucket = os.environ.get('R2_BUCKET_NAME', 'fencing-lessons')
+        get_r2_client().upload_file(str(filepath), bucket, r2_key)
+
+        # Transcribe audio
+        transcript = None
+        transcription_status = 'pending'
+        try:
+            transcript = transcribe(filepath)
+            transcription_status = 'complete'
+        except Exception:
+            transcription_status = 'failed'
+
+        # Auto-analyze if transcript available
+        auto_title = None
+        auto_summary = None
+        auto_category = None
+        auto_tags = []
+        if transcript:
+            try:
+                analysis = analyze_lesson_transcript(transcript)
+                auto_title = analysis.get('title')
+                auto_summary = analysis.get('summary')
+                auto_category = analysis.get('category')
+                auto_tags = analysis.get('tags', [])
+            except Exception:
+                pass
+
+        # Merge auto-fill with user-provided values
+        final_title = title if title else (auto_title or original_filename)
+        final_description = description if description else (auto_summary or '')
+        final_category = category if category else auto_category
+
+        # Merge tags (user + auto, deduplicated)
+        all_tags = list(set([t.lower() for t in user_tags] + [t.lower() for t in auto_tags]))
+
+        # Create lesson record
+        lesson_data = {
+            'title': final_title,
+            'description': final_description,
+            'r2_object_key': r2_key,
+            'original_filename': original_filename,
+            'file_size_bytes': file_size,
+            'duration_seconds': duration,
+            'mime_type': mime_type,
+            'category': final_category,
+            'lesson_date': lesson_date,
+            'transcript': transcript,
+            'transcription_status': transcription_status,
+            'tags': all_tags,
+        }
+        lesson = add_lesson_r2(lesson_data)
+
+        return jsonify({'success': True, 'lesson': lesson})
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        # Clean up temp file
+        if filepath.exists():
+            filepath.unlink()
+
+
+@app.route('/api/lessons/list')
+@login_required
+def api_list_lessons():
+    """List lessons with optional filtering."""
+    category = request.args.get('category')
+    tag = request.args.get('tag')
+    search = request.args.get('q')
+    return jsonify(get_lessons_filtered(category=category, tag=tag, search=search))
+
+
+@app.route('/api/lessons/<int:lesson_id>')
+@login_required
+def api_get_lesson(lesson_id):
+    """Get a single lesson with tags."""
+    lesson = get_lesson(lesson_id)
+    if not lesson:
+        return jsonify({'error': 'Lesson not found'}), 404
+    return jsonify(lesson)
+
+
+@app.route('/api/lessons/<int:lesson_id>/playback-url')
+@login_required
+def api_lesson_playback_url(lesson_id):
+    """Generate a presigned R2 URL for video playback."""
+    lesson = get_lesson(lesson_id)
+    if not lesson:
+        return jsonify({'error': 'Lesson not found'}), 404
+    if not lesson.get('r2_object_key'):
+        return jsonify({'error': 'No R2 video for this lesson'}), 404
+    try:
+        url = get_r2_client().generate_presigned_url(
+            'get_object',
+            Params={
+                'Bucket': os.environ.get('R2_BUCKET_NAME', 'fencing-lessons'),
+                'Key': lesson['r2_object_key']
+            },
+            ExpiresIn=3600
+        )
+        return jsonify({'url': url, 'expires_in': 3600})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/lessons/<int:lesson_id>/update', methods=['POST'])
+@login_required
+def api_update_lesson(lesson_id):
+    """Update lesson metadata."""
+    data = request.get_json()
+    try:
+        lesson = update_lesson(lesson_id, data)
+        if not lesson:
+            return jsonify({'error': 'Lesson not found'}), 404
+        return jsonify({'success': True, 'lesson': lesson})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/lessons/<int:lesson_id>/delete', methods=['POST'])
+@login_required
+def api_delete_lesson_r2(lesson_id):
+    """Delete lesson and its R2 object."""
+    try:
+        r2_key = delete_lesson_r2(lesson_id)
+        if r2_key is None:
+            return jsonify({'error': 'Lesson not found'}), 404
+
+        # Try to delete R2 object (don't fail if it errors)
+        if r2_key:
+            try:
+                bucket = os.environ.get('R2_BUCKET_NAME', 'fencing-lessons')
+                get_r2_client().delete_object(Bucket=bucket, Key=r2_key)
+            except Exception:
+                pass  # Log but don't fail
+
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/lessons/<int:lesson_id>/tags', methods=['POST'])
+@login_required
+def api_add_tags(lesson_id):
+    """Add tags to a lesson."""
+    data = request.get_json()
+    tags = data.get('tags', [])
+    if not tags:
+        return jsonify({'error': 'No tags provided'}), 400
+    try:
+        added = add_tags_to_lesson(lesson_id, tags)
+        return jsonify({'success': True, 'added': added})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/lessons/<int:lesson_id>/tags/remove', methods=['POST'])
+@login_required
+def api_remove_tag(lesson_id):
+    """Remove a tag from a lesson."""
+    data = request.get_json()
+    tag = data.get('tag', '')
+    if not tag:
+        return jsonify({'error': 'No tag provided'}), 400
+    try:
+        success = remove_tag_from_lesson(lesson_id, tag)
+        if success:
+            return jsonify({'success': True})
+        return jsonify({'error': 'Tag not found'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/tags')
+@login_required
+def api_get_all_tags():
+    """Get all unique tags."""
+    return jsonify(get_all_tags())
 
 
 @app.route('/api/edit-tip', methods=['POST'])
@@ -343,6 +643,221 @@ def delete_tip():
             return jsonify({'success': True})
         else:
             return jsonify({'error': 'Tip not found'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+def extract_pool_results_from_photo(image_path):
+    """Extract pool results from a photo using Claude Vision API."""
+    with open(image_path, "rb") as f:
+        image_data = base64.standard_b64encode(f.read()).decode("utf-8")
+
+    ext = image_path.suffix.lower()
+    if ext == '.jpg' or ext == '.jpeg':
+        media_type = "image/jpeg"
+    elif ext == '.png':
+        media_type = "image/png"
+    elif ext == '.webp':
+        media_type = "image/webp"
+    else:
+        raise ValueError(f"Unsupported image format: {ext}")
+
+    message = get_claude_client().messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=2048,
+        messages=[{
+            "role": "user",
+            "content": [
+                {
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": media_type,
+                        "data": image_data,
+                    },
+                },
+                {
+                    "type": "text",
+                    "text": """This is a photo of a fencing pool results sheet.
+Extract the following information in JSON format:
+
+{
+  "pool_number": <number>,
+  "strip_number": <number or null>,
+  "fencer_name": "<highlighted fencer's full name>",
+  "fencer_club": "<club abbreviation and location>",
+  "position_in_pool": <final position number (1-6)>,
+  "victories": <total V>,
+  "defeats": <total number of bouts - V>,
+  "victory_rate": <V/M ratio as decimal>,
+  "touches_scored": <TS>,
+  "touches_received": <TR>,
+  "indicator": <Ind>,
+  "bouts": [
+    {
+      "bout_order": <1-6>,
+      "opponent_name": "<full name>",
+      "opponent_club": "<club and location>",
+      "score_for": <fencer's score>,
+      "score_against": <opponent's score>,
+      "result": "won" or "lost"
+    }
+  ]
+}
+
+IMPORTANT:
+- The highlighted/main fencer is the one whose row is being tracked
+- Extract ALL opponent bouts from that fencer's row
+- V5 means Victory with score 5, D4 means Defeat with score 4
+- Score format like "V5" against opponent means: fencer scored 5, look at opponent's cell for their score
+- If you see D4 in the fencer's cell, it means the fencer lost scoring 4 points
+- Calculate defeats as: total_bouts - victories
+- Return null for any field that's unclear or unreadable"""
+                }
+            ],
+        }],
+    )
+
+    try:
+        result = json.loads(message.content[0].text)
+    except json.JSONDecodeError:
+        text = message.content[0].text
+        if "```json" in text:
+            text = text.split("```json")[1].split("```")[0]
+        elif "```" in text:
+            text = text.split("```")[1].split("```")[0]
+        result = json.loads(text.strip())
+
+    return result
+
+
+# --- Tournament routes ---
+
+@app.route('/tournaments')
+@login_required
+def tournaments_page():
+    """Tournaments list page."""
+    return render_template('tournaments.html', tournaments=get_tournaments())
+
+
+@app.route('/tournaments/<int:tournament_id>')
+@login_required
+def tournament_detail_page(tournament_id):
+    """Single tournament detail page."""
+    tournament = get_tournament(tournament_id)
+    if not tournament:
+        return redirect(url_for('tournaments_page'))
+    pool_data = get_pool_results(tournament_id)
+    return render_template('tournament_detail.html', tournament=tournament, pool_data=pool_data)
+
+
+@app.route('/api/tournaments', methods=['POST'])
+@login_required
+def api_create_tournament():
+    """Create a new tournament."""
+    data = request.get_json()
+    if not data.get('name') or not data.get('date'):
+        return jsonify({'error': 'Name and date are required'}), 400
+    try:
+        tournament = create_tournament(data)
+        return jsonify({'success': True, 'tournament': tournament})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/tournaments', methods=['GET'])
+@login_required
+def api_list_tournaments():
+    """List all tournaments."""
+    return jsonify(get_tournaments())
+
+
+@app.route('/api/tournaments/<int:tournament_id>', methods=['GET'])
+@login_required
+def api_get_tournament(tournament_id):
+    """Get a single tournament."""
+    tournament = get_tournament(tournament_id)
+    if not tournament:
+        return jsonify({'error': 'Tournament not found'}), 404
+    return jsonify(tournament)
+
+
+@app.route('/api/tournaments/<int:tournament_id>', methods=['POST'])
+@login_required
+def api_update_tournament(tournament_id):
+    """Update a tournament."""
+    data = request.get_json()
+    try:
+        tournament = update_tournament(tournament_id, data)
+        if not tournament:
+            return jsonify({'error': 'Tournament not found'}), 404
+        return jsonify({'success': True, 'tournament': tournament})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/tournaments/<int:tournament_id>/delete', methods=['POST'])
+@login_required
+def api_delete_tournament(tournament_id):
+    """Delete a tournament."""
+    try:
+        success = delete_tournament(tournament_id)
+        if success:
+            return jsonify({'success': True})
+        return jsonify({'error': 'Tournament not found'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/upload-pool-photo', methods=['POST'])
+@login_required
+def upload_pool_photo():
+    """Handle pool results photo upload and extraction."""
+    if 'photo' not in request.files:
+        return jsonify({'error': 'No photo uploaded'}), 400
+
+    tournament_id = request.form.get('tournament_id')
+    if not tournament_id:
+        return jsonify({'error': 'Tournament ID required'}), 400
+
+    file = request.files['photo']
+    if file.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
+
+    filename = secure_filename(file.filename)
+    filepath = app.config['UPLOAD_FOLDER'] / filename
+    file.save(filepath)
+
+    try:
+        pool_data = extract_pool_results_from_photo(filepath)
+        return jsonify({
+            'success': True,
+            'extracted_data': pool_data
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if filepath.exists():
+            filepath.unlink()
+
+
+@app.route('/api/confirm-pool-results', methods=['POST'])
+@login_required
+def confirm_pool_results():
+    """Save confirmed pool results to database."""
+    data = request.get_json()
+    tournament_id = data.get('tournament_id')
+    pool_data = data.get('pool_data')
+
+    if not all([tournament_id, pool_data]):
+        return jsonify({'error': 'Missing required fields'}), 400
+
+    try:
+        pool_round_id = save_pool_results_to_db(tournament_id, pool_data)
+        return jsonify({
+            'success': True,
+            'pool_round_id': pool_round_id
+        })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

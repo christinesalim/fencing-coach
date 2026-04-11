@@ -60,7 +60,6 @@
 
         .card h2 { font-size: 1.2em; margin-bottom: 16px; color: #1a1a2e; }
 
-        /* Add lesson form */
         .form-group { margin-bottom: 14px; }
 
         label {
@@ -71,7 +70,7 @@
             margin-bottom: 5px;
         }
 
-        input[type="text"], textarea {
+        input[type="text"], input[type="date"], textarea {
             width: 100%;
             padding: 12px 14px;
             border: 2px solid #e0e0e0;
@@ -82,8 +81,18 @@
             transition: border-color 0.2s;
         }
 
-        input[type="text"]:focus, textarea:focus { border-color: #2c3e6b; }
+        input[type="text"]:focus, input[type="date"]:focus, textarea:focus { border-color: #2c3e6b; }
         textarea { resize: vertical; min-height: 80px; }
+
+        input[type="file"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px dashed #ccc;
+            border-radius: 12px;
+            font-size: 14px;
+            cursor: pointer;
+            background: #fafafa;
+        }
 
         .btn-primary {
             width: 100%;
@@ -99,80 +108,557 @@
         }
 
         .btn-primary:active { opacity: 0.9; }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 
-        /* Lesson cards */
-        .lesson {
+        /* Category toggle buttons */
+        .category-toggles {
+            display: flex;
+            gap: 10px;
+        }
+
+        .category-btn {
+            flex: 1;
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
             background: white;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.2s;
+        }
+
+        .category-btn.active-offense {
+            border-color: #3b82f6;
+            background: #eff6ff;
+            color: #1d4ed8;
+        }
+
+        .category-btn.active-defense {
+            border-color: #22c55e;
+            background: #f0fdf4;
+            color: #16a34a;
+        }
+
+        /* Tag chips */
+        .tag-input-area {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            padding: 8px 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            min-height: 44px;
+            align-items: center;
+            position: relative;
+        }
+
+        .tag-input-area:focus-within { border-color: #2c3e6b; }
+
+        .tag-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: #e0e7ff;
+            color: #3730a3;
+            padding: 4px 10px;
             border-radius: 20px;
-            margin-bottom: 20px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .tag-chip .remove-tag {
+            cursor: pointer;
+            font-size: 16px;
+            line-height: 1;
+            opacity: 0.6;
+        }
+
+        .tag-chip .remove-tag:hover { opacity: 1; }
+
+        .tag-input {
+            border: none;
+            outline: none;
+            font-size: 14px;
+            flex: 1;
+            min-width: 100px;
+            padding: 4px 0;
+            font-family: inherit;
+        }
+
+        .tag-suggestions {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            margin-top: 4px;
+            max-height: 150px;
+            overflow-y: auto;
+            z-index: 100;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            display: none;
+        }
+
+        .tag-suggestions.show { display: block; }
+
+        .tag-suggestion {
+            padding: 8px 14px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .tag-suggestion:hover { background: #f0f0f0; }
+
+        /* Progress bar */
+        .progress-wrapper {
+            display: none;
+            margin-top: 14px;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: #e0e0e0;
+            border-radius: 3px;
             overflow: hidden;
         }
 
-        .video-wrapper {
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4a7fd4, #1e3a7a);
+            width: 0%;
+            transition: width 0.3s;
+            border-radius: 3px;
+        }
+
+        .progress-status {
+            font-size: 13px;
+            color: #555;
+            margin-top: 8px;
+            text-align: center;
+        }
+
+        /* Filter bar */
+        .filter-bar {
+            background: white;
+            border-radius: 20px;
+            padding: 16px 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 10px 14px 10px 36px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            font-size: 15px;
+            font-family: inherit;
+            outline: none;
+            background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%23999' viewBox='0 0 16 16'%3E%3Cpath d='M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85zm-5.242.156a5 5 0 1 1 0-10 5 5 0 0 1 0 10z'/%3E%3C/svg%3E") no-repeat 12px center;
+        }
+
+        .search-input:focus { border-color: #2c3e6b; }
+
+        .filter-pills {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+            flex-wrap: wrap;
+        }
+
+        .filter-pill {
+            padding: 6px 14px;
+            border-radius: 20px;
+            border: 1.5px solid #e0e0e0;
+            background: white;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .filter-pill.active {
+            border-color: #2c3e6b;
+            background: #1e3a7a;
+            color: white;
+        }
+
+        .filter-pill.offense-pill.active {
+            background: #3b82f6;
+            border-color: #3b82f6;
+        }
+
+        .filter-pill.defense-pill.active {
+            background: #22c55e;
+            border-color: #22c55e;
+        }
+
+        .tag-filters {
+            display: flex;
+            gap: 6px;
+            margin-top: 10px;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            padding-bottom: 4px;
+        }
+
+        .tag-filter-pill {
+            padding: 4px 12px;
+            border-radius: 16px;
+            border: 1.5px solid #d1d5db;
+            background: white;
+            font-size: 12px;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.2s;
+        }
+
+        .tag-filter-pill.active {
+            border-color: #6366f1;
+            background: #e0e7ff;
+            color: #3730a3;
+        }
+
+        /* Lesson cards */
+        .lesson-card {
+            background: white;
+            border-radius: 20px;
+            margin-bottom: 16px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            overflow: hidden;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+
+        .lesson-card:active { transform: scale(0.98); }
+
+        .lesson-thumb {
             position: relative;
-            padding-bottom: 56.25%;
-            height: 0;
-            background: #000;
-        }
-
-        .video-wrapper iframe {
-            position: absolute;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            border: none;
-        }
-
-        .video-placeholder {
-            position: absolute;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
+            background: #1a1a2e;
+            padding: 24px;
             display: flex;
             align-items: center;
             justify-content: center;
-            background: #1a1a2e;
+            min-height: 60px;
         }
 
-        .video-placeholder a {
+        .play-icon {
+            width: 40px;
+            height: 40px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .play-icon::after {
+            content: '';
+            display: block;
+            width: 0;
+            height: 0;
+            border-style: solid;
+            border-width: 8px 0 8px 14px;
+            border-color: transparent transparent transparent white;
+            margin-left: 3px;
+        }
+
+        .duration-badge {
+            position: absolute;
+            bottom: 8px;
+            right: 10px;
+            background: rgba(0,0,0,0.7);
             color: white;
-            font-size: 15px;
-            text-decoration: none;
-            background: rgba(255,255,255,0.15);
-            padding: 12px 20px;
-            border-radius: 10px;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
         }
 
-        .lesson-body { padding: 20px; }
+        /* Legacy YouTube indicator */
+        .youtube-badge {
+            position: absolute;
+            top: 8px;
+            left: 10px;
+            background: #ff0000;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+        }
 
-        .lesson-title {
-            font-size: 1.1em;
+        .lesson-card-body { padding: 16px 20px; }
+
+        .lesson-card-title {
+            font-size: 1em;
+            font-weight: 700;
+            color: #1a1a2e;
+            margin-bottom: 6px;
+        }
+
+        .lesson-card-meta {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+            flex-wrap: wrap;
+        }
+
+        .lesson-card-date {
+            font-size: 12px;
+            color: #999;
+        }
+
+        .category-badge {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .category-badge.offense {
+            background: #eff6ff;
+            color: #1d4ed8;
+        }
+
+        .category-badge.defense {
+            background: #f0fdf4;
+            color: #16a34a;
+        }
+
+        .lesson-card-tags {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+            margin-bottom: 6px;
+        }
+
+        .lesson-tag-pill {
+            padding: 2px 8px;
+            border-radius: 10px;
+            background: #f3f4f6;
+            font-size: 11px;
+            color: #555;
+        }
+
+        .lesson-card-desc {
+            font-size: 13px;
+            color: #666;
+            line-height: 1.5;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        /* Detail Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            display: none;
+            align-items: flex-end;
+            justify-content: center;
+        }
+
+        .modal-overlay.show { display: flex; }
+
+        .modal-content {
+            background: white;
+            border-radius: 20px 20px 0 0;
+            width: 100%;
+            max-width: 700px;
+            max-height: 90vh;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            padding: 0;
+            animation: slideUp 0.3s ease-out;
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 20px;
+            border-bottom: 1px solid #eee;
+            position: sticky;
+            top: 0;
+            background: white;
+            border-radius: 20px 20px 0 0;
+            z-index: 10;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 28px;
+            cursor: pointer;
+            color: #999;
+            padding: 0 4px;
+            line-height: 1;
+        }
+
+        .modal-body { padding: 20px; }
+
+        .modal-video {
+            width: 100%;
+            border-radius: 12px;
+            background: #000;
+            margin-bottom: 16px;
+        }
+
+        .modal-title {
+            font-size: 1.2em;
             font-weight: 700;
             color: #1a1a2e;
             margin-bottom: 8px;
         }
 
-        .lesson-date {
-            font-size: 12px;
-            color: #999;
-            margin-bottom: 10px;
+        .modal-meta {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
         }
 
-        .lesson-description {
-            font-size: 14px;
+        .modal-date { font-size: 13px; color: #999; }
+
+        .modal-section {
+            margin-top: 16px;
+        }
+
+        .modal-section-title {
+            font-size: 13px;
+            font-weight: 600;
             color: #555;
+            margin-bottom: 8px;
+        }
+
+        .modal-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .modal-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 10px;
+            border-radius: 16px;
+            background: #e0e7ff;
+            color: #3730a3;
+            font-size: 13px;
+        }
+
+        .modal-tag .remove-modal-tag {
+            cursor: pointer;
+            font-size: 15px;
+            opacity: 0.6;
+            line-height: 1;
+        }
+
+        .modal-tag .remove-modal-tag:hover { opacity: 1; }
+
+        .add-tag-btn {
+            padding: 4px 10px;
+            border-radius: 16px;
+            border: 1.5px dashed #ccc;
+            background: white;
+            font-size: 13px;
+            cursor: pointer;
+            color: #999;
+        }
+
+        .modal-description {
+            font-size: 14px;
+            color: #444;
             line-height: 1.6;
             white-space: pre-wrap;
         }
 
-        .lesson-actions { margin-top: 14px; text-align: right; }
+        .modal-description[contenteditable="true"]:focus {
+            outline: 2px solid #2c3e6b;
+            border-radius: 8px;
+            padding: 8px;
+        }
 
-        .btn-delete {
-            background: none;
-            border: none;
-            color: #e74c3c;
-            font-size: 13px;
+        .transcript-toggle {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             cursor: pointer;
-            padding: 4px 8px;
+            padding: 10px 0;
+        }
+
+        .transcript-toggle .arrow {
+            transition: transform 0.2s;
+            font-size: 14px;
+            color: #999;
+        }
+
+        .transcript-toggle .arrow.open { transform: rotate(180deg); }
+
+        .transcript-content {
+            display: none;
+            font-size: 13px;
+            color: #555;
+            line-height: 1.7;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+            padding: 10px;
+            background: #f9f9f9;
+            border-radius: 10px;
+        }
+
+        .transcript-content.show { display: block; }
+
+        .modal-actions {
+            margin-top: 20px;
+            padding-top: 16px;
+            border-top: 1px solid #eee;
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn-delete-lesson {
+            padding: 10px 20px;
+            background: #fee2e2;
+            color: #dc2626;
+            border: none;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .btn-save-lesson {
+            padding: 10px 20px;
+            background: #1e3a7a;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            flex: 1;
         }
 
         .empty-state {
@@ -192,6 +678,23 @@
 
         .status.success { background: #d4edda; color: #155724; display: block; }
         .status.error { background: #f8d7da; color: #721c24; display: block; }
+
+        /* YouTube embed in modal */
+        .youtube-embed-wrapper {
+            position: relative;
+            padding-bottom: 56.25%;
+            height: 0;
+            margin-bottom: 16px;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .youtube-embed-wrapper iframe {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            border: none;
+        }
     </style>
 </head>
 <body>
@@ -202,120 +705,554 @@
             <a href="/logout" class="sign-out">Sign out</a>
         </div>
 
-        <a href="/" class="back-btn">← Back</a>
+        <a href="/" class="back-btn">&larr; Back</a>
 
-        <!-- Add lesson form -->
+        <!-- Upload Section -->
         <div class="card">
-            <h2>Add a Lesson</h2>
+            <h2>Upload a Lesson</h2>
             <div class="form-group">
-                <label>Title</label>
-                <input type="text" id="title" placeholder="e.g. Footwork drill - March 2026">
+                <label>Video</label>
+                <input type="file" id="videoFile" accept="video/*,.mp4,.mov,.m4v">
             </div>
             <div class="form-group">
-                <label>YouTube URL</label>
-                <input type="text" id="youtubeUrl" placeholder="https://www.youtube.com/watch?v=...">
+                <label>Title</label>
+                <input type="text" id="uploadTitle" placeholder="Auto-generated from audio">
+            </div>
+            <div class="form-group">
+                <label>Date</label>
+                <input type="date" id="uploadDate">
+            </div>
+            <div class="form-group">
+                <label>Category</label>
+                <div class="category-toggles">
+                    <button type="button" class="category-btn" id="catOffense" onclick="toggleCategory('offense')">Offense</button>
+                    <button type="button" class="category-btn" id="catDefense" onclick="toggleCategory('defense')">Defense</button>
+                </div>
+            </div>
+            <div class="form-group" style="position:relative;">
+                <label>Tags</label>
+                <div class="tag-input-area" id="uploadTagArea">
+                    <input type="text" class="tag-input" id="uploadTagInput" placeholder="Type and press Enter">
+                    <div class="tag-suggestions" id="uploadTagSuggestions"></div>
+                </div>
             </div>
             <div class="form-group">
                 <label>Description</label>
-                <textarea id="description" placeholder="Key points from this lesson..."></textarea>
+                <textarea id="uploadDesc" placeholder="Auto-generated from audio"></textarea>
             </div>
-            <button class="btn-primary" onclick="addLesson()">Add Lesson</button>
-            <div class="status" id="formStatus"></div>
+            <button class="btn-primary" id="uploadBtn" onclick="uploadLesson()">Upload &amp; Transcribe</button>
+            <div class="progress-wrapper" id="progressWrapper">
+                <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+                <div class="progress-status" id="progressStatus">Uploading...</div>
+            </div>
+            <div class="status" id="uploadStatus"></div>
         </div>
 
-        <!-- Lessons list -->
-        <div id="lessonsList">
-            {% if lessons %}
-                {% for lesson in lessons %}
-                <div class="lesson" id="lesson-{{ lesson.id }}">
-                    <div class="video-wrapper">
-                        {% set embed_url = lesson.youtube_url %}
-                        {% if 'watch?v=' in lesson.youtube_url %}
-                            {% set video_id = lesson.youtube_url.split('watch?v=')[1].split('&')[0] %}
-                            <iframe src="https://www.youtube.com/embed/{{ video_id }}" allowfullscreen></iframe>
-                        {% elif 'youtu.be/' in lesson.youtube_url %}
-                            {% set video_id = lesson.youtube_url.split('youtu.be/')[1].split('?')[0] %}
-                            <iframe src="https://www.youtube.com/embed/{{ video_id }}" allowfullscreen></iframe>
-                        {% else %}
-                            <div class="video-placeholder">
-                                <a href="{{ lesson.youtube_url }}" target="_blank">Watch on YouTube</a>
-                            </div>
-                        {% endif %}
-                    </div>
-                    <div class="lesson-body">
-                        <div class="lesson-title">{{ lesson.title }}</div>
-                        <div class="lesson-date">{{ lesson.created_at }}</div>
-                        {% if lesson.description %}
-                        <div class="lesson-description">{{ lesson.description }}</div>
-                        {% endif %}
-                        <div class="lesson-actions">
-                            <button class="btn-delete" onclick="deleteLesson({{ lesson.id }})">Delete</button>
-                        </div>
-                    </div>
-                </div>
-                {% endfor %}
-            {% else %}
-                <div class="empty-state" id="emptyState">
-                    <p>No lessons yet. Add your first one above.</p>
-                </div>
-            {% endif %}
+        <!-- Filter/Search Bar -->
+        <div class="filter-bar">
+            <input type="text" class="search-input" id="searchInput" placeholder="Search lessons...">
+            <div class="filter-pills">
+                <button class="filter-pill active" onclick="setCategory(null, this)">All</button>
+                <button class="filter-pill offense-pill" onclick="setCategory('offense', this)">Offense</button>
+                <button class="filter-pill defense-pill" onclick="setCategory('defense', this)">Defense</button>
+            </div>
+            <div class="tag-filters" id="tagFilters"></div>
+        </div>
+
+        <!-- Lesson Library -->
+        <div id="lessonsList"></div>
+        <div class="empty-state" id="emptyState" style="display:none;">
+            <p>No lessons yet. Upload your first one above.</p>
+        </div>
+    </div>
+
+    <!-- Detail Modal -->
+    <div class="modal-overlay" id="detailModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span style="font-weight:600;">Lesson Detail</span>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body" id="modalBody"></div>
         </div>
     </div>
 
     <script>
-        async function addLesson() {
-            const title = document.getElementById('title').value.trim();
-            const youtubeUrl = document.getElementById('youtubeUrl').value.trim();
-            const description = document.getElementById('description').value.trim();
-            const status = document.getElementById('formStatus');
+        // State
+        let allTags = [];
+        let selectedCategory = null;
+        let selectedTag = null;
+        let uploadCategory = null;
+        let uploadTags = [];
+        let currentLessonId = null;
+        let searchTimeout = null;
 
-            if (!title || !youtubeUrl) {
-                status.className = 'status error';
-                status.textContent = 'Title and YouTube URL are required.';
-                return;
-            }
+        // Set default date to today
+        document.getElementById('uploadDate').value = new Date().toISOString().split('T')[0];
 
-            try {
-                const response = await fetch('/api/add-lesson', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ title, youtube_url: youtubeUrl, description })
-                });
-                const data = await response.json();
+        // Initialize
+        loadTags();
+        loadLessons();
 
-                if (data.error) throw new Error(data.error);
-
-                // Clear form
-                document.getElementById('title').value = '';
-                document.getElementById('youtubeUrl').value = '';
-                document.getElementById('description').value = '';
-                status.className = 'status success';
-                status.textContent = 'Lesson added!';
-
-                // Reload page to show new lesson with embedded video
-                setTimeout(() => location.reload(), 800);
-
-            } catch (error) {
-                status.className = 'status error';
-                status.textContent = 'Error: ' + error.message;
+        // Category toggle for upload form
+        function toggleCategory(cat) {
+            const offBtn = document.getElementById('catOffense');
+            const defBtn = document.getElementById('catDefense');
+            if (uploadCategory === cat) {
+                uploadCategory = null;
+                offBtn.className = 'category-btn';
+                defBtn.className = 'category-btn';
+            } else {
+                uploadCategory = cat;
+                offBtn.className = cat === 'offense' ? 'category-btn active-offense' : 'category-btn';
+                defBtn.className = cat === 'defense' ? 'category-btn active-defense' : 'category-btn';
             }
         }
 
-        async function deleteLesson(id) {
-            if (!confirm('Delete this lesson?')) return;
+        // Tag input handling
+        const tagInput = document.getElementById('uploadTagInput');
+        const tagSuggestions = document.getElementById('uploadTagSuggestions');
+
+        tagInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' || e.key === ',') {
+                e.preventDefault();
+                const val = this.value.replace(',', '').trim().toLowerCase();
+                if (val && !uploadTags.includes(val)) {
+                    uploadTags.push(val);
+                    renderUploadTags();
+                }
+                this.value = '';
+                tagSuggestions.classList.remove('show');
+            }
+        });
+
+        tagInput.addEventListener('input', function() {
+            const val = this.value.trim().toLowerCase();
+            if (val.length === 0) {
+                tagSuggestions.classList.remove('show');
+                return;
+            }
+            const matches = allTags.filter(t => t.includes(val) && !uploadTags.includes(t));
+            if (matches.length > 0) {
+                tagSuggestions.innerHTML = matches.map(t =>
+                    `<div class="tag-suggestion" onclick="addUploadTag('${t}')">${t}</div>`
+                ).join('');
+                tagSuggestions.classList.add('show');
+            } else {
+                tagSuggestions.classList.remove('show');
+            }
+        });
+
+        tagInput.addEventListener('blur', function() {
+            setTimeout(() => tagSuggestions.classList.remove('show'), 200);
+        });
+
+        function addUploadTag(tag) {
+            if (!uploadTags.includes(tag)) {
+                uploadTags.push(tag);
+                renderUploadTags();
+            }
+            tagInput.value = '';
+            tagSuggestions.classList.remove('show');
+        }
+
+        function removeUploadTag(tag) {
+            uploadTags = uploadTags.filter(t => t !== tag);
+            renderUploadTags();
+        }
+
+        function renderUploadTags() {
+            const area = document.getElementById('uploadTagArea');
+            // Remove existing chips
+            area.querySelectorAll('.tag-chip').forEach(c => c.remove());
+            // Add chips before the input
+            uploadTags.forEach(tag => {
+                const chip = document.createElement('span');
+                chip.className = 'tag-chip';
+                chip.innerHTML = `${tag} <span class="remove-tag" onclick="removeUploadTag('${tag}')">&times;</span>`;
+                area.insertBefore(chip, tagInput);
+            });
+        }
+
+        // Upload lesson
+        function uploadLesson() {
+            const fileInput = document.getElementById('videoFile');
+            if (!fileInput.files.length) {
+                showUploadStatus('Please select a video file.', 'error');
+                return;
+            }
+
+            const file = fileInput.files[0];
+            const title = document.getElementById('uploadTitle').value.trim();
+            const lessonDate = document.getElementById('uploadDate').value;
+            const description = document.getElementById('uploadDesc').value.trim();
+
+            const formData = new FormData();
+            formData.append('video', file);
+            if (title) formData.append('title', title);
+            if (lessonDate) formData.append('lesson_date', lessonDate);
+            if (uploadCategory) formData.append('category', uploadCategory);
+            if (uploadTags.length) formData.append('tags', uploadTags.join(','));
+            if (description) formData.append('description', description);
+
+            const btn = document.getElementById('uploadBtn');
+            btn.disabled = true;
+            const progress = document.getElementById('progressWrapper');
+            const fill = document.getElementById('progressFill');
+            const status = document.getElementById('progressStatus');
+            progress.style.display = 'block';
+
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', '/api/lessons/upload');
+
+            xhr.upload.onprogress = function(e) {
+                if (e.lengthComputable) {
+                    const pct = Math.round((e.loaded / e.total) * 100);
+                    fill.style.width = pct + '%';
+                    if (pct < 100) {
+                        status.textContent = 'Uploading... ' + pct + '%';
+                    } else {
+                        status.textContent = 'Transcribing...';
+                    }
+                }
+            };
+
+            xhr.onload = function() {
+                btn.disabled = false;
+                try {
+                    const data = JSON.parse(xhr.responseText);
+                    if (data.success) {
+                        fill.style.width = '100%';
+                        status.textContent = 'Done!';
+                        showUploadStatus('Lesson uploaded successfully!', 'success');
+
+                        // Reset form
+                        fileInput.value = '';
+                        document.getElementById('uploadTitle').value = '';
+                        document.getElementById('uploadDesc').value = '';
+                        document.getElementById('uploadDate').value = new Date().toISOString().split('T')[0];
+                        uploadCategory = null;
+                        document.getElementById('catOffense').className = 'category-btn';
+                        document.getElementById('catDefense').className = 'category-btn';
+                        uploadTags = [];
+                        renderUploadTags();
+
+                        setTimeout(() => {
+                            progress.style.display = 'none';
+                            fill.style.width = '0%';
+                        }, 2000);
+
+                        loadLessons();
+                        loadTags();
+                    } else {
+                        status.textContent = 'Error';
+                        showUploadStatus('Error: ' + (data.error || 'Unknown error'), 'error');
+                    }
+                } catch (e) {
+                    status.textContent = 'Error';
+                    showUploadStatus('Error processing response.', 'error');
+                }
+            };
+
+            xhr.onerror = function() {
+                btn.disabled = false;
+                status.textContent = 'Error';
+                showUploadStatus('Upload failed. Check your connection.', 'error');
+            };
+
+            xhr.send(formData);
+        }
+
+        function showUploadStatus(msg, type) {
+            const el = document.getElementById('uploadStatus');
+            el.className = 'status ' + type;
+            el.textContent = msg;
+            setTimeout(() => { el.className = 'status'; }, 5000);
+        }
+
+        // Load tags for filters and autocomplete
+        async function loadTags() {
+            try {
+                const resp = await fetch('/api/tags');
+                allTags = await resp.json();
+                renderTagFilters();
+            } catch (e) {}
+        }
+
+        function renderTagFilters() {
+            const container = document.getElementById('tagFilters');
+            container.innerHTML = allTags.map(tag =>
+                `<button class="tag-filter-pill${selectedTag === tag ? ' active' : ''}" onclick="setTag('${tag}', this)">${tag}</button>`
+            ).join('');
+        }
+
+        // Filter controls
+        function setCategory(cat, btn) {
+            selectedCategory = cat;
+            document.querySelectorAll('.filter-pills .filter-pill').forEach(p => p.classList.remove('active'));
+            btn.classList.add('active');
+            loadLessons();
+        }
+
+        function setTag(tag, btn) {
+            if (selectedTag === tag) {
+                selectedTag = null;
+                btn.classList.remove('active');
+            } else {
+                selectedTag = tag;
+                document.querySelectorAll('.tag-filter-pill').forEach(p => p.classList.remove('active'));
+                btn.classList.add('active');
+            }
+            loadLessons();
+        }
+
+        // Search with debounce
+        document.getElementById('searchInput').addEventListener('input', function() {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => loadLessons(), 300);
+        });
+
+        // Load lessons list
+        async function loadLessons() {
+            const params = new URLSearchParams();
+            if (selectedCategory) params.set('category', selectedCategory);
+            if (selectedTag) params.set('tag', selectedTag);
+            const q = document.getElementById('searchInput').value.trim();
+            if (q) params.set('q', q);
 
             try {
-                const response = await fetch('/api/delete-lesson', {
+                const resp = await fetch('/api/lessons/list?' + params.toString());
+                const lessons = await resp.json();
+                renderLessons(lessons);
+            } catch (e) {
+                document.getElementById('lessonsList').innerHTML = '';
+                document.getElementById('emptyState').style.display = 'block';
+            }
+        }
+
+        function formatDuration(seconds) {
+            if (!seconds) return '';
+            const m = Math.floor(seconds / 60);
+            const s = Math.round(seconds % 60);
+            return m + ':' + String(s).padStart(2, '0');
+        }
+
+        function renderLessons(lessons) {
+            const container = document.getElementById('lessonsList');
+            const empty = document.getElementById('emptyState');
+
+            if (!lessons.length) {
+                container.innerHTML = '';
+                empty.style.display = 'block';
+                return;
+            }
+
+            empty.style.display = 'none';
+
+            container.innerHTML = lessons.map(lesson => {
+                const isYouTube = lesson.youtube_url && !lesson.r2_object_key;
+                const durationStr = formatDuration(lesson.duration_seconds);
+                const categoryHtml = lesson.category
+                    ? `<span class="category-badge ${lesson.category}">${lesson.category}</span>`
+                    : '';
+                const tagsHtml = (lesson.tags || []).map(t =>
+                    `<span class="lesson-tag-pill">${t}</span>`
+                ).join('');
+
+                return `
+                <div class="lesson-card" onclick="openLesson(${lesson.id})">
+                    <div class="lesson-thumb">
+                        ${isYouTube ? '<span class="youtube-badge">YouTube</span>' : ''}
+                        <div class="play-icon"></div>
+                        ${durationStr ? `<span class="duration-badge">${durationStr}</span>` : ''}
+                    </div>
+                    <div class="lesson-card-body">
+                        <div class="lesson-card-title">${escapeHtml(lesson.title)}</div>
+                        <div class="lesson-card-meta">
+                            <span class="lesson-card-date">${lesson.lesson_date || lesson.created_at || ''}</span>
+                            ${categoryHtml}
+                        </div>
+                        ${tagsHtml ? `<div class="lesson-card-tags">${tagsHtml}</div>` : ''}
+                        ${lesson.description ? `<div class="lesson-card-desc">${escapeHtml(lesson.description)}</div>` : ''}
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            const d = document.createElement('div');
+            d.textContent = text;
+            return d.innerHTML;
+        }
+
+        // Open lesson detail modal
+        async function openLesson(id) {
+            currentLessonId = id;
+            const modal = document.getElementById('detailModal');
+            const body = document.getElementById('modalBody');
+
+            try {
+                const resp = await fetch(`/api/lessons/${id}`);
+                const lesson = await resp.json();
+
+                const isYouTube = lesson.youtube_url && !lesson.r2_object_key;
+                let videoHtml = '';
+
+                if (isYouTube) {
+                    let videoId = '';
+                    if (lesson.youtube_url.includes('watch?v=')) {
+                        videoId = lesson.youtube_url.split('watch?v=')[1].split('&')[0];
+                    } else if (lesson.youtube_url.includes('youtu.be/')) {
+                        videoId = lesson.youtube_url.split('youtu.be/')[1].split('?')[0];
+                    }
+                    if (videoId) {
+                        videoHtml = `<div class="youtube-embed-wrapper"><iframe src="https://www.youtube.com/embed/${videoId}" allowfullscreen></iframe></div>`;
+                    } else {
+                        videoHtml = `<div style="text-align:center;padding:20px;"><a href="${escapeHtml(lesson.youtube_url)}" target="_blank" style="color:#2c3e6b;font-weight:600;">Watch on YouTube</a></div>`;
+                    }
+                } else if (lesson.r2_object_key) {
+                    videoHtml = `<video class="modal-video" id="modalVideo" controls preload="metadata">Loading video...</video>`;
+                }
+
+                const categoryHtml = lesson.category
+                    ? `<span class="category-badge ${lesson.category}">${lesson.category}</span>`
+                    : '';
+
+                const tagsHtml = (lesson.tags || []).map(t =>
+                    `<span class="modal-tag">${t} <span class="remove-modal-tag" onclick="removeModalTag(${id}, '${t}')">&times;</span></span>`
+                ).join('');
+
+                body.innerHTML = `
+                    ${videoHtml}
+                    <div class="modal-title">${escapeHtml(lesson.title)}</div>
+                    <div class="modal-meta">
+                        <span class="modal-date">${lesson.lesson_date || lesson.created_at || ''}</span>
+                        ${categoryHtml}
+                    </div>
+                    <div class="modal-section">
+                        <div class="modal-section-title">Tags</div>
+                        <div class="modal-tags" id="modalTags">
+                            ${tagsHtml}
+                            <button class="add-tag-btn" onclick="promptAddTag(${id})">+ Add tag</button>
+                        </div>
+                    </div>
+                    <div class="modal-section">
+                        <div class="modal-section-title">Description</div>
+                        <div class="modal-description" id="modalDesc" contenteditable="true">${escapeHtml(lesson.description || '')}</div>
+                    </div>
+                    ${lesson.transcript ? `
+                    <div class="modal-section">
+                        <div class="transcript-toggle" onclick="toggleTranscript()">
+                            <span class="modal-section-title" style="margin-bottom:0;">Transcript</span>
+                            <span class="arrow" id="transcriptArrow">&#9660;</span>
+                        </div>
+                        <div class="transcript-content" id="transcriptContent">${escapeHtml(lesson.transcript)}</div>
+                    </div>` : ''}
+                    <div class="modal-actions">
+                        <button class="btn-delete-lesson" onclick="deleteLesson(${id})">Delete</button>
+                        <button class="btn-save-lesson" onclick="saveLesson(${id})">Save Changes</button>
+                    </div>`;
+
+                modal.classList.add('show');
+
+                // Load video playback URL if R2 lesson
+                if (lesson.r2_object_key) {
+                    loadPlaybackUrl(id);
+                }
+
+            } catch (e) {
+                body.innerHTML = '<p style="padding:20px;color:#dc2626;">Failed to load lesson.</p>';
+                modal.classList.add('show');
+            }
+        }
+
+        async function loadPlaybackUrl(id) {
+            try {
+                const resp = await fetch(`/api/lessons/${id}/playback-url`);
+                const data = await resp.json();
+                const video = document.getElementById('modalVideo');
+                if (video && data.url) {
+                    video.src = data.url;
+                }
+            } catch (e) {}
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('detailModal');
+            modal.classList.remove('show');
+            // Stop video playback
+            const video = document.getElementById('modalVideo');
+            if (video) video.pause();
+            currentLessonId = null;
+        }
+
+        // Close modal on overlay click
+        document.getElementById('detailModal').addEventListener('click', function(e) {
+            if (e.target === this) closeModal();
+        });
+
+        function toggleTranscript() {
+            const content = document.getElementById('transcriptContent');
+            const arrow = document.getElementById('transcriptArrow');
+            content.classList.toggle('show');
+            arrow.classList.toggle('open');
+        }
+
+        async function saveLesson(id) {
+            const desc = document.getElementById('modalDesc');
+            try {
+                await fetch(`/api/lessons/${id}/update`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ id })
+                    body: JSON.stringify({ description: desc.innerText })
                 });
-                const data = await response.json();
-                if (data.error) throw new Error(data.error);
-                document.getElementById('lesson-' + id).remove();
-            } catch (error) {
-                alert('Error: ' + error.message);
+                loadLessons();
+            } catch (e) {}
+        }
+
+        async function deleteLesson(id) {
+            if (!confirm('Delete this lesson? This cannot be undone.')) return;
+            try {
+                const resp = await fetch(`/api/lessons/${id}/delete`, { method: 'POST' });
+                const data = await resp.json();
+                if (data.success) {
+                    closeModal();
+                    loadLessons();
+                    loadTags();
+                } else {
+                    alert('Error: ' + (data.error || 'Could not delete'));
+                }
+            } catch (e) {
+                alert('Error deleting lesson.');
             }
+        }
+
+        async function promptAddTag(lessonId) {
+            const tag = prompt('Enter a tag:');
+            if (!tag || !tag.trim()) return;
+            try {
+                await fetch(`/api/lessons/${lessonId}/tags`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tags: [tag.trim()] })
+                });
+                openLesson(lessonId);
+                loadTags();
+            } catch (e) {}
+        }
+
+        async function removeModalTag(lessonId, tag) {
+            try {
+                await fetch(`/api/lessons/${lessonId}/tags/remove`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tag: tag })
+                });
+                openLesson(lessonId);
+                loadTags();
+                loadLessons();
+            } catch (e) {}
         }
     </script>
 </body>

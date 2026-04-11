@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>{{ tournament.name }}</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #4a7fd4 0%, #1e3a7a 50%, #0f1f4a 100%);
+            min-height: 100vh;
+            padding: 20px;
+            padding-bottom: 80px;
+            color: #333;
+        }
+
+        .container { max-width: 700px; margin: 0 auto; }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+            position: relative;
+        }
+
+        .header h1 { font-size: 1.8em; margin-bottom: 6px; }
+        .header p { opacity: 0.9; font-size: 1.1em; }
+
+        .sign-out {
+            position: absolute;
+            top: 0; right: 0;
+            color: rgba(255,255,255,0.7);
+            font-size: 13px;
+            text-decoration: none;
+        }
+
+        .back-btn {
+            display: inline-block;
+            background: white;
+            color: #2c3e6b;
+            padding: 10px 20px;
+            border-radius: 50px;
+            text-decoration: none;
+            font-weight: 600;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 20px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        .card h2 { font-size: 1.2em; margin-bottom: 16px; color: #1a1a2e; }
+        .card h3 { font-size: 1em; margin-bottom: 12px; color: #1a1a2e; }
+
+        .form-group { margin-bottom: 14px; }
+
+        label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: #555;
+            margin-bottom: 5px;
+        }
+
+        input[type="text"], input[type="date"], input[type="number"], select {
+            width: 100%;
+            padding: 12px 14px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            font-size: 15px;
+            font-family: inherit;
+            outline: none;
+            transition: border-color 0.2s;
+            background: white;
+        }
+
+        input[type="text"]:focus, input[type="date"]:focus, input[type="number"]:focus, select:focus {
+            border-color: #2c3e6b;
+        }
+
+        .form-row {
+            display: flex;
+            gap: 12px;
+        }
+
+        .form-row .form-group { flex: 1; }
+
+        .btn-primary {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #4a7fd4 0%, #1e3a7a 50%, #0f1f4a 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 4px;
+        }
+
+        .btn-primary:active { opacity: 0.9; }
+
+        .btn-secondary {
+            width: 100%;
+            padding: 14px;
+            background: white;
+            color: #2c3e6b;
+            border: 2px solid #2c3e6b;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 8px;
+        }
+
+        .btn-secondary:active { opacity: 0.8; }
+
+        .btn-danger {
+            background: none;
+            border: none;
+            color: #e74c3c;
+            font-size: 13px;
+            cursor: pointer;
+            padding: 4px 8px;
+        }
+
+        .upload-btn {
+            display: inline-block;
+            background: linear-gradient(135deg, #4a7fd4 0%, #1e3a7a 50%, #0f1f4a 100%);
+            color: white;
+            padding: 15px 30px;
+            border-radius: 50px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            width: 100%;
+            max-width: 300px;
+            margin: 10px auto;
+            text-align: center;
+        }
+
+        .upload-btn:active { transform: scale(0.95); }
+
+        input[type="file"] { display: none; }
+
+        .pool-summary-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+
+        .pool-stat {
+            background: #f5f7fa;
+            border-radius: 12px;
+            padding: 12px;
+            text-align: center;
+        }
+
+        .pool-stat .stat-value {
+            font-size: 1.5em;
+            font-weight: 700;
+            color: #1a1a2e;
+        }
+
+        .pool-stat .stat-label {
+            font-size: 12px;
+            color: #777;
+            margin-top: 2px;
+        }
+
+        .bout-card {
+            background: #f5f7fa;
+            border-radius: 12px;
+            padding: 14px;
+            margin-bottom: 10px;
+        }
+
+        .bout-card.won { border-left: 4px solid #28a745; }
+        .bout-card.lost { border-left: 4px solid #e74c3c; }
+
+        .bout-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 4px;
+        }
+
+        .bout-opponent {
+            font-weight: 600;
+            font-size: 15px;
+            color: #1a1a2e;
+        }
+
+        .bout-score {
+            font-weight: 700;
+            font-size: 16px;
+        }
+
+        .bout-score.won { color: #28a745; }
+        .bout-score.lost { color: #e74c3c; }
+
+        .bout-club {
+            font-size: 12px;
+            color: #777;
+        }
+
+        .status {
+            padding: 12px;
+            border-radius: 10px;
+            margin-top: 12px;
+            font-size: 14px;
+            display: none;
+        }
+
+        .status.success { background: #d4edda; color: #155724; display: block; }
+        .status.error { background: #f8d7da; color: #721c24; display: block; }
+        .status.processing { background: #d1ecf1; color: #0c5460; display: block; }
+
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #2c3e6b;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+            display: none;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .editable-bout .form-row { margin-bottom: 6px; }
+        .editable-bout input { font-size: 14px; padding: 8px 10px; }
+        .editable-bout label { font-size: 11px; margin-bottom: 2px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>{{ tournament.name }}</h1>
+            <p>{{ tournament.date }} {% if tournament.location %}&middot; {{ tournament.location }}{% endif %}</p>
+            <a href="/logout" class="sign-out">Sign out</a>
+        </div>
+
+        <a href="/tournaments" class="back-btn">&larr; Tournaments</a>
+
+        <!-- Pool Results Section -->
+        <div class="card">
+            <h2>Pool Results</h2>
+
+            {% if pool_data %}
+            <!-- Saved pool results (read-only) -->
+            <div class="pool-summary-grid">
+                <div class="pool-stat">
+                    <div class="stat-value">{{ pool_data.victories }}V - {{ pool_data.defeats }}D</div>
+                    <div class="stat-label">Record</div>
+                </div>
+                <div class="pool-stat">
+                    <div class="stat-value">{{ pool_data.indicator }}</div>
+                    <div class="stat-label">Indicator</div>
+                </div>
+                <div class="pool-stat">
+                    <div class="stat-value">{{ pool_data.touches_scored }}</div>
+                    <div class="stat-label">Touches Scored</div>
+                </div>
+                <div class="pool-stat">
+                    <div class="stat-value">{{ pool_data.touches_received }}</div>
+                    <div class="stat-label">Touches Received</div>
+                </div>
+            </div>
+
+            {% if pool_data.pool_number %}
+            <p style="font-size:13px;color:#777;margin-bottom:8px;">
+                Pool {{ pool_data.pool_number }}
+                {% if pool_data.position_in_pool %}&middot; Finished {{ pool_data.position_in_pool }}{{ 'st' if pool_data.position_in_pool == 1 else 'nd' if pool_data.position_in_pool == 2 else 'rd' if pool_data.position_in_pool == 3 else 'th' }}{% endif %}
+            </p>
+            {% endif %}
+
+            <h3>Bout Results</h3>
+            {% for bout in pool_data.bouts %}
+            <div class="bout-card {{ bout.result }}">
+                <div class="bout-header">
+                    <span class="bout-opponent">{{ bout.opponent_name }}</span>
+                    <span class="bout-score {{ bout.result }}">{{ bout.score_for }} - {{ bout.score_against }}</span>
+                </div>
+                {% if bout.opponent_club %}
+                <div class="bout-club">{{ bout.opponent_club }}</div>
+                {% endif %}
+            </div>
+            {% endfor %}
+
+            {% else %}
+            <!-- Upload section -->
+            <div style="text-align:center;">
+                <p style="color:#777;margin-bottom:16px;font-size:14px;">Upload a photo of the pool sheet to extract results automatically.</p>
+                <input type="file" id="poolPhoto" accept="image/*" capture="environment">
+                <label for="poolPhoto" class="upload-btn">Upload Pool Sheet Photo</label>
+            </div>
+
+            <div class="loader" id="loader"></div>
+            <div class="status" id="uploadStatus"></div>
+
+            <!-- Extracted results review (hidden until extraction) -->
+            <div id="extractedResults" style="display:none;">
+                <h3>Review Extracted Results</h3>
+                <p style="font-size:13px;color:#777;margin-bottom:14px;">Check the data below and edit if needed, then confirm.</p>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Pool #</label>
+                        <input type="number" id="poolNumber">
+                    </div>
+                    <div class="form-group">
+                        <label>Position</label>
+                        <input type="number" id="positionInPool">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Victories</label>
+                        <input type="number" id="victories">
+                    </div>
+                    <div class="form-group">
+                        <label>Defeats</label>
+                        <input type="number" id="defeats">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Touches Scored</label>
+                        <input type="number" id="touchesScored">
+                    </div>
+                    <div class="form-group">
+                        <label>Touches Received</label>
+                        <input type="number" id="touchesReceived">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Indicator</label>
+                    <input type="number" id="indicator">
+                </div>
+
+                <h3 style="margin-top:16px;">Bouts</h3>
+                <div id="boutsList"></div>
+
+                <button class="btn-primary" onclick="confirmPoolResults()" style="margin-top:16px;">Confirm & Save</button>
+                <button class="btn-secondary" onclick="cancelExtraction()">Cancel</button>
+                <div class="status" id="confirmStatus"></div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Tournament Info (editable) -->
+        <div class="card">
+            <h2>Tournament Info</h2>
+            <div class="form-group">
+                <label>Name</label>
+                <input type="text" id="editName" value="{{ tournament.name }}">
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Date</label>
+                    <input type="date" id="editDate" value="{{ tournament.date }}">
+                </div>
+                <div class="form-group">
+                    <label>Location</label>
+                    <input type="text" id="editLocation" value="{{ tournament.location or '' }}">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Weapon</label>
+                    <input type="text" id="editWeapon" value="{{ tournament.weapon or 'Epee' }}">
+                </div>
+                <div class="form-group">
+                    <label>Age Category</label>
+                    <input type="text" id="editAge" value="{{ tournament.age_category or 'Y12' }}">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Level</label>
+                <select id="editLevel">
+                    <option value="" {% if not tournament.level %}selected{% endif %}>Select level...</option>
+                    <option value="Local" {% if tournament.level == 'Local' %}selected{% endif %}>Local</option>
+                    <option value="Regional" {% if tournament.level == 'Regional' %}selected{% endif %}>Regional</option>
+                    <option value="SYC" {% if tournament.level == 'SYC' %}selected{% endif %}>SYC</option>
+                    <option value="National" {% if tournament.level == 'National' %}selected{% endif %}>National</option>
+                    <option value="International" {% if tournament.level == 'International' %}selected{% endif %}>International</option>
+                </select>
+            </div>
+            <button class="btn-primary" onclick="updateTournament()">Save Changes</button>
+            <div class="status" id="editStatus"></div>
+
+            <div style="text-align:right;margin-top:16px;">
+                <button class="btn-danger" onclick="deleteTournament()">Delete Tournament</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const tournamentId = {{ tournament.id }};
+        let extractedData = null;
+
+        // Pool photo upload
+        const poolPhotoInput = document.getElementById('poolPhoto');
+        if (poolPhotoInput) {
+            poolPhotoInput.addEventListener('change', async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const loader = document.getElementById('loader');
+                const status = document.getElementById('uploadStatus');
+
+                loader.style.display = 'block';
+                status.className = 'status processing';
+                status.style.display = 'block';
+                status.textContent = 'Analyzing pool sheet photo...';
+
+                const formData = new FormData();
+                formData.append('photo', file);
+                formData.append('tournament_id', tournamentId);
+
+                try {
+                    const response = await fetch('/api/upload-pool-photo', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const data = await response.json();
+                    if (data.error) throw new Error(data.error);
+
+                    extractedData = data.extracted_data;
+                    populateExtractedResults(extractedData);
+
+                    loader.style.display = 'none';
+                    status.style.display = 'none';
+                    document.getElementById('extractedResults').style.display = 'block';
+                } catch (error) {
+                    loader.style.display = 'none';
+                    status.className = 'status error';
+                    status.textContent = 'Error: ' + error.message;
+                }
+            });
+        }
+
+        function populateExtractedResults(data) {
+            document.getElementById('poolNumber').value = data.pool_number || '';
+            document.getElementById('positionInPool').value = data.position_in_pool || '';
+            document.getElementById('victories').value = data.victories || '';
+            document.getElementById('defeats').value = data.defeats || '';
+            document.getElementById('touchesScored').value = data.touches_scored || '';
+            document.getElementById('touchesReceived').value = data.touches_received || '';
+            document.getElementById('indicator').value = data.indicator || '';
+
+            const boutsList = document.getElementById('boutsList');
+            boutsList.innerHTML = '';
+
+            (data.bouts || []).forEach((bout, i) => {
+                const div = document.createElement('div');
+                div.className = 'bout-card editable-bout ' + (bout.result || '');
+                div.innerHTML = `
+                    <div class="form-row">
+                        <div class="form-group" style="flex:2">
+                            <label>Opponent</label>
+                            <input type="text" class="bout-opponent-name" value="${bout.opponent_name || ''}">
+                        </div>
+                        <div class="form-group" style="flex:1">
+                            <label>Result</label>
+                            <select class="bout-result" style="width:100%;padding:8px 10px;border:2px solid #e0e0e0;border-radius:12px;font-size:14px;font-family:inherit;">
+                                <option value="won" ${bout.result === 'won' ? 'selected' : ''}>Won</option>
+                                <option value="lost" ${bout.result === 'lost' ? 'selected' : ''}>Lost</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Club</label>
+                            <input type="text" class="bout-opponent-club" value="${bout.opponent_club || ''}">
+                        </div>
+                        <div class="form-group" style="flex:0 0 70px">
+                            <label>For</label>
+                            <input type="number" class="bout-score-for" value="${bout.score_for != null ? bout.score_for : ''}">
+                        </div>
+                        <div class="form-group" style="flex:0 0 70px">
+                            <label>Against</label>
+                            <input type="number" class="bout-score-against" value="${bout.score_against != null ? bout.score_against : ''}">
+                        </div>
+                    </div>
+                `;
+                boutsList.appendChild(div);
+            });
+        }
+
+        async function confirmPoolResults() {
+            const status = document.getElementById('confirmStatus');
+
+            const bouts = [];
+            document.querySelectorAll('.editable-bout').forEach((el, i) => {
+                bouts.push({
+                    bout_order: i + 1,
+                    opponent_name: el.querySelector('.bout-opponent-name').value,
+                    opponent_club: el.querySelector('.bout-opponent-club').value,
+                    score_for: parseInt(el.querySelector('.bout-score-for').value) || 0,
+                    score_against: parseInt(el.querySelector('.bout-score-against').value) || 0,
+                    result: el.querySelector('.bout-result').value
+                });
+            });
+
+            const poolData = {
+                pool_number: parseInt(document.getElementById('poolNumber').value) || null,
+                position_in_pool: parseInt(document.getElementById('positionInPool').value) || null,
+                victories: parseInt(document.getElementById('victories').value) || 0,
+                defeats: parseInt(document.getElementById('defeats').value) || 0,
+                touches_scored: parseInt(document.getElementById('touchesScored').value) || 0,
+                touches_received: parseInt(document.getElementById('touchesReceived').value) || 0,
+                indicator: parseInt(document.getElementById('indicator').value) || 0,
+                strip_number: extractedData ? extractedData.strip_number : null,
+                bouts: bouts
+            };
+
+            try {
+                const response = await fetch('/api/confirm-pool-results', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tournament_id: tournamentId, pool_data: poolData })
+                });
+                const data = await response.json();
+                if (data.error) throw new Error(data.error);
+
+                status.className = 'status success';
+                status.textContent = 'Pool results saved!';
+                setTimeout(() => location.reload(), 800);
+            } catch (error) {
+                status.className = 'status error';
+                status.textContent = 'Error: ' + error.message;
+            }
+        }
+
+        function cancelExtraction() {
+            document.getElementById('extractedResults').style.display = 'none';
+            document.getElementById('poolPhoto').value = '';
+            extractedData = null;
+        }
+
+        async function updateTournament() {
+            const status = document.getElementById('editStatus');
+
+            try {
+                const response = await fetch('/api/tournaments/' + tournamentId, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: document.getElementById('editName').value.trim(),
+                        date: document.getElementById('editDate').value,
+                        location: document.getElementById('editLocation').value.trim(),
+                        weapon: document.getElementById('editWeapon').value.trim(),
+                        age_category: document.getElementById('editAge').value.trim(),
+                        level: document.getElementById('editLevel').value
+                    })
+                });
+                const data = await response.json();
+                if (data.error) throw new Error(data.error);
+
+                status.className = 'status success';
+                status.textContent = 'Changes saved!';
+                setTimeout(() => { status.style.display = 'none'; status.className = 'status'; }, 2000);
+            } catch (error) {
+                status.className = 'status error';
+                status.textContent = 'Error: ' + error.message;
+            }
+        }
+
+        async function deleteTournament() {
+            if (!confirm('Delete this tournament and all its data?')) return;
+
+            try {
+                const response = await fetch('/api/tournaments/' + tournamentId + '/delete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await response.json();
+                if (data.error) throw new Error(data.error);
+
+                window.location.href = '/tournaments';
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Tournaments</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #4a7fd4 0%, #1e3a7a 50%, #0f1f4a 100%);
+            min-height: 100vh;
+            padding: 20px;
+            padding-bottom: 80px;
+            color: #333;
+        }
+
+        .container { max-width: 700px; margin: 0 auto; }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+            position: relative;
+        }
+
+        .header h1 { font-size: 2em; margin-bottom: 10px; }
+        .header p { opacity: 0.9; font-size: 1.1em; }
+
+        .sign-out {
+            position: absolute;
+            top: 0; right: 0;
+            color: rgba(255,255,255,0.7);
+            font-size: 13px;
+            text-decoration: none;
+        }
+
+        .back-btn {
+            display: inline-block;
+            background: white;
+            color: #2c3e6b;
+            padding: 10px 20px;
+            border-radius: 50px;
+            text-decoration: none;
+            font-weight: 600;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 20px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        .card h2 { font-size: 1.2em; margin-bottom: 16px; color: #1a1a2e; }
+
+        .form-group { margin-bottom: 14px; }
+
+        label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: #555;
+            margin-bottom: 5px;
+        }
+
+        input[type="text"], input[type="date"], select {
+            width: 100%;
+            padding: 12px 14px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            font-size: 15px;
+            font-family: inherit;
+            outline: none;
+            transition: border-color 0.2s;
+            background: white;
+        }
+
+        input[type="text"]:focus, input[type="date"]:focus, select:focus {
+            border-color: #2c3e6b;
+        }
+
+        .form-row {
+            display: flex;
+            gap: 12px;
+        }
+
+        .form-row .form-group { flex: 1; }
+
+        .btn-primary {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #4a7fd4 0%, #1e3a7a 50%, #0f1f4a 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 4px;
+        }
+
+        .btn-primary:active { opacity: 0.9; }
+
+        .tournament-card {
+            background: white;
+            border-radius: 20px;
+            padding: 20px 25px;
+            margin-bottom: 16px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            text-decoration: none;
+            color: inherit;
+            display: block;
+            transition: transform 0.15s;
+        }
+
+        .tournament-card:active { transform: scale(0.98); }
+
+        .tournament-name {
+            font-size: 1.1em;
+            font-weight: 700;
+            color: #1a1a2e;
+            margin-bottom: 6px;
+        }
+
+        .tournament-meta {
+            font-size: 13px;
+            color: #777;
+            margin-bottom: 4px;
+        }
+
+        .tournament-meta span { margin-right: 12px; }
+
+        .pool-badge {
+            display: inline-block;
+            background: #e8f0fe;
+            color: #1a3a7a;
+            padding: 4px 10px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-top: 8px;
+        }
+
+        .pool-badge.positive { background: #d4edda; color: #155724; }
+        .pool-badge.negative { background: #f8d7da; color: #721c24; }
+
+        .empty-state {
+            text-align: center;
+            color: white;
+            opacity: 0.8;
+            padding: 40px 0;
+        }
+
+        .status {
+            padding: 12px;
+            border-radius: 10px;
+            margin-top: 12px;
+            font-size: 14px;
+            display: none;
+        }
+
+        .status.success { background: #d4edda; color: #155724; display: block; }
+        .status.error { background: #f8d7da; color: #721c24; display: block; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Tournaments</h1>
+            <p>Track results and pool performance</p>
+            <a href="/logout" class="sign-out">Sign out</a>
+        </div>
+
+        <a href="/" class="back-btn">&larr; Back</a>
+
+        <!-- Add tournament form -->
+        <div class="card">
+            <h2>Add Tournament</h2>
+            <div class="form-group">
+                <label>Tournament Name</label>
+                <input type="text" id="tournamentName" placeholder="e.g. NAC Chicago 2026">
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Date</label>
+                    <input type="date" id="tournamentDate">
+                </div>
+                <div class="form-group">
+                    <label>Location</label>
+                    <input type="text" id="tournamentLocation" placeholder="e.g. Chicago, IL">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Weapon</label>
+                    <input type="text" id="tournamentWeapon" value="Epee">
+                </div>
+                <div class="form-group">
+                    <label>Age Category</label>
+                    <input type="text" id="tournamentAge" value="Y12">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Level</label>
+                <select id="tournamentLevel">
+                    <option value="">Select level...</option>
+                    <option value="Local">Local</option>
+                    <option value="Regional">Regional</option>
+                    <option value="SYC">SYC</option>
+                    <option value="National">National</option>
+                    <option value="International">International</option>
+                </select>
+            </div>
+            <button class="btn-primary" onclick="addTournament()">Add Tournament</button>
+            <div class="status" id="formStatus"></div>
+        </div>
+
+        <!-- Tournament list -->
+        <div id="tournamentsList">
+            {% if tournaments %}
+                {% for t in tournaments %}
+                <a class="tournament-card" href="/tournaments/{{ t.id }}">
+                    <div class="tournament-name">{{ t.name }}</div>
+                    <div class="tournament-meta">
+                        <span>{{ t.date }}</span>
+                        {% if t.location %}<span>{{ t.location }}</span>{% endif %}
+                        {% if t.level %}<span>{{ t.level }}</span>{% endif %}
+                    </div>
+                    <div class="tournament-meta">
+                        <span>{{ t.weapon | default('Epee') }}</span>
+                        <span>{{ t.age_category | default('Y12') }}</span>
+                    </div>
+                    {% if t.pool_summary %}
+                    <div>
+                        <span class="pool-badge {{ 'positive' if t.pool_summary.indicator and t.pool_summary.indicator > 0 else 'negative' if t.pool_summary.indicator and t.pool_summary.indicator < 0 else '' }}">
+                            Pool: {{ t.pool_summary.victories }}V-{{ t.pool_summary.defeats }}D
+                            ({{ t.pool_summary.indicator | default(0) }})
+                            {% if t.pool_summary.position_in_pool %}
+                            &middot; {{ t.pool_summary.position_in_pool }}{{ 'st' if t.pool_summary.position_in_pool == 1 else 'nd' if t.pool_summary.position_in_pool == 2 else 'rd' if t.pool_summary.position_in_pool == 3 else 'th' }} place
+                            {% endif %}
+                        </span>
+                    </div>
+                    {% endif %}
+                </a>
+                {% endfor %}
+            {% else %}
+                <div class="empty-state" id="emptyState">
+                    <p>No tournaments yet. Add your first one above.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <script>
+        // Default date to today
+        document.getElementById('tournamentDate').valueAsDate = new Date();
+
+        async function addTournament() {
+            const name = document.getElementById('tournamentName').value.trim();
+            const date = document.getElementById('tournamentDate').value;
+            const loc = document.getElementById('tournamentLocation').value.trim();
+            const weapon = document.getElementById('tournamentWeapon').value.trim();
+            const age_category = document.getElementById('tournamentAge').value.trim();
+            const level = document.getElementById('tournamentLevel').value;
+            const status = document.getElementById('formStatus');
+
+            if (!name || !date) {
+                status.className = 'status error';
+                status.textContent = 'Name and date are required.';
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/tournaments', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, date, location: loc, weapon, age_category, level })
+                });
+                const data = await response.json();
+                if (data.error) throw new Error(data.error);
+
+                status.className = 'status success';
+                status.textContent = 'Tournament added!';
+                setTimeout(() => location.reload(), 800);
+            } catch (error) {
+                status.className = 'status error';
+                status.textContent = 'Error: ' + error.message;
+            }
+        }
+    </script>
+</body>
+</html>
