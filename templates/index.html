@@ -5,13 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Fencing Tips</title>
+    <title>Fencing Coach</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -30,257 +26,78 @@
             text-align: center;
             color: white;
             margin-bottom: 30px;
+            position: relative;
         }
 
-        .header h1 {
-            font-size: 2em;
-            margin-bottom: 10px;
+        .header h1 { font-size: 2em; margin-bottom: 10px; }
+        .header p { opacity: 0.9; font-size: 1.1em; }
+
+        .sign-out {
+            position: absolute;
+            top: 0; right: 0;
+            color: rgba(255,255,255,0.7);
+            font-size: 13px;
+            text-decoration: none;
         }
 
-        .header p {
-            opacity: 0.9;
-            font-size: 1.1em;
-        }
-
-        .card {
+        .nav-card {
+            display: block;
             background: white;
             border-radius: 20px;
             padding: 25px;
-            margin-bottom: 20px;
+            margin-bottom: 16px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-        }
-
-        .upload-section {
-            text-align: center;
-        }
-
-        .upload-btn {
-            display: inline-block;
-            background: linear-gradient(135deg, #4a7fd4 0%, #1e3a7a 50%, #0f1f4a 100%);
-            color: white;
-            padding: 15px 30px;
-            border-radius: 50px;
-            font-size: 1.1em;
-            font-weight: 600;
-            cursor: pointer;
-            border: none;
-            width: 100%;
-            max-width: 300px;
-            margin: 10px 0;
+            text-decoration: none;
+            color: #333;
             transition: transform 0.2s;
         }
 
-        .upload-btn:active {
-            transform: scale(0.95);
+        .nav-card:active { transform: scale(0.98); }
+
+        .nav-card-title {
+            font-size: 1.2em;
+            font-weight: 700;
+            color: #1a1a2e;
+            margin-bottom: 6px;
         }
 
-        .upload-btn:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-        }
-
-        input[type="file"] {
-            display: none;
-        }
-
-        .view-tips-btn {
-            display: inline-block;
-            background: white;
-            color: #2c3e6b;
-            padding: 15px 30px;
-            border-radius: 50px;
-            font-size: 1.1em;
-            font-weight: 600;
-            text-decoration: none;
-            border: 2px solid #2c3e6b;
-            width: 100%;
-            max-width: 300px;
-            margin: 10px 0;
-            transition: all 0.2s;
-        }
-
-        .view-tips-btn:active {
-            transform: scale(0.95);
-        }
-
-        .status {
-            margin-top: 20px;
-            padding: 15px;
-            border-radius: 10px;
-            display: none;
-        }
-
-        .status.success {
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-
-        .status.error {
-            background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-        }
-
-        .status.processing {
-            background: #d1ecf1;
-            color: #0c5460;
-            border: 1px solid #bee5eb;
-        }
-
-        .loader {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #2c3e6b;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin: 20px auto;
-            display: none;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        .recent-sessions {
-            margin-top: 20px;
-        }
-
-        .session-item {
-            padding: 10px;
-            border-bottom: 1px solid #eee;
-        }
-
-        .session-item:last-child {
-            border-bottom: none;
-        }
-
-        .session-date {
-            font-size: 0.9em;
+        .nav-card-desc {
+            font-size: 14px;
             color: #666;
+            line-height: 1.5;
         }
 
-        .session-filename {
-            font-weight: 600;
-            margin: 5px 0;
+        .nav-card-icon {
+            font-size: 28px;
+            margin-bottom: 8px;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>⚔️ Fencing Tips</h1>
-            <p>Upload voice memos to build your competition notebook</p>
-            <a href="/logout" style="position:absolute;top:20px;right:20px;color:rgba(255,255,255,0.7);font-size:13px;text-decoration:none;">Sign out</a>
+            <h1>Fencing Coach</h1>
+            <p>Ethan's training companion</p>
+            <a href="/logout" class="sign-out">Sign out</a>
         </div>
 
-        <div class="card upload-section">
-            <h2 style="margin-bottom: 20px;">Upload Voice Memo</h2>
+        <a href="/tips" class="nav-card">
+            <div class="nav-card-icon">📖</div>
+            <div class="nav-card-title">Competition Tips</div>
+            <div class="nav-card-desc">Upload voice memos and review coaching advice organized by category.</div>
+        </a>
 
-            <input type="file" id="audioFile" accept="audio/*,video/*,.m4a,.mp4,.mov" multiple>
-            <label for="audioFile" class="upload-btn" id="uploadLabel">
-                📱 Choose Audio/Video File
-            </label>
+        <a href="/lessons" class="nav-card">
+            <div class="nav-card-icon">🎥</div>
+            <div class="nav-card-title">Private Lessons</div>
+            <div class="nav-card-desc">Video library of techniques from training sessions.</div>
+        </a>
 
-            <div class="loader" id="loader"></div>
-            <div class="status" id="status"></div>
-        </div>
-
-        <div class="card" style="text-align: center;">
-            <a href="/tips" class="view-tips-btn">📖 View All Tips</a>
-            <a href="/lessons" class="view-tips-btn" style="margin-left:10px;">🎥 Private Lessons</a>
-            <a href="/tournaments" class="view-tips-btn" style="margin-top:10px;">🏆 Tournaments</a>
-        </div>
-
-        <div class="card recent-sessions" id="recentSessions" style="display: none;">
-            <h3 style="margin-bottom: 15px;">Recent Sessions</h3>
-            <div id="sessionsList"></div>
-        </div>
+        <a href="/tournaments" class="nav-card">
+            <div class="nav-card-icon">🏆</div>
+            <div class="nav-card-title">Tournaments</div>
+            <div class="nav-card-desc">Track results and pool performance with photo extraction.</div>
+        </a>
     </div>
-
-    <script>
-        const fileInput = document.getElementById('audioFile');
-        const uploadLabel = document.getElementById('uploadLabel');
-        const loader = document.getElementById('loader');
-        const status = document.getElementById('status');
-        const recentSessions = document.getElementById('recentSessions');
-        const sessionsList = document.getElementById('sessionsList');
-
-        // Load recent sessions
-        loadRecentSessions();
-
-        fileInput.addEventListener('change', async (e) => {
-            const files = Array.from(e.target.files);
-            if (!files.length) return;
-
-            loader.style.display = 'block';
-            status.style.display = 'block';
-            uploadLabel.disabled = true;
-
-            let succeeded = 0;
-            let failed = 0;
-
-            for (let i = 0; i < files.length; i++) {
-                const file = files[i];
-                status.className = 'status processing';
-                status.textContent = `Processing ${file.name} (${i + 1} of ${files.length})...`;
-
-                const formData = new FormData();
-                formData.append('audio', file);
-
-                try {
-                    const response = await fetch('/upload', {
-                        method: 'POST',
-                        body: formData
-                    });
-                    const data = await response.json();
-                    if (data.error) throw new Error(data.error);
-                    succeeded++;
-                } catch (error) {
-                    failed++;
-                    console.error(`Failed: ${file.name} — ${error.message}`);
-                }
-            }
-
-            loader.style.display = 'none';
-            uploadLabel.disabled = false;
-            uploadLabel.textContent = '📱 Choose Audio File';
-            fileInput.value = '';
-
-            if (failed === 0) {
-                status.className = 'status success';
-                status.textContent = `✅ ${succeeded} file${succeeded > 1 ? 's' : ''} processed successfully.`;
-            } else if (succeeded === 0) {
-                status.className = 'status error';
-                status.textContent = `❌ All ${failed} files failed to process.`;
-            } else {
-                status.className = 'status success';
-                status.textContent = `✅ ${succeeded} succeeded, ${failed} failed. Check console for details.`;
-            }
-
-            loadRecentSessions();
-        });
-
-        async function loadRecentSessions() {
-            try {
-                const response = await fetch('/api/data');
-                const data = await response.json();
-
-                if (data.sessions && data.sessions.length > 0) {
-                    recentSessions.style.display = 'block';
-                    sessionsList.innerHTML = data.sessions.slice(0, 5).map(session => `
-                        <div class="session-item">
-                            <div class="session-date">${session.date}</div>
-                            <div class="session-filename">${session.filename}</div>
-                        </div>
-                    `).join('');
-                }
-            } catch (error) {
-                console.error('Failed to load sessions:', error);
-            }
-        }
-    </script>
 </body>
 </html>

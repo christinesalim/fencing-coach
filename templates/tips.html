@@ -173,6 +173,75 @@
             color: #666;
         }
 
+        .upload-card {
+            background: white;
+            border-radius: 20px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            text-align: center;
+        }
+
+        .upload-card h2 {
+            color: #1a1a2e;
+            margin-bottom: 16px;
+            font-size: 1.2em;
+        }
+
+        .upload-card p {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 16px;
+        }
+
+        .upload-btn {
+            display: inline-block;
+            background: linear-gradient(135deg, #4a7fd4 0%, #1e3a7a 50%, #0f1f4a 100%);
+            color: white;
+            padding: 14px 30px;
+            border-radius: 50px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            width: 100%;
+            max-width: 300px;
+            transition: transform 0.2s;
+        }
+
+        .upload-btn:active { transform: scale(0.95); }
+        .upload-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+        input[type="file"].upload-input { display: none; }
+
+        .upload-status {
+            margin-top: 16px;
+            padding: 12px;
+            border-radius: 10px;
+            font-size: 14px;
+            display: none;
+        }
+
+        .upload-status.success { background: #d4edda; color: #155724; display: block; }
+        .upload-status.error { background: #f8d7da; color: #721c24; display: block; }
+        .upload-status.processing { background: #d1ecf1; color: #0c5460; display: block; }
+
+        .upload-loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #2c3e6b;
+            border-radius: 50%;
+            width: 36px;
+            height: 36px;
+            animation: spin 1s linear infinite;
+            margin: 16px auto;
+            display: none;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
         .empty-state {
             background: white;
             border-radius: 20px;
@@ -188,17 +257,6 @@
 
         .empty-state p {
             color: #666;
-            margin-bottom: 20px;
-        }
-
-        .empty-state a {
-            display: inline-block;
-            background: linear-gradient(135deg, #4a7fd4 0%, #1e3a7a 50%, #0f1f4a 100%);
-            color: white;
-            padding: 15px 30px;
-            border-radius: 50px;
-            text-decoration: none;
-            font-weight: 600;
         }
 
         .bottom-nav {
@@ -245,6 +303,16 @@
             <h1>⚔️ Competition Tips</h1>
             <p>Review before your next bout</p>
             <a href="/logout" style="position:absolute;top:20px;right:20px;color:rgba(255,255,255,0.7);font-size:13px;text-decoration:none;">Sign out</a>
+        </div>
+
+        <!-- Upload section -->
+        <div class="upload-card">
+            <h2>Add Tips from Voice Memo</h2>
+            <p>Upload a coaching recording and tips will be extracted automatically.</p>
+            <input type="file" id="audioFile" class="upload-input" accept="audio/*,video/*,.m4a,.mp4,.mov" multiple>
+            <label for="audioFile" class="upload-btn" id="uploadLabel">Choose Audio/Video File</label>
+            <div class="upload-loader" id="uploadLoader"></div>
+            <div class="upload-status" id="uploadStatus"></div>
         </div>
 
         {% if data.combined_advice.patience_and_control or
@@ -377,8 +445,7 @@
         {% else %}
             <div class="empty-state">
                 <h2>No tips yet!</h2>
-                <p>Upload your first voice memo to start building your competition notebook.</p>
-                <a href="/">Upload Voice Memo</a>
+                <p>Upload a voice memo above to start building your competition notebook.</p>
             </div>
         {% endif %}
     </div>
@@ -389,6 +456,65 @@
     </div>
 
     <script>
+        // Upload handling
+        const fileInput = document.getElementById('audioFile');
+        const uploadLabel = document.getElementById('uploadLabel');
+        const uploadLoader = document.getElementById('uploadLoader');
+        const uploadStatus = document.getElementById('uploadStatus');
+
+        fileInput.addEventListener('change', async (e) => {
+            const files = Array.from(e.target.files);
+            if (!files.length) return;
+
+            uploadLoader.style.display = 'block';
+            uploadStatus.style.display = 'block';
+            uploadLabel.style.pointerEvents = 'none';
+            uploadLabel.style.opacity = '0.6';
+
+            let succeeded = 0;
+            let failed = 0;
+
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                uploadStatus.className = 'upload-status processing';
+                uploadStatus.textContent = `Processing ${file.name} (${i + 1} of ${files.length})...`;
+
+                const formData = new FormData();
+                formData.append('audio', file);
+
+                try {
+                    const response = await fetch('/upload', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const data = await response.json();
+                    if (data.error) throw new Error(data.error);
+                    succeeded++;
+                } catch (error) {
+                    failed++;
+                    console.error(`Failed: ${file.name} — ${error.message}`);
+                }
+            }
+
+            uploadLoader.style.display = 'none';
+            uploadLabel.style.pointerEvents = '';
+            uploadLabel.style.opacity = '';
+            fileInput.value = '';
+
+            if (failed === 0) {
+                uploadStatus.className = 'upload-status success';
+                uploadStatus.textContent = `${succeeded} file${succeeded > 1 ? 's' : ''} processed. Refreshing...`;
+                setTimeout(() => location.reload(), 1500);
+            } else if (succeeded === 0) {
+                uploadStatus.className = 'upload-status error';
+                uploadStatus.textContent = `All ${failed} files failed to process.`;
+            } else {
+                uploadStatus.className = 'upload-status success';
+                uploadStatus.textContent = `${succeeded} succeeded, ${failed} failed. Refreshing...`;
+                setTimeout(() => location.reload(), 1500);
+            }
+        });
+
         function editTip(button) {
             const li = button.closest('li');
             const tipText = li.querySelector('.tip-text');
