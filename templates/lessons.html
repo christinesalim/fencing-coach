@@ -72,6 +72,7 @@
 
         input[type="text"], input[type="date"], textarea {
             width: 100%;
+            max-width: 100%;
             padding: 12px 14px;
             border: 2px solid #e0e0e0;
             border-radius: 12px;
@@ -79,6 +80,9 @@
             font-family: inherit;
             outline: none;
             transition: border-color 0.2s;
+            -webkit-appearance: none;
+            appearance: none;
+            box-sizing: border-box;
         }
 
         input[type="text"]:focus, input[type="date"]:focus, textarea:focus { border-color: #2c3e6b; }
