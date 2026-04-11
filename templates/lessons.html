@@ -110,6 +110,17 @@
         .btn-primary:active { opacity: 0.9; }
         .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 
+        /* Date + Category row */
+        .form-row {
+            display: flex;
+            gap: 12px;
+        }
+
+        .form-row .form-group {
+            flex: 1;
+            min-width: 0;
+        }
+
         /* Category toggle buttons */
         .category-toggles {
             display: flex;
@@ -526,6 +537,19 @@
             font-weight: 700;
             color: #1a1a2e;
             margin-bottom: 8px;
+            padding: 4px 8px;
+            border-radius: 8px;
+            border: 1px solid transparent;
+            outline: none;
+        }
+
+        .modal-title:hover {
+            border-color: #e0e0e0;
+        }
+
+        .modal-title:focus {
+            border-color: #2c3e6b;
+            background: #f9fafb;
         }
 
         .modal-meta {
@@ -718,15 +742,17 @@
                 <label>Title</label>
                 <input type="text" id="uploadTitle" placeholder="Auto-generated from audio">
             </div>
-            <div class="form-group">
-                <label>Date</label>
-                <input type="date" id="uploadDate">
-            </div>
-            <div class="form-group">
-                <label>Category</label>
-                <div class="category-toggles">
-                    <button type="button" class="category-btn" id="catOffense" onclick="toggleCategory('offense')">Offense</button>
-                    <button type="button" class="category-btn" id="catDefense" onclick="toggleCategory('defense')">Defense</button>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Date</label>
+                    <input type="date" id="uploadDate">
+                </div>
+                <div class="form-group">
+                    <label>Category</label>
+                    <div class="category-toggles">
+                        <button type="button" class="category-btn" id="catOffense" onclick="toggleCategory('offense')">Offense</button>
+                        <button type="button" class="category-btn" id="catDefense" onclick="toggleCategory('defense')">Defense</button>
+                    </div>
                 </div>
             </div>
             <div class="form-group" style="position:relative;">
@@ -1125,7 +1151,7 @@
 
                 body.innerHTML = `
                     ${videoHtml}
-                    <div class="modal-title">${escapeHtml(lesson.title)}</div>
+                    <div class="modal-title" id="modalTitle" contenteditable="true">${escapeHtml(lesson.title)}</div>
                     <div class="modal-meta">
                         <span class="modal-date">${lesson.lesson_date || lesson.created_at || ''}</span>
                         ${categoryHtml}
@@ -1200,15 +1226,49 @@
         }
 
         async function saveLesson(id) {
+            const title = document.getElementById('modalTitle');
             const desc = document.getElementById('modalDesc');
+            const btn = document.querySelector('.btn-save-lesson');
+            const origText = btn.textContent;
             try {
-                await fetch(`/api/lessons/${id}/update`, {
+                btn.textContent = 'Saving...';
+                btn.disabled = true;
+                const resp = await fetch(`/api/lessons/${id}/update`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ description: desc.innerText })
+                    body: JSON.stringify({
+                        title: title.innerText.trim(),
+                        description: desc.innerText.trim()
+                    })
                 });
-                loadLessons();
-            } catch (e) {}
+                const data = await resp.json();
+                if (data.success) {
+                    btn.textContent = 'Saved!';
+                    btn.style.background = '#22c55e';
+                    setTimeout(() => {
+                        btn.textContent = origText;
+                        btn.style.background = '';
+                        btn.disabled = false;
+                    }, 1500);
+                    loadLessons();
+                } else {
+                    btn.textContent = 'Error';
+                    btn.style.background = '#dc2626';
+                    setTimeout(() => {
+                        btn.textContent = origText;
+                        btn.style.background = '';
+                        btn.disabled = false;
+                    }, 2000);
+                }
+            } catch (e) {
+                btn.textContent = 'Error';
+                btn.style.background = '#dc2626';
+                setTimeout(() => {
+                    btn.textContent = origText;
+                    btn.style.background = '';
+                    btn.disabled = false;
+                }, 2000);
+            }
         }
 
         async function deleteLesson(id) {
