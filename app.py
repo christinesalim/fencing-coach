@@ -678,40 +678,66 @@ def extract_pool_results_from_photo(image_path):
                 },
                 {
                     "type": "text",
-                    "text": """This is a photo of a fencing pool results sheet.
-Extract the following information in JSON format:
+                    "text": """This is a photo of a fencing pool results sheet (grid format).
+
+The fencer to track is SALIM Ethan (or the first fencer listed). Extract results from HIS ROW ONLY.
+
+HOW TO READ THE POOL GRID:
+- Each row is one fencer. The columns (numbered 1-6) correspond to each fencer's number.
+- The cell where a fencer's row meets an opponent's column shows the result of THAT bout.
+- D4 in a cell means the ROW fencer LOST and scored 4 touches. The opponent scored 5 (pool bouts go to 5).
+- V5 in a cell means the ROW fencer WON and scored 5 touches. To find the opponent's score, look at the opponent's row in the column for our fencer.
+- Black/diagonal cells are where a fencer's row meets their own column (no bout against yourself).
+
+EXAMPLE: If SALIM (row 1) has "D4" in column 2, that means:
+  - SALIM lost to fencer #2
+  - SALIM scored 4 touches (score_for = 4)
+  - Fencer #2 scored 5 touches (score_against = 5)
+
+If SALIM (row 1) has "V5" in column 4, that means:
+  - SALIM beat fencer #4
+  - SALIM scored 5 touches (score_for = 5)
+  - To find fencer #4's score, look at row 4, column 1 (e.g., "D3" means they scored 3, so score_against = 3)
+
+The right side of the grid shows summary stats:
+  - V = total victories
+  - V/M = win rate (victories / matches)
+  - TS = total touches scored
+  - TR = total touches received
+  - Ind = indicator (TS - TR)
+
+Extract the following in JSON format:
 
 {
-  "pool_number": <number>,
-  "strip_number": <number or null>,
-  "fencer_name": "<highlighted fencer's full name>",
-  "fencer_club": "<club abbreviation and location>",
-  "position_in_pool": <final position number (1-6)>,
-  "victories": <total V>,
-  "defeats": <total number of bouts - V>,
-  "victory_rate": <V/M ratio as decimal>,
-  "touches_scored": <TS>,
-  "touches_received": <TR>,
-  "indicator": <Ind>,
+  "pool_number": <number from "POOL #X">,
+  "strip_number": <number from "ON STRIP X" or null>,
+  "fencer_name": "<SALIM Ethan or first fencer's full name>",
+  "fencer_club": "<club abbreviation / region>",
+  "position_in_pool": <their ranking in the pool based on V column, 1=best>,
+  "victories": <V value from right side>,
+  "defeats": <number of bouts minus victories>,
+  "victory_rate": <V/M value>,
+  "touches_scored": <TS value>,
+  "touches_received": <TR value>,
+  "indicator": <Ind value>,
   "bouts": [
     {
-      "bout_order": <1-6>,
-      "opponent_name": "<full name>",
-      "opponent_club": "<club and location>",
-      "score_for": <fencer's score>,
-      "score_against": <opponent's score>,
+      "bout_order": <sequence 1, 2, 3...>,
+      "opponent_name": "<opponent's full name from their row label>",
+      "opponent_club": "<club / region from their row label>",
+      "score_for": <our fencer's touches in this bout>,
+      "score_against": <opponent's touches in this bout>,
       "result": "won" or "lost"
     }
   ]
 }
 
-IMPORTANT:
-- The highlighted/main fencer is the one whose row is being tracked
-- Extract ALL opponent bouts from that fencer's row
-- V5 means Victory with score 5, D4 means Defeat with score 4
-- Score format like "V5" against opponent means: fencer scored 5, look at opponent's cell for their score
-- If you see D4 in the fencer's cell, it means the fencer lost scoring 4 points
-- Calculate defeats as: total_bouts - victories
+CRITICAL RULES:
+- score_for is ALWAYS our fencer's touches (the number after D or V in OUR row)
+- score_against is the opponent's touches (5 for defeats, or cross-reference for victories)
+- For D4: score_for=4, score_against=5, result="lost"
+- For V5 against opponent who has D3 in our column: score_for=5, score_against=3, result="won"
+- bout_order should match the column order (column 2=bout 1, column 3=bout 2, etc., skipping our own column)
 - Return null for any field that's unclear or unreadable"""
                 }
             ],
