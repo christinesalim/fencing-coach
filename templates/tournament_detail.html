@@ -448,6 +448,123 @@
             color: #777;
             margin-top: 8px;
         }
+
+        /* DE Performance Summary */
+        .summary-section {
+            margin-bottom: 16px;
+        }
+
+        .summary-section-title {
+            font-size: 13px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #777;
+            margin-bottom: 8px;
+        }
+
+        .summary-overall {
+            font-size: 15px;
+            line-height: 1.5;
+            color: #1a1a2e;
+            margin-bottom: 16px;
+        }
+
+        .summary-bout {
+            background: #f5f7fa;
+            border-radius: 10px;
+            padding: 12px 14px;
+            margin-bottom: 8px;
+        }
+
+        .summary-bout.won { border-left: 4px solid #28a745; }
+        .summary-bout.lost { border-left: 4px solid #e74c3c; }
+
+        .summary-bout-header {
+            font-weight: 600;
+            font-size: 14px;
+            color: #1a1a2e;
+            margin-bottom: 4px;
+        }
+
+        .summary-bout-analysis {
+            font-size: 14px;
+            color: #555;
+            line-height: 1.4;
+        }
+
+        .summary-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .summary-list li {
+            position: relative;
+            padding-left: 20px;
+            font-size: 14px;
+            line-height: 1.5;
+            color: #333;
+            margin-bottom: 6px;
+        }
+
+        .summary-list.strengths li::before {
+            content: '\2713';
+            position: absolute;
+            left: 0;
+            color: #28a745;
+            font-weight: 700;
+        }
+
+        .summary-list.improve li::before {
+            content: '\25B8';
+            position: absolute;
+            left: 0;
+            color: #fd7e14;
+            font-weight: 700;
+        }
+
+        .summary-takeaway {
+            background: #e8f5e9;
+            border-radius: 12px;
+            padding: 14px 16px;
+            font-size: 15px;
+            line-height: 1.5;
+            color: #1a1a2e;
+            margin-bottom: 16px;
+        }
+
+        .summary-takeaway-label {
+            font-size: 12px;
+            font-weight: 700;
+            color: #28a745;
+            margin-bottom: 4px;
+        }
+
+        .summary-coach {
+            background: #e3f2fd;
+            border-radius: 12px;
+            padding: 14px 16px;
+            font-size: 14px;
+            line-height: 1.5;
+            color: #1a1a2e;
+        }
+
+        .summary-coach-label {
+            font-size: 12px;
+            font-weight: 700;
+            color: #1565c0;
+            margin-bottom: 4px;
+        }
+
+        .summary-seed {
+            font-size: 14px;
+            line-height: 1.5;
+            color: #555;
+            margin-bottom: 16px;
+            padding: 10px 14px;
+            background: #f5f7fa;
+            border-radius: 10px;
+        }
     </style>
 </head>
 <body>
@@ -678,6 +795,75 @@
                 <div class="status" id="deConfirmStatus"></div>
             </div>
         </div>
+
+        <!-- DE Performance Summary Section -->
+        {% if de_results and de_results.bouts %}
+        <div class="card" id="deSummaryCard">
+            <h2>DE Performance Summary</h2>
+
+            {% if de_summary %}
+            <!-- Saved summary display -->
+            <div id="summaryDisplay">
+                <div class="summary-overall">{{ de_summary.summary.overall_assessment }}</div>
+
+                <div class="summary-section">
+                    <div class="summary-section-title">Bout-by-Bout Analysis</div>
+                    {% for bout in de_summary.summary.bout_analyses %}
+                    <div class="summary-bout {{ bout.result }}">
+                        <div class="summary-bout-header">{{ bout.round_name }}: vs {{ bout.opponent }} — {{ bout.result | upper }}</div>
+                        <div class="summary-bout-analysis">{{ bout.analysis }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <div class="summary-section">
+                    <div class="summary-section-title">Seed Performance</div>
+                    <div class="summary-seed">{{ de_summary.summary.seed_performance }}</div>
+                </div>
+
+                <div class="summary-section">
+                    <div class="summary-section-title">Strengths</div>
+                    <ul class="summary-list strengths">
+                        {% for s in de_summary.summary.strengths %}
+                        <li>{{ s }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+
+                <div class="summary-section">
+                    <div class="summary-section-title">Areas to Improve</div>
+                    <ul class="summary-list improve">
+                        {% for a in de_summary.summary.areas_to_improve %}
+                        <li>{{ a }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+
+                <div class="summary-takeaway">
+                    <div class="summary-takeaway-label">For Ethan</div>
+                    {{ de_summary.summary.ethan_takeaway }}
+                </div>
+
+                <div class="summary-coach">
+                    <div class="summary-coach-label">For Coach Ziad</div>
+                    {{ de_summary.summary.coach_summary }}
+                </div>
+
+                <p style="font-size:12px;color:#999;text-align:center;margin-top:12px;">Generated {{ de_summary.generated_at }}</p>
+                <button class="regenerate-link" onclick="generateDESummary()">Regenerate analysis</button>
+            </div>
+            {% else %}
+            <!-- Generate button -->
+            <div id="summaryGenerateSection" style="text-align:center;">
+                <p style="color:#777;margin-bottom:16px;font-size:14px;">Analyze Ethan's DE performance — strengths, areas to improve, and coaching notes.</p>
+                <button class="btn-primary" onclick="generateDESummary()" style="max-width:300px;margin:0 auto;">Analyze DE Performance</button>
+            </div>
+            {% endif %}
+
+            <div class="loader" id="summaryLoader"></div>
+            <div class="status" id="summaryStatus"></div>
+        </div>
+        {% endif %}
 
         <!-- Tournament Info (editable) -->
         <div class="card">
@@ -919,6 +1105,34 @@
                 loader.style.display = 'none';
                 status.className = 'status success';
                 status.textContent = 'Tips generated!';
+                setTimeout(() => location.reload(), 800);
+            } catch (error) {
+                loader.style.display = 'none';
+                status.className = 'status error';
+                status.textContent = 'Error: ' + error.message;
+            }
+        }
+
+        async function generateDESummary() {
+            const loader = document.getElementById('summaryLoader');
+            const status = document.getElementById('summaryStatus');
+
+            loader.style.display = 'block';
+            status.className = 'status processing';
+            status.style.display = 'block';
+            status.textContent = 'Analyzing DE performance...';
+
+            try {
+                const response = await fetch('/api/tournaments/' + tournamentId + '/de-summary', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await response.json();
+                if (data.error) throw new Error(data.error);
+
+                loader.style.display = 'none';
+                status.className = 'status success';
+                status.textContent = 'Analysis complete!';
                 setTimeout(() => location.reload(), 800);
             } catch (error) {
                 loader.style.display = 'none';
