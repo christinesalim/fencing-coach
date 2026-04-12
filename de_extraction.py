@@ -42,7 +42,7 @@ def _get_media_type(image_path):
         raise ValueError(f"Unsupported image format: {ext}")
 
 
-def extract_de_bracket_from_photo(image_path):
+def extract_de_bracket_from_photo(image_path, our_fencer_name="SALIM Ethan"):
     """Extract DE bracket data from a single screenshot using Claude Vision."""
     with open(image_path, "rb") as f:
         image_data = base64.standard_b64encode(f.read()).decode("utf-8")
@@ -51,7 +51,7 @@ def extract_de_bracket_from_photo(image_path):
 
     message = get_claude_client().messages.create(
         model="claude-sonnet-4-6",
-        max_tokens=16384,
+        max_tokens=4096,
         messages=[{
             "role": "user",
             "content": [
@@ -65,76 +65,58 @@ def extract_de_bracket_from_photo(image_path):
                 },
                 {
                     "type": "text",
-                    "text": """You are analyzing a screenshot of a fencing Direct Elimination (DE) bracket
-displayed on a phone or tablet screen, typically from FencingTimeLive.
+                    "text": f"""You are analyzing a screenshot of a fencing Direct Elimination (DE) bracket from FencingTimeLive.
 
-HOW TO READ DE BRACKETS:
+YOUR TASK: Find "{our_fencer_name}" in the bracket and trace ONLY their path through the rounds. Do NOT extract every bout — just this fencer's bouts.
+
+HOW TO READ THE BRACKET:
 - The bracket flows LEFT to RIGHT. Each column is a round: Table of 64 → Table of 32 → Table of 16 → etc.
-- Each bout is a PAIR of two fencers stacked vertically, connected by a horizontal bracket line.
-- The WINNER advances RIGHT to the next round. The LOSER is eliminated.
-- Numbers in parentheses like (4) or (36) are SEEDS (pool ranking).
-- Scores appear between rounds, typically as "15-7". The WINNER's score is always 15 in standard DE (first to 15).
-- "BYE" means no opponent — that fencer advances automatically.
-- Club names appear below fencer names (e.g., "AFM / Central California").
-- Only completed bouts have scores. Upcoming bouts show names but no scores.
+- Each bout is a PAIR of two fencers stacked vertically, connected by bracket lines.
+- The WINNER advances RIGHT to the next column, where they are paired with a NEW opponent.
+- Numbers in parentheses like (4) or (36) are SEEDS from pool ranking.
+- Scores appear as "15-7" etc. DE bouts go to 15 touches.
+- "BYE" means automatic advance, no bout fenced.
 
-CRITICAL — AVOIDING DUPLICATE BOUT DETECTION:
-The #1 error in bracket reading is counting the SAME fencer appearing in TWO rounds as two separate bouts against the same opponent. Here is how to avoid this:
+STEP BY STEP:
+1. Find "{our_fencer_name}" in the leftmost column (first round).
+2. Identify who they are paired with (the other name in their bracket pair). That is their Round 1 opponent.
+3. Read the score. Did our fencer win or lose?
+4. If they WON, follow the bracket line RIGHT to the next column. Find who they are now paired with — that is a DIFFERENT person, their Round 2 opponent.
+5. Repeat until they lose or the bracket ends.
 
-1. FIRST, identify each COLUMN (round) in the bracket. Count how many columns you see.
-2. Within each column, identify each PAIR of fencers. A pair is two names stacked vertically with a bracket line connecting them — that is ONE bout.
-3. The WINNER of a bout in column N will appear AGAIN in column N+1, paired with a DIFFERENT opponent. This is a NEW bout, not a duplicate.
-4. If you see "SMITH John" in the Table of 64 column AND in the Table of 32 column, those are TWO DIFFERENT BOUTS with two different opponents. Do not list the same opponent for both.
-5. Follow the bracket lines carefully: the line from the winner connects to a new pairing in the next column.
+CRITICAL VALIDATION:
+- Each round MUST have a DIFFERENT opponent. If you wrote the same opponent name twice, you misread the bracket — go back and re-trace the lines.
+- The opponent in Round 2 is the WINNER of a different Round 1 bout, NOT the same person from Round 1.
 
-Extract EVERY visible bout in this screenshot. Return JSON:
-
-{
-  "screenshot_metadata": {
-    "estimated_total_bracket_size": <64 | 32 | 128 | etc.>,
-    "visible_rounds": ["Table of 64", "Table of 32", ...],
-    "position_hint": "top-left" | "top-right" | "bottom-left" | "bottom-right" | "center" | "left-half" | "right-half",
-    "bracket_format": "single_elimination",
-    "software_detected": "FencingTimeLive" | "EnGarde" | "USAFencing" | "unknown"
-  },
+Return JSON:
+{{
+  "bracket_metadata": {{
+    "estimated_bracket_size": <64 | 32 | 128>,
+    "software_detected": "FencingTimeLive" | "unknown",
+    "visible_rounds": ["Table of 64", "Table of 32", ...]
+  }},
+  "our_fencer": {{
+    "name": "<exact name as shown>",
+    "seed": <number or null>,
+    "club": "<club or null>"
+  }},
   "bouts": [
-    {
-      "bout_id_hint": "<round>-<approximate_position>",
-      "round_name": "Table of 64" | "Table of 32" | "Table of 16" | "Table of 8" | "Semi-finals" | "Finals",
-      "bracket_position": <1-based position within that round, top to bottom>,
-      "fencer_top": {
-        "name": "<LAST First>",
-        "club": "<club or null>",
-        "seed": <number or null>,
-        "score": <number or null>
-      },
-      "fencer_bottom": {
-        "name": "<LAST First>",
-        "club": "<club or null>",
-        "seed": <number or null>,
-        "score": <number or null>
-      },
-      "winner": "top" | "bottom" | null,
-      "is_bye": true | false,
-      "is_partial": true | false,
-      "referee": "<name or null>",
-      "time": "<time or null>"
-    }
+    {{
+      "round_name": "Table of 64",
+      "opponent_name": "<LAST First>",
+      "opponent_club": "<club or null>",
+      "opponent_seed": <number or null>,
+      "score_for": <our fencer's score>,
+      "score_against": <opponent's score>,
+      "result": "won" | "lost"
+    }}
   ],
-  "cut_off_names": ["<any names visible but whose bout is not fully readable>"]
-}
+  "final_placement_range": "Top 64" | "Top 32" | "Top 16" | "Top 8" | "Top 4" | "2nd" | "1st",
+  "other_visible_bouts": <count of other bouts visible but not extracted>
+}}
 
-IMPORTANT:
-- Read the ENTIRE bracket structure left to right BEFORE extracting any bouts
-- Each bout is a PAIR of fencers connected by bracket lines. Do NOT invent bouts
-- A fencer who WINS round N appears in round N+1 paired with a DIFFERENT opponent. That is a separate bout — do NOT give them the same opponent twice
-- Verify: no fencer name should appear as an opponent in two consecutive rounds. If you see this, you have misread the bracket
-- "bracket_position" counts from top of bracket: position 1 is the topmost bout in that round
-- For byes, set is_bye=true, the advancing fencer in fencer_top, and fencer_bottom name as "BYE"
-- If a bout is partially cut off, set is_partial=true and fill in what you can see
-- The winner is the fencer whose score is 15 (or higher), or whose name advances to the next column
-- If a bout has no scores yet, set winner=null and both scores=null
-- If you cannot read a name or score, use null"""
+If "{our_fencer_name}" is not visible in this screenshot, return:
+{{"our_fencer": null, "error": "Fencer not found in this screenshot"}}"""
                 }
             ],
         }],
@@ -143,55 +125,92 @@ IMPORTANT:
     return _parse_json_response(message.content[0].text)
 
 
+def _dedup_fencer_path(bouts):
+    """Post-processing safety net: remove duplicate opponents in consecutive rounds."""
+    if not bouts:
+        return bouts
+
+    seen_opponents = set()
+    deduped = []
+    for bout in bouts:
+        opponent = bout.get('opponent_name', '').strip().upper()
+        if opponent and opponent != 'BYE' and opponent in seen_opponents:
+            # Same opponent in consecutive rounds = extraction error, skip it
+            continue
+        if opponent and opponent != 'BYE':
+            seen_opponents.add(opponent)
+        deduped.append(bout)
+    return deduped
+
+
 def merge_de_bracket_extractions(extractions, our_fencer_name):
-    """Merge multiple per-image extractions into a single bracket using Claude."""
-    # Build the merge prompt with all extractions
+    """Merge multiple per-image extractions into a single fencer path."""
+    # Filter out extractions where fencer wasn't found
+    valid = [e for e in extractions if e.get('our_fencer')]
+    if not valid:
+        return {
+            "tournament_bracket": {"bracket_size": 0, "total_bouts_extracted": 0, "completeness": 0, "rounds": {}},
+            "our_fencer": {"name": our_fencer_name, "seed": None, "path": [], "final_placement_range": "Unknown"},
+            "warnings": ["Fencer not found in any screenshot"],
+            "duplicate_bouts_removed": 0
+        }
+
+    # For a single extraction, just reformat and dedup
+    if len(valid) == 1:
+        ext = valid[0]
+        bouts = _dedup_fencer_path(ext.get('bouts', []))
+        return {
+            "tournament_bracket": {
+                "bracket_size": ext.get('bracket_metadata', {}).get('estimated_bracket_size', 0),
+                "total_bouts_extracted": len(bouts),
+                "completeness": 0,
+                "rounds": {}
+            },
+            "our_fencer": {
+                "name": ext.get('our_fencer', {}).get('name', our_fencer_name),
+                "seed": ext.get('our_fencer', {}).get('seed'),
+                "path": bouts,
+                "final_placement_range": ext.get('final_placement_range', 'Unknown')
+            },
+            "warnings": [],
+            "duplicate_bouts_removed": len(ext.get('bouts', [])) - len(bouts)
+        }
+
+    # Multiple extractions: merge via Claude (text-only, cheap)
     extraction_parts = []
-    for i, ext in enumerate(extractions):
+    for i, ext in enumerate(valid):
         extraction_parts.append(f"Screenshot {i + 1}: {json.dumps(ext)}")
 
     extractions_text = "\n\n".join(extraction_parts)
 
-    prompt = f"""You are merging DE bracket data extracted from multiple screenshots of the same
-fencing tournament bracket. The screenshots may overlap -- some bouts may appear in
-multiple screenshots. Later screenshots may show the SAME bracket with MORE results
-filled in (progressive updates as the tournament progresses).
-
-Here are the extractions from {len(extractions)} screenshots:
+    prompt = f"""You are merging DE bracket paths for "{our_fencer_name}" extracted from multiple
+progressive screenshots of the same tournament bracket. Later screenshots show more
+completed rounds.
 
 {extractions_text}
 
-Merge these into a single complete bracket. Rules:
-1. DEDUPLICATE: If the same bout appears in multiple screenshots (same fencer
-   names and round), keep the version with more complete data (non-null scores,
-   non-partial). Later screenshots take priority since they have more results.
-2. RESOLVE CONFLICTS: If two screenshots show different scores for the same bout,
-   prefer the one marked is_partial=false, or the later screenshot.
-3. RENUMBER: Assign correct bracket_position values (1-based, top to bottom) for
-   each round.
-4. VALIDATE TREE: Winners of adjacent bouts in round N should appear as fencers
-   in round N+1. Flag any inconsistencies.
-5. Identify the fencer named "{our_fencer_name}" (or closest match) and mark
-   their path through the bracket.
+Merge into a single path for {our_fencer_name}. Rules:
+1. Each round should appear ONCE with the best available data (prefer non-null scores)
+2. Later screenshots take priority for scores and results
+3. Each bout MUST have a DIFFERENT opponent — if the same opponent appears in two
+   rounds, keep only the first occurrence (the later one is an extraction error)
+4. Order bouts chronologically: Table of 64 → Table of 32 → Table of 16 → etc.
 
-Return:
+Return JSON:
 {{
   "tournament_bracket": {{
     "bracket_size": <64 | 32 | 128>,
     "total_bouts_extracted": <number>,
-    "completeness": <0.0-1.0, fraction of expected bouts that were captured>,
-    "rounds": {{
-      "Table of 64": [ ...bouts ordered by bracket_position... ],
-      "Table of 32": [ ...bouts... ]
-    }}
+    "completeness": 0,
+    "rounds": {{}}
   }},
   "our_fencer": {{
-    "name": "<matched name>",
+    "name": "<exact name>",
     "seed": <number or null>,
     "path": [
       {{
         "round_name": "Table of 64",
-        "opponent_name": "<name>",
+        "opponent_name": "<LAST First>",
         "opponent_seed": <number or null>,
         "opponent_club": "<club or null>",
         "score_for": <number or null>,
@@ -199,19 +218,28 @@ Return:
         "result": "won" | "lost"
       }}
     ],
-    "final_placement_range": "Top 32" | "Top 16" | "Top 8" | "Top 4" | "2nd" | "1st"
+    "final_placement_range": "<placement>"
   }},
-  "warnings": ["<any inconsistencies or missing data>"],
+  "warnings": ["<any issues found>"],
   "duplicate_bouts_removed": <count>
 }}"""
 
     message = get_claude_client().messages.create(
         model="claude-sonnet-4-6",
-        max_tokens=16384,
+        max_tokens=4096,
         messages=[{"role": "user", "content": prompt}]
     )
 
-    return _parse_json_response(message.content[0].text)
+    result = _parse_json_response(message.content[0].text)
+
+    # Safety net: dedup even after merge
+    if result.get('our_fencer', {}).get('path'):
+        original_len = len(result['our_fencer']['path'])
+        result['our_fencer']['path'] = _dedup_fencer_path(result['our_fencer']['path'])
+        removed = original_len - len(result['our_fencer']['path'])
+        result['duplicate_bouts_removed'] = result.get('duplicate_bouts_removed', 0) + removed
+
+    return result
 
 
 def extract_full_de_bracket(image_paths, our_fencer_name, tournament_id):
@@ -223,7 +251,7 @@ def extract_full_de_bracket(image_paths, our_fencer_name, tournament_id):
     """
     extractions = []
     for path in image_paths:
-        extraction = extract_de_bracket_from_photo(path)
+        extraction = extract_de_bracket_from_photo(path, our_fencer_name)
         extractions.append(extraction)
 
     # For large brackets with 6+ images, merge in two phases
