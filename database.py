@@ -102,6 +102,16 @@ class PoolRound(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class DEPrepTips(Base):
+    """Quick DE prep tips generated from pool results."""
+    __tablename__ = 'de_prep_tips'
+
+    id = Column(Integer, primary_key=True)
+    tournament_id = Column(Integer, index=True)
+    tips_json = Column(Text)          # JSON array of 5 tip objects
+    generated_at = Column(DateTime, default=datetime.utcnow)
+
+
 class PoolBout(Base):
     """Individual bout within a pool round."""
     __tablename__ = 'pool_bouts'
@@ -504,7 +514,7 @@ def update_tournament(tournament_id, data):
 
 
 def delete_tournament(tournament_id):
-    """Delete a tournament and its pool data."""
+    """Delete a tournament and its pool data and tips."""
     db = get_db()
     try:
         # Delete pool bouts first
@@ -512,6 +522,7 @@ def delete_tournament(tournament_id):
         for pr in pool_rounds:
             db.query(PoolBout).filter_by(pool_round_id=pr.id).delete()
         db.query(PoolRound).filter_by(tournament_id=tournament_id).delete()
+        db.query(DEPrepTips).filter_by(tournament_id=tournament_id).delete()
 
         t = db.query(Tournament).filter_by(id=tournament_id).first()
         if t:
@@ -814,5 +825,50 @@ def get_all_tags():
     try:
         tags = db.query(LessonTag.tag).distinct().order_by(LessonTag.tag).all()
         return [t[0] for t in tags]
+    finally:
+        db.close()
+
+
+# ── DE Prep Tips helper functions ─────────────────────────────────────
+
+def save_de_prep_tips(tournament_id, tips):
+    """Save DE prep tips for a tournament. Replaces any existing tips."""
+    db = get_db()
+    try:
+        # Delete existing tips for this tournament
+        db.query(DEPrepTips).filter_by(tournament_id=tournament_id).delete()
+        tip_record = DEPrepTips(
+            tournament_id=tournament_id,
+            tips_json=json.dumps(tips),
+            generated_at=datetime.utcnow()
+        )
+        db.add(tip_record)
+        db.commit()
+        return {
+            'id': tip_record.id,
+            'tournament_id': tournament_id,
+            'tips': tips,
+            'generated_at': tip_record.generated_at.strftime('%b %-d, %-I:%M %p')
+        }
+    except Exception as e:
+        db.rollback()
+        raise e
+    finally:
+        db.close()
+
+
+def get_de_prep_tips(tournament_id):
+    """Get saved DE prep tips for a tournament."""
+    db = get_db()
+    try:
+        tip_record = db.query(DEPrepTips).filter_by(tournament_id=tournament_id).first()
+        if not tip_record:
+            return None
+        return {
+            'id': tip_record.id,
+            'tournament_id': tournament_id,
+            'tips': json.loads(tip_record.tips_json),
+            'generated_at': tip_record.generated_at.strftime('%b %-d, %-I:%M %p')
+        }
     finally:
         db.close()

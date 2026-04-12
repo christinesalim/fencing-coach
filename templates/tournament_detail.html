@@ -257,6 +257,79 @@
         .editable-bout .form-row { margin-bottom: 6px; }
         .editable-bout input { font-size: 14px; padding: 8px 10px; }
         .editable-bout label { font-size: 11px; margin-bottom: 2px; }
+
+        /* DE Prep Tips */
+        .tip-card {
+            background: #f5f7fa;
+            border-radius: 12px;
+            padding: 14px 14px 14px 18px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+        }
+
+        .tip-card.cat-finishing { border-left: 4px solid #28a745; }
+        .tip-card.cat-distance { border-left: 4px solid #007bff; }
+        .tip-card.cat-timing { border-left: 4px solid #fd7e14; }
+        .tip-card.cat-mental { border-left: 4px solid #e74c3c; }
+        .tip-card.cat-defense { border-left: 4px solid #6f42c1; }
+        .tip-card.cat-tactical { border-left: 4px solid #20c997; }
+
+        .tip-priority {
+            flex-shrink: 0;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: #1a1a2e;
+            color: white;
+            font-weight: 700;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .tip-content { flex: 1; min-width: 0; }
+
+        .tip-text {
+            font-size: 15px;
+            color: #1a1a2e;
+            line-height: 1.4;
+            margin-bottom: 6px;
+        }
+
+        .tip-category-pill {
+            display: inline-block;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 2px 8px;
+            border-radius: 10px;
+            color: white;
+        }
+
+        .pill-finishing { background: #28a745; }
+        .pill-distance { background: #007bff; }
+        .pill-timing { background: #fd7e14; }
+        .pill-mental { background: #e74c3c; }
+        .pill-defense { background: #6f42c1; }
+        .pill-tactical { background: #20c997; }
+
+        .regenerate-link {
+            display: block;
+            text-align: center;
+            margin-top: 12px;
+            font-size: 13px;
+            color: #4a7fd4;
+            cursor: pointer;
+            background: none;
+            border: none;
+            font-family: inherit;
+        }
+
+        .regenerate-link:active { opacity: 0.7; }
     </style>
 </head>
 <body>
@@ -374,6 +447,39 @@
             </div>
             {% endif %}
         </div>
+
+        <!-- DE Prep Tips Section -->
+        {% if pool_data %}
+        <div class="card" id="deTipsCard">
+            <h2>DE Prep Tips</h2>
+
+            {% if de_tips %}
+            <!-- Saved tips display -->
+            <div id="tipsDisplay">
+                {% for tip in de_tips.tips %}
+                <div class="tip-card cat-{{ tip.category }}">
+                    <div class="tip-priority">{{ tip.priority }}</div>
+                    <div class="tip-content">
+                        <div class="tip-text">{{ tip.tip }}</div>
+                        <span class="tip-category-pill pill-{{ tip.category }}">{{ tip.category }}</span>
+                    </div>
+                </div>
+                {% endfor %}
+                <p style="font-size:12px;color:#999;text-align:center;margin-top:8px;">Generated {{ de_tips.generated_at }}</p>
+                <button class="regenerate-link" onclick="generateDETips()">Regenerate tips</button>
+            </div>
+            {% else %}
+            <!-- Generate button -->
+            <div id="tipsGenerateSection" style="text-align:center;">
+                <p style="color:#777;margin-bottom:16px;font-size:14px;">Get 5 quick tips based on pool results before your DE rounds.</p>
+                <button class="btn-primary" onclick="generateDETips()" style="max-width:300px;margin:0 auto;">Generate DE Prep Tips</button>
+            </div>
+            {% endif %}
+
+            <div class="loader" id="tipsLoader"></div>
+            <div class="status" id="tipsStatus"></div>
+        </div>
+        {% endif %}
 
         <!-- Tournament Info (editable) -->
         <div class="card">
@@ -589,6 +695,34 @@
                 status.textContent = 'Changes saved!';
                 setTimeout(() => { status.style.display = 'none'; status.className = 'status'; }, 2000);
             } catch (error) {
+                status.className = 'status error';
+                status.textContent = 'Error: ' + error.message;
+            }
+        }
+
+        async function generateDETips() {
+            const loader = document.getElementById('tipsLoader');
+            const status = document.getElementById('tipsStatus');
+
+            loader.style.display = 'block';
+            status.className = 'status processing';
+            status.style.display = 'block';
+            status.textContent = 'Analyzing pool results...';
+
+            try {
+                const response = await fetch('/api/tournaments/' + tournamentId + '/de-prep-tips', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await response.json();
+                if (data.error) throw new Error(data.error);
+
+                loader.style.display = 'none';
+                status.className = 'status success';
+                status.textContent = 'Tips generated!';
+                setTimeout(() => location.reload(), 800);
+            } catch (error) {
+                loader.style.display = 'none';
                 status.className = 'status error';
                 status.textContent = 'Error: ' + error.message;
             }

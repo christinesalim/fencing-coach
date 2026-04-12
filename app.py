@@ -36,7 +36,9 @@ from database import (
     update_tournament,
     delete_tournament,
     save_pool_results_to_db,
-    get_pool_results
+    get_pool_results,
+    save_de_prep_tips,
+    get_de_prep_tips
 )
 
 load_dotenv()
@@ -774,7 +776,8 @@ def tournament_detail_page(tournament_id):
     if not tournament:
         return redirect(url_for('tournaments_page'))
     pool_data = get_pool_results(tournament_id)
-    return render_template('tournament_detail.html', tournament=tournament, pool_data=pool_data)
+    de_tips = get_de_prep_tips(tournament_id)
+    return render_template('tournament_detail.html', tournament=tournament, pool_data=pool_data, de_tips=de_tips)
 
 
 @app.route('/api/tournaments', methods=['POST'])
@@ -886,6 +889,95 @@ def confirm_pool_results():
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+def generate_de_prep_tips(tournament, pool_data):
+    """Generate 5 quick DE prep tips from pool results using Claude."""
+    # Build bout details string
+    bout_lines = []
+    for bout in pool_data.get('bouts', []):
+        result_str = 'WIN' if bout['result'] == 'won' else 'LOSS'
+        club_str = f" ({bout['opponent_club']})" if bout.get('opponent_club') else ''
+        bout_lines.append(
+            f"vs {bout['opponent_name']}{club_str}: "
+            f"{bout['score_for']}-{bout['score_against']} {result_str}"
+        )
+
+    prompt = f"""You are Coach Ziad's assistant analyzing pool results for Ethan, a Y-12 epee fencer, right before his Direct Elimination (DE) rounds.
+
+Tournament: {tournament['name']}
+Date: {tournament['date']}
+
+Pool Results:
+Record: {pool_data['victories']}V-{pool_data['defeats']}D | Indicator: {pool_data['indicator']} | TS: {pool_data['touches_scored']} | TR: {pool_data['touches_received']}
+
+Individual Bouts:
+{chr(10).join(bout_lines)}
+
+Generate exactly 5 short, actionable tips for Ethan to use in the upcoming DE rounds. These will be read quickly on a phone between rounds at the tournament.
+
+Rules:
+- Analyze PATTERNS in the scores (close losses, blowouts, comfortable wins, scoring trends)
+- Use epee-specific terminology (no right-of-way in epee; focus on: distance, timing, point control, remise, counter-attack, fleche, single-light touches)
+- Be specific to what the data shows — do NOT give generic advice
+- Each tip must be 1-2 sentences maximum, written as a direct instruction
+- Order by importance (most critical first)
+- Assign each tip a category: "finishing" (closing out close bouts), "distance" (blade/foot distance), "timing" (tempo/patience), "mental" (focus/composure), "defense" (avoiding touches), "tactical" (strategy/patterns)
+
+Return JSON array:
+[
+  {{"priority": 1, "category": "<category>", "tip": "<specific actionable tip>"}},
+  {{"priority": 2, "category": "<category>", "tip": "<specific actionable tip>"}},
+  {{"priority": 3, "category": "<category>", "tip": "<specific actionable tip>"}},
+  {{"priority": 4, "category": "<category>", "tip": "<specific actionable tip>"}},
+  {{"priority": 5, "category": "<category>", "tip": "<specific actionable tip>"}}
+]"""
+
+    message = get_claude_client().messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=1024,
+        messages=[{"role": "user", "content": prompt}]
+    )
+
+    try:
+        return json.loads(message.content[0].text)
+    except json.JSONDecodeError:
+        text = message.content[0].text
+        if "```json" in text:
+            text = text.split("```json")[1].split("```")[0]
+        elif "```" in text:
+            text = text.split("```")[1].split("```")[0]
+        return json.loads(text.strip())
+
+
+@app.route('/api/tournaments/<int:tournament_id>/de-prep-tips', methods=['POST'])
+@login_required
+def api_generate_de_prep_tips(tournament_id):
+    """Generate DE prep tips from pool data."""
+    tournament = get_tournament(tournament_id)
+    if not tournament:
+        return jsonify({'error': 'Tournament not found'}), 404
+
+    pool_data = get_pool_results(tournament_id)
+    if not pool_data:
+        return jsonify({'error': 'No pool results found. Upload pool results first.'}), 400
+
+    try:
+        tips = generate_de_prep_tips(tournament, pool_data)
+        saved = save_de_prep_tips(tournament_id, tips)
+        return jsonify({'success': True, 'tips': saved})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/tournaments/<int:tournament_id>/de-prep-tips', methods=['GET'])
+@login_required
+def api_get_de_prep_tips(tournament_id):
+    """Retrieve saved DE prep tips."""
+    tips = get_de_prep_tips(tournament_id)
+    if not tips:
+        return jsonify({'error': 'No tips found'}), 404
+    return jsonify(tips)
 
 
 if __name__ == '__main__':
