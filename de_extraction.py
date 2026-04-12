@@ -66,7 +66,19 @@ def extract_de_bracket_from_photo(image_path):
                 {
                     "type": "text",
                     "text": """You are analyzing a screenshot of a fencing Direct Elimination (DE) bracket
-displayed on a phone or tablet screen.
+displayed on a phone or tablet screen, typically from FencingTimeLive.
+
+HOW TO READ DE BRACKETS:
+- The bracket flows LEFT to RIGHT. Each horizontal matchup is a DE bout.
+- The WINNER advances to the right (connects to the next round). The loser is eliminated.
+- Each column represents a round: Table of 64, Table of 32, Table of 16, etc.
+- Numbers in parentheses like (4) or (36) are SEEDS (pool ranking). Lower number = stronger seed.
+- Scores appear next to the connecting line between rounds, typically as "15-7" or just two numbers.
+  The WINNER's score is always 15 in standard DE bouts (first to 15 touches).
+- "BYE" means no opponent — that fencer automatically advances to the next round.
+- Club names and region abbreviations appear below fencer names (e.g., "AFM / Central California").
+- A fencer's name may appear BOLD or highlighted if they won their bout.
+- Only bouts that have been FENCED will have scores. Upcoming/unfenced bouts show names but no scores.
 
 Extract EVERY visible bout in this screenshot, including partial/cut-off bouts
 at the edges. Return JSON:
@@ -77,7 +89,7 @@ at the edges. Return JSON:
     "visible_rounds": ["Table of 64", "Table of 32", ...],
     "position_hint": "top-left" | "top-right" | "bottom-left" | "bottom-right" | "center" | "left-half" | "right-half",
     "bracket_format": "single_elimination",
-    "software_detected": "FencingTime" | "EnGarde" | "USAFencing" | "unknown"
+    "software_detected": "FencingTimeLive" | "EnGarde" | "USAFencing" | "unknown"
   },
   "bouts": [
     {
@@ -107,13 +119,14 @@ at the edges. Return JSON:
 }
 
 IMPORTANT:
-- Extract ALL visible bouts, not just one fencer's path
+- Read the bracket structure CAREFULLY left to right before extracting bouts
+- Each bout is a PAIR of fencers connected by bracket lines. Do NOT invent bouts — only extract matchups that are visually connected in the bracket
+- A fencer who WINS round N appears in round N+1. Do NOT create a separate bout entry for the same fencer appearing in the next round — that is their NEXT bout, not the same bout
 - "bracket_position" counts from top of bracket: position 1 is the topmost bout in that round
 - For byes, set is_bye=true, the advancing fencer in fencer_top, and fencer_bottom name as "BYE"
 - If a bout is partially cut off at the edge of the screenshot, set is_partial=true and fill in what you can see
-- Seed numbers appear in parentheses like (4) or #4
-- The winner typically has the higher score, or their name may be bold/highlighted
-- Score format varies: "15-7", "V15-7", or just the scores next to each name
+- The winner is the fencer whose score is 15 (or higher), or whose name advances to the next column
+- If a bout has no scores yet (names only, no result), set winner=null and both scores=null
 - If you cannot read a name or score, use null"""
                 }
             ],
