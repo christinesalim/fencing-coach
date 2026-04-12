@@ -51,7 +51,7 @@ def extract_de_bracket_from_photo(image_path):
 
     message = get_claude_client().messages.create(
         model="claude-sonnet-4-6",
-        max_tokens=4096,
+        max_tokens=16384,
         messages=[{
             "role": "user",
             "content": [
@@ -207,7 +207,7 @@ Return:
 
     message = get_claude_client().messages.create(
         model="claude-sonnet-4-6",
-        max_tokens=8192,
+        max_tokens=16384,
         messages=[{"role": "user", "content": prompt}]
     )
 
