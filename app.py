@@ -41,7 +41,9 @@ from database import (
     get_de_prep_tips,
     save_de_results_to_db,
     get_de_results,
-    delete_de_results
+    delete_de_results,
+    save_de_summary,
+    get_de_summary
 )
 from de_extraction import extract_full_de_bracket
 
@@ -782,7 +784,8 @@ def tournament_detail_page(tournament_id):
     pool_data = get_pool_results(tournament_id)
     de_tips = get_de_prep_tips(tournament_id)
     de_results = get_de_results(tournament_id)
-    return render_template('tournament_detail.html', tournament=tournament, pool_data=pool_data, de_tips=de_tips, de_results=de_results)
+    de_summary = get_de_summary(tournament_id)
+    return render_template('tournament_detail.html', tournament=tournament, pool_data=pool_data, de_tips=de_tips, de_results=de_results, de_summary=de_summary)
 
 
 @app.route('/api/tournaments', methods=['POST'])
@@ -983,6 +986,105 @@ def api_get_de_prep_tips(tournament_id):
     if not tips:
         return jsonify({'error': 'No tips found'}), 404
     return jsonify(tips)
+
+
+def generate_de_summary(tournament, de_results):
+    """Generate DE performance summary from elimination results using Claude."""
+    our_fencer = de_results.get('our_fencer', {})
+    seed = our_fencer.get('seed', 'Unknown')
+    final_placement = our_fencer.get('final_placement_range', 'Unknown')
+
+    bout_lines = []
+    for bout in de_results.get('bouts', []):
+        club_str = f" ({bout['opponent_club']})" if bout.get('opponent_club') else ''
+        seed_str = f", seed #{bout['opponent_seed']}" if bout.get('opponent_seed') else ''
+        bout_lines.append(
+            f"Round: {bout['round_name']} | vs {bout['opponent_name']}{club_str}{seed_str} | "
+            f"Score: {bout['score_for']}-{bout['score_against']} | {bout['result']}"
+        )
+
+    prompt = f"""You are an experienced epee fencing analyst reviewing a Y-12 fencer's Direct Elimination performance. The fencer is Ethan (coached by Ziad).
+
+Tournament: {tournament['name']}
+Date: {tournament['date']}
+
+Ethan's Seed: {seed}
+Final Placement: {final_placement}
+
+DE Bouts:
+{chr(10).join(bout_lines)}
+
+Provide a performance analysis in JSON format:
+{{
+  "overall_assessment": "<2-3 sentence big-picture summary of the DE performance>",
+  "bout_analyses": [
+    {{
+      "round_name": "<round>",
+      "opponent": "<name>",
+      "result": "won/lost",
+      "analysis": "<1-2 sentences: what the score tells us about this bout>"
+    }}
+  ],
+  "seed_performance": "<Did Ethan outperform his seed? Any upset wins? Compare seed to final placement>",
+  "strengths": ["<specific strength shown in DEs>"],
+  "areas_to_improve": ["<specific area based on the data>"],
+  "ethan_takeaway": "<1-2 sentences written directly to Ethan, age-appropriate, encouraging but honest>",
+  "coach_summary": "<2-3 sentences for Coach Ziad — what to focus on in lessons based on DE performance>"
+}}
+
+Rules:
+- Reference SPECIFIC bout scores and opponent names/seeds
+- Use epee-specific terminology (no right-of-way in epee)
+- Analyze score margins (15-7 = dominant, 15-12 = close/competitive, 15-14 = could go either way)
+- Note upset wins (beating a higher seed) as significant achievements
+- Be honest but constructive — this is an 11-12 year old fencer
+- The ethan_takeaway should be motivating, not deflating"""
+
+    message = get_claude_client().messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=1536,
+        messages=[{"role": "user", "content": prompt}]
+    )
+
+    try:
+        return json.loads(message.content[0].text)
+    except json.JSONDecodeError:
+        text = message.content[0].text
+        if "```json" in text:
+            text = text.split("```json")[1].split("```")[0]
+        elif "```" in text:
+            text = text.split("```")[1].split("```")[0]
+        return json.loads(text.strip())
+
+
+@app.route('/api/tournaments/<int:tournament_id>/de-summary', methods=['POST'])
+@login_required
+def api_generate_de_summary(tournament_id):
+    """Generate DE performance summary from saved DE results."""
+    tournament = get_tournament(tournament_id)
+    if not tournament:
+        return jsonify({'error': 'Tournament not found'}), 404
+
+    de_results = get_de_results(tournament_id)
+    if not de_results or not de_results.get('bouts'):
+        return jsonify({'error': 'No DE results found. Upload DE bracket first.'}), 400
+
+    try:
+        summary = generate_de_summary(tournament, de_results)
+        saved = save_de_summary(tournament_id, summary)
+        return jsonify({'success': True, 'summary': saved})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/tournaments/<int:tournament_id>/de-summary', methods=['GET'])
+@login_required
+def api_get_de_summary(tournament_id):
+    """Retrieve saved DE performance summary."""
+    summary = get_de_summary(tournament_id)
+    if not summary:
+        return jsonify({'error': 'No summary found'}), 404
+    return jsonify(summary)
 
 
 @app.route('/api/upload-de-bracket', methods=['POST'])

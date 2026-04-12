@@ -143,6 +143,16 @@ class DEBracket(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class DESummary(Base):
+    """Post-DE performance summary generated from elimination results."""
+    __tablename__ = 'de_summaries'
+
+    id = Column(Integer, primary_key=True)
+    tournament_id = Column(Integer, index=True)
+    summary_json = Column(Text)
+    generated_at = Column(DateTime, default=datetime.utcnow)
+
+
 class PoolBout(Base):
     """Individual bout within a pool round."""
     __tablename__ = 'pool_bouts'
@@ -555,9 +565,10 @@ def delete_tournament(tournament_id):
         db.query(PoolRound).filter_by(tournament_id=tournament_id).delete()
         db.query(DEPrepTips).filter_by(tournament_id=tournament_id).delete()
 
-        # Delete DE data
+        # Delete DE data and summaries
         db.query(EliminationRound).filter_by(tournament_id=tournament_id).delete()
         db.query(DEBracket).filter_by(tournament_id=tournament_id).delete()
+        db.query(DESummary).filter_by(tournament_id=tournament_id).delete()
 
         t = db.query(Tournament).filter_by(id=tournament_id).first()
         if t:
@@ -1004,5 +1015,49 @@ def delete_de_results(tournament_id):
     except Exception as e:
         db.rollback()
         raise e
+    finally:
+        db.close()
+
+
+# ── DE Summary helper functions ─────────────────────────────────────
+
+def save_de_summary(tournament_id, summary):
+    """Save DE performance summary for a tournament. Replaces any existing summary."""
+    db = get_db()
+    try:
+        db.query(DESummary).filter_by(tournament_id=tournament_id).delete()
+        record = DESummary(
+            tournament_id=tournament_id,
+            summary_json=json.dumps(summary),
+            generated_at=datetime.utcnow()
+        )
+        db.add(record)
+        db.commit()
+        return {
+            'id': record.id,
+            'tournament_id': tournament_id,
+            'summary': summary,
+            'generated_at': record.generated_at.strftime('%b %-d, %-I:%M %p')
+        }
+    except Exception as e:
+        db.rollback()
+        raise e
+    finally:
+        db.close()
+
+
+def get_de_summary(tournament_id):
+    """Get saved DE performance summary for a tournament."""
+    db = get_db()
+    try:
+        record = db.query(DESummary).filter_by(tournament_id=tournament_id).first()
+        if not record:
+            return None
+        return {
+            'id': record.id,
+            'tournament_id': tournament_id,
+            'summary': json.loads(record.summary_json),
+            'generated_at': record.generated_at.strftime('%b %-d, %-I:%M %p')
+        }
     finally:
         db.close()
