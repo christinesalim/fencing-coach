@@ -112,6 +112,37 @@ class DEPrepTips(Base):
     generated_at = Column(DateTime, default=datetime.utcnow)
 
 
+class EliminationRound(Base):
+    """Individual bout in the direct elimination bracket."""
+    __tablename__ = 'elimination_rounds'
+
+    id = Column(Integer, primary_key=True)
+    tournament_id = Column(Integer, index=True)
+    round_name = Column(String(50))
+    opponent_name = Column(String(255))
+    opponent_club = Column(String(255))
+    opponent_seed = Column(Integer)
+    score_for = Column(Integer)
+    score_against = Column(Integer)
+    result = Column(String(10))
+    bout_order = Column(Integer)
+    notes = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class DEBracket(Base):
+    """Full DE bracket data stored as JSON."""
+    __tablename__ = 'de_brackets'
+
+    id = Column(Integer, primary_key=True)
+    tournament_id = Column(Integer, index=True)
+    bracket_size = Column(Integer)
+    completeness = Column(String(10))
+    bracket_json = Column(Text)
+    our_fencer_path_json = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class PoolBout(Base):
     """Individual bout within a pool round."""
     __tablename__ = 'pool_bouts'
@@ -514,7 +545,7 @@ def update_tournament(tournament_id, data):
 
 
 def delete_tournament(tournament_id):
-    """Delete a tournament and its pool data and tips."""
+    """Delete a tournament and its pool data, DE data, and tips."""
     db = get_db()
     try:
         # Delete pool bouts first
@@ -523,6 +554,10 @@ def delete_tournament(tournament_id):
             db.query(PoolBout).filter_by(pool_round_id=pr.id).delete()
         db.query(PoolRound).filter_by(tournament_id=tournament_id).delete()
         db.query(DEPrepTips).filter_by(tournament_id=tournament_id).delete()
+
+        # Delete DE data
+        db.query(EliminationRound).filter_by(tournament_id=tournament_id).delete()
+        db.query(DEBracket).filter_by(tournament_id=tournament_id).delete()
 
         t = db.query(Tournament).filter_by(id=tournament_id).first()
         if t:
@@ -870,5 +905,104 @@ def get_de_prep_tips(tournament_id):
             'tips': json.loads(tip_record.tips_json),
             'generated_at': tip_record.generated_at.strftime('%b %-d, %-I:%M %p')
         }
+    finally:
+        db.close()
+
+
+# ── DE Bracket helper functions ─────────────────────────────────────
+
+def save_de_results_to_db(tournament_id, bracket_data):
+    """Save DE bracket results to database. Replaces any existing DE data."""
+    db = get_db()
+    try:
+        # Delete existing DE data for this tournament
+        db.query(EliminationRound).filter_by(tournament_id=tournament_id).delete()
+        db.query(DEBracket).filter_by(tournament_id=tournament_id).delete()
+
+        # Save our fencer's path as elimination_round records
+        our_fencer = bracket_data.get('our_fencer', {})
+        for i, bout in enumerate(our_fencer.get('path', [])):
+            if bout.get('opponent_name', '').upper() == 'BYE':
+                continue
+            elim_round = EliminationRound(
+                tournament_id=tournament_id,
+                round_name=bout.get('round_name'),
+                opponent_name=bout.get('opponent_name'),
+                opponent_club=bout.get('opponent_club'),
+                opponent_seed=bout.get('opponent_seed'),
+                score_for=bout.get('score_for'),
+                score_against=bout.get('score_against'),
+                result=bout.get('result'),
+                bout_order=i + 1,
+                notes=None
+            )
+            db.add(elim_round)
+
+        # Save full bracket as JSON
+        tournament_bracket = bracket_data.get('tournament_bracket', {})
+        de_bracket = DEBracket(
+            tournament_id=tournament_id,
+            bracket_size=tournament_bracket.get('bracket_size'),
+            completeness=str(tournament_bracket.get('completeness', '')),
+            bracket_json=json.dumps(tournament_bracket),
+            our_fencer_path_json=json.dumps(our_fencer)
+        )
+        db.add(de_bracket)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise e
+    finally:
+        db.close()
+
+
+def get_de_results(tournament_id):
+    """Get DE results for a tournament."""
+    db = get_db()
+    try:
+        de_bracket = db.query(DEBracket).filter_by(tournament_id=tournament_id).first()
+        if not de_bracket:
+            return None
+
+        elim_rounds = db.query(EliminationRound).filter_by(
+            tournament_id=tournament_id
+        ).order_by(EliminationRound.bout_order).all()
+
+        our_fencer = json.loads(de_bracket.our_fencer_path_json) if de_bracket.our_fencer_path_json else {}
+
+        return {
+            'bracket_size': de_bracket.bracket_size,
+            'completeness': de_bracket.completeness,
+            'our_fencer': our_fencer,
+            'bouts': [
+                {
+                    'id': r.id,
+                    'round_name': r.round_name,
+                    'opponent_name': r.opponent_name,
+                    'opponent_club': r.opponent_club,
+                    'opponent_seed': r.opponent_seed,
+                    'score_for': r.score_for,
+                    'score_against': r.score_against,
+                    'result': r.result,
+                    'bout_order': r.bout_order
+                }
+                for r in elim_rounds
+            ]
+        }
+    finally:
+        db.close()
+
+
+def delete_de_results(tournament_id):
+    """Delete DE results for a tournament."""
+    db = get_db()
+    try:
+        db.query(EliminationRound).filter_by(tournament_id=tournament_id).delete()
+        db.query(DEBracket).filter_by(tournament_id=tournament_id).delete()
+        db.commit()
+        return True
+    except Exception as e:
+        db.rollback()
+        raise e
     finally:
         db.close()

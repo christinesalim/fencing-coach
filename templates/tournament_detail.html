@@ -330,6 +330,124 @@
         }
 
         .regenerate-link:active { opacity: 0.7; }
+
+        /* DE Results Timeline */
+        .de-timeline { position: relative; padding-left: 24px; }
+
+        .de-timeline::before {
+            content: '';
+            position: absolute;
+            left: 8px;
+            top: 10px;
+            bottom: 10px;
+            width: 3px;
+            background: #e0e0e0;
+            border-radius: 2px;
+        }
+
+        .de-bout-card {
+            position: relative;
+            background: #f5f7fa;
+            border-radius: 12px;
+            padding: 14px;
+            margin-bottom: 12px;
+        }
+
+        .de-bout-card::before {
+            content: '';
+            position: absolute;
+            left: -20px;
+            top: 18px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            border: 3px solid white;
+            box-shadow: 0 0 0 2px #ccc;
+        }
+
+        .de-bout-card.won::before { background: #28a745; box-shadow: 0 0 0 2px #28a745; }
+        .de-bout-card.lost::before { background: #e74c3c; box-shadow: 0 0 0 2px #e74c3c; }
+
+        .de-bout-card.won { border-left: 4px solid #28a745; }
+        .de-bout-card.lost { border-left: 4px solid #e74c3c; }
+
+        .de-round-label {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #777;
+            margin-bottom: 6px;
+        }
+
+        .de-bout-opponent {
+            font-weight: 600;
+            font-size: 15px;
+            color: #1a1a2e;
+        }
+
+        .de-bout-seed {
+            font-size: 12px;
+            color: #999;
+            font-weight: 400;
+        }
+
+        .de-bout-score {
+            font-weight: 700;
+            font-size: 16px;
+            float: right;
+            margin-top: -20px;
+        }
+
+        .de-bout-score.won { color: #28a745; }
+        .de-bout-score.lost { color: #e74c3c; }
+
+        .de-bout-club {
+            font-size: 12px;
+            color: #777;
+            margin-top: 2px;
+        }
+
+        .de-result-badge {
+            display: inline-block;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            padding: 2px 8px;
+            border-radius: 10px;
+            color: white;
+            margin-top: 6px;
+        }
+
+        .de-result-badge.won { background: #28a745; }
+        .de-result-badge.lost { background: #e74c3c; }
+
+        .de-placement {
+            text-align: center;
+            margin-top: 16px;
+            padding: 12px;
+            background: #f5f7fa;
+            border-radius: 12px;
+        }
+
+        .de-placement-label {
+            font-size: 12px;
+            color: #777;
+            margin-bottom: 4px;
+        }
+
+        .de-placement-value {
+            font-size: 1.3em;
+            font-weight: 700;
+            color: #1a1a2e;
+        }
+
+        .photo-count {
+            text-align: center;
+            font-size: 13px;
+            color: #777;
+            margin-top: 8px;
+        }
     </style>
 </head>
 <body>
@@ -481,6 +599,86 @@
         </div>
         {% endif %}
 
+        <!-- DE Results Section -->
+        <div class="card" id="deResultsCard">
+            <h2>DE Results</h2>
+
+            {% if de_results %}
+            <!-- Saved DE results display -->
+            <div id="deResultsDisplay">
+                {% if de_results.our_fencer %}
+                <p style="font-size:13px;color:#777;margin-bottom:14px;">
+                    {{ de_results.our_fencer.name }}
+                    {% if de_results.our_fencer.seed %} ({{ de_results.our_fencer.seed }}){% endif %}
+                    &middot; Bracket of {{ de_results.bracket_size }}
+                </p>
+                {% endif %}
+
+                <div class="de-timeline">
+                    {% for bout in de_results.bouts %}
+                    <div class="de-bout-card {{ bout.result }}">
+                        <div class="de-round-label">{{ bout.round_name }}</div>
+                        <div class="de-bout-opponent">
+                            {{ bout.opponent_name }}
+                            {% if bout.opponent_seed %}<span class="de-bout-seed">({{ bout.opponent_seed }})</span>{% endif %}
+                        </div>
+                        {% if bout.score_for is not none and bout.score_against is not none %}
+                        <div class="de-bout-score {{ bout.result }}">{{ bout.score_for }} - {{ bout.score_against }}</div>
+                        {% endif %}
+                        {% if bout.opponent_club %}
+                        <div class="de-bout-club">{{ bout.opponent_club }}</div>
+                        {% endif %}
+                        <span class="de-result-badge {{ bout.result }}">{{ bout.result | upper }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                {% if de_results.our_fencer and de_results.our_fencer.final_placement_range %}
+                <div class="de-placement">
+                    <div class="de-placement-label">Final Placement</div>
+                    <div class="de-placement-value">{{ de_results.our_fencer.final_placement_range }}</div>
+                </div>
+                {% endif %}
+
+                <button class="regenerate-link" onclick="reuploadDE()">Re-upload DE bracket photos</button>
+            </div>
+
+            {% else %}
+            <!-- Upload section -->
+            <div id="deUploadSection" style="text-align:center;">
+                <p style="color:#777;margin-bottom:16px;font-size:14px;">Upload screenshots of the DE bracket to extract results.</p>
+                <input type="file" id="dePhotos" accept="image/*" multiple>
+                <label for="dePhotos" class="upload-btn">Upload Bracket Photos</label>
+                <div class="photo-count" id="dePhotoCount"></div>
+            </div>
+            {% endif %}
+
+            <div class="loader" id="deLoader"></div>
+            <div class="status" id="deStatus"></div>
+
+            <!-- Extracted DE results review (hidden until extraction) -->
+            <div id="deExtractedResults" style="display:none;">
+                <h3>Review Extracted Results</h3>
+                <p style="font-size:13px;color:#777;margin-bottom:14px;">Check Ethan's path through the bracket, then confirm.</p>
+
+                <div id="deReviewTimeline" class="de-timeline"></div>
+
+                <div id="deReviewPlacement" style="display:none;" class="de-placement">
+                    <div class="de-placement-label">Final Placement</div>
+                    <div class="de-placement-value" id="deReviewPlacementValue"></div>
+                </div>
+
+                <div id="deWarnings" style="display:none;margin-top:12px;">
+                    <p style="font-size:12px;color:#fd7e14;font-weight:600;">Warnings:</p>
+                    <ul id="deWarningsList" style="font-size:12px;color:#fd7e14;margin-left:16px;"></ul>
+                </div>
+
+                <button class="btn-primary" onclick="confirmDEResults()" style="margin-top:16px;">Confirm & Save</button>
+                <button class="btn-secondary" onclick="cancelDEExtraction()">Cancel</button>
+                <div class="status" id="deConfirmStatus"></div>
+            </div>
+        </div>
+
         <!-- Tournament Info (editable) -->
         <div class="card">
             <h2>Tournament Info</h2>
@@ -531,6 +729,7 @@
     <script>
         const tournamentId = {{ tournament.id }};
         let extractedData = null;
+        let deExtractedData = null;
 
         // Pool photo upload
         const poolPhotoInput = document.getElementById('poolPhoto');
@@ -726,6 +925,215 @@
                 status.className = 'status error';
                 status.textContent = 'Error: ' + error.message;
             }
+        }
+
+        // DE Bracket upload
+        const dePhotosInput = document.getElementById('dePhotos');
+        if (dePhotosInput) {
+            dePhotosInput.addEventListener('change', async (e) => {
+                const files = e.target.files;
+                if (!files || files.length === 0) return;
+
+                const countEl = document.getElementById('dePhotoCount');
+                countEl.textContent = files.length + ' photo' + (files.length > 1 ? 's' : '') + ' selected';
+
+                if (files.length > 8) {
+                    const status = document.getElementById('deStatus');
+                    status.className = 'status error';
+                    status.textContent = 'Maximum 8 photos allowed.';
+                    return;
+                }
+
+                const loader = document.getElementById('deLoader');
+                const status = document.getElementById('deStatus');
+
+                loader.style.display = 'block';
+                status.className = 'status processing';
+                status.style.display = 'block';
+                status.textContent = 'Extracting bracket data from ' + files.length + ' photo' + (files.length > 1 ? 's' : '') + '...';
+
+                const formData = new FormData();
+                for (let i = 0; i < files.length; i++) {
+                    formData.append('photos', files[i]);
+                }
+                formData.append('tournament_id', tournamentId);
+                formData.append('fencer_name', 'SALIM Ethan');
+
+                try {
+                    const response = await fetch('/api/upload-de-bracket', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const data = await response.json();
+                    if (data.error) throw new Error(data.error);
+
+                    deExtractedData = data.extracted_data;
+                    populateDEReview(deExtractedData);
+
+                    loader.style.display = 'none';
+                    status.style.display = 'none';
+                    document.getElementById('deUploadSection').style.display = 'none';
+                    document.getElementById('deExtractedResults').style.display = 'block';
+                } catch (error) {
+                    loader.style.display = 'none';
+                    status.className = 'status error';
+                    status.textContent = 'Error: ' + error.message;
+                }
+            });
+        }
+
+        function populateDEReview(data) {
+            const timeline = document.getElementById('deReviewTimeline');
+            timeline.innerHTML = '';
+
+            const ourFencer = data.our_fencer || {};
+            const path = ourFencer.path || [];
+
+            path.forEach(function(bout) {
+                const div = document.createElement('div');
+                div.className = 'de-bout-card ' + (bout.result || '');
+
+                let scoreHtml = '';
+                if (bout.score_for != null && bout.score_against != null) {
+                    scoreHtml = '<div class="de-bout-score ' + (bout.result || '') + '">' +
+                        bout.score_for + ' - ' + bout.score_against + '</div>';
+                }
+
+                let seedHtml = '';
+                if (bout.opponent_seed) {
+                    seedHtml = ' <span class="de-bout-seed">(' + bout.opponent_seed + ')</span>';
+                }
+
+                let clubHtml = '';
+                if (bout.opponent_club) {
+                    clubHtml = '<div class="de-bout-club">' + bout.opponent_club + '</div>';
+                }
+
+                div.innerHTML =
+                    '<div class="de-round-label">' + (bout.round_name || '') + '</div>' +
+                    '<div class="de-bout-opponent">' + (bout.opponent_name || 'Unknown') + seedHtml + '</div>' +
+                    scoreHtml +
+                    clubHtml +
+                    '<span class="de-result-badge ' + (bout.result || '') + '">' + (bout.result || '').toUpperCase() + '</span>';
+
+                timeline.appendChild(div);
+            });
+
+            if (ourFencer.final_placement_range) {
+                document.getElementById('deReviewPlacement').style.display = 'block';
+                document.getElementById('deReviewPlacementValue').textContent = ourFencer.final_placement_range;
+            }
+
+            // Show warnings
+            const warnings = data.warnings || [];
+            if (warnings.length > 0) {
+                const warningsDiv = document.getElementById('deWarnings');
+                warningsDiv.style.display = 'block';
+                const list = document.getElementById('deWarningsList');
+                list.innerHTML = '';
+                warnings.forEach(function(w) {
+                    const li = document.createElement('li');
+                    li.textContent = w;
+                    list.appendChild(li);
+                });
+            }
+        }
+
+        async function confirmDEResults() {
+            const status = document.getElementById('deConfirmStatus');
+
+            try {
+                const response = await fetch('/api/confirm-de-results', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        tournament_id: tournamentId,
+                        bracket_data: deExtractedData
+                    })
+                });
+                const data = await response.json();
+                if (data.error) throw new Error(data.error);
+
+                status.className = 'status success';
+                status.textContent = 'DE results saved!';
+                setTimeout(function() { location.reload(); }, 800);
+            } catch (error) {
+                status.className = 'status error';
+                status.textContent = 'Error: ' + error.message;
+            }
+        }
+
+        function cancelDEExtraction() {
+            document.getElementById('deExtractedResults').style.display = 'none';
+            document.getElementById('deUploadSection').style.display = 'block';
+            const dePhotosEl = document.getElementById('dePhotos');
+            if (dePhotosEl) dePhotosEl.value = '';
+            document.getElementById('dePhotoCount').textContent = '';
+            deExtractedData = null;
+        }
+
+        function reuploadDE() {
+            if (!confirm('Re-uploading will replace the current DE results. Continue?')) return;
+            // Show a file input for re-upload
+            const display = document.getElementById('deResultsDisplay');
+            display.innerHTML =
+                '<div style="text-align:center;">' +
+                '<p style="color:#777;margin-bottom:16px;font-size:14px;">Upload new bracket screenshots to replace current results.</p>' +
+                '<input type="file" id="dePhotosReupload" accept="image/*" multiple>' +
+                '<label for="dePhotosReupload" class="upload-btn">Upload Bracket Photos</label>' +
+                '<div class="photo-count" id="dePhotoCountReupload"></div>' +
+                '</div>';
+
+            document.getElementById('dePhotosReupload').addEventListener('change', async function(e) {
+                const files = e.target.files;
+                if (!files || files.length === 0) return;
+
+                var countEl = document.getElementById('dePhotoCountReupload');
+                countEl.textContent = files.length + ' photo' + (files.length > 1 ? 's' : '') + ' selected';
+
+                if (files.length > 8) {
+                    var status = document.getElementById('deStatus');
+                    status.className = 'status error';
+                    status.textContent = 'Maximum 8 photos allowed.';
+                    return;
+                }
+
+                var loader = document.getElementById('deLoader');
+                var status = document.getElementById('deStatus');
+
+                loader.style.display = 'block';
+                status.className = 'status processing';
+                status.style.display = 'block';
+                status.textContent = 'Extracting bracket data from ' + files.length + ' photo' + (files.length > 1 ? 's' : '') + '...';
+
+                var formData = new FormData();
+                for (var i = 0; i < files.length; i++) {
+                    formData.append('photos', files[i]);
+                }
+                formData.append('tournament_id', tournamentId);
+                formData.append('fencer_name', 'SALIM Ethan');
+
+                try {
+                    var response = await fetch('/api/upload-de-bracket', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    var data = await response.json();
+                    if (data.error) throw new Error(data.error);
+
+                    deExtractedData = data.extracted_data;
+                    populateDEReview(deExtractedData);
+
+                    loader.style.display = 'none';
+                    status.style.display = 'none';
+                    display.style.display = 'none';
+                    document.getElementById('deExtractedResults').style.display = 'block';
+                } catch (error) {
+                    loader.style.display = 'none';
+                    status.className = 'status error';
+                    status.textContent = 'Error: ' + error.message;
+                }
+            });
         }
 
         async function deleteTournament() {

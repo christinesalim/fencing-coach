@@ -38,8 +38,12 @@ from database import (
     save_pool_results_to_db,
     get_pool_results,
     save_de_prep_tips,
-    get_de_prep_tips
+    get_de_prep_tips,
+    save_de_results_to_db,
+    get_de_results,
+    delete_de_results
 )
+from de_extraction import extract_full_de_bracket
 
 load_dotenv()
 
@@ -777,7 +781,8 @@ def tournament_detail_page(tournament_id):
         return redirect(url_for('tournaments_page'))
     pool_data = get_pool_results(tournament_id)
     de_tips = get_de_prep_tips(tournament_id)
-    return render_template('tournament_detail.html', tournament=tournament, pool_data=pool_data, de_tips=de_tips)
+    de_results = get_de_results(tournament_id)
+    return render_template('tournament_detail.html', tournament=tournament, pool_data=pool_data, de_tips=de_tips, de_results=de_results)
 
 
 @app.route('/api/tournaments', methods=['POST'])
@@ -978,6 +983,79 @@ def api_get_de_prep_tips(tournament_id):
     if not tips:
         return jsonify({'error': 'No tips found'}), 404
     return jsonify(tips)
+
+
+@app.route('/api/upload-de-bracket', methods=['POST'])
+@login_required
+def upload_de_bracket():
+    """Handle DE bracket photo upload and extraction."""
+    if 'photos' not in request.files:
+        return jsonify({'error': 'No photos uploaded'}), 400
+
+    tournament_id = request.form.get('tournament_id')
+    if not tournament_id:
+        return jsonify({'error': 'Tournament ID required'}), 400
+
+    our_fencer_name = request.form.get('fencer_name', 'SALIM Ethan')
+
+    files = request.files.getlist('photos')
+    if not files or files[0].filename == '':
+        return jsonify({'error': 'No files selected'}), 400
+
+    if len(files) > 8:
+        return jsonify({'error': 'Maximum 8 photos allowed'}), 400
+
+    saved_paths = []
+    try:
+        for file in files:
+            filename = secure_filename(file.filename)
+            filepath = app.config['UPLOAD_FOLDER'] / f"de_{uuid.uuid4().hex[:8]}_{filename}"
+            file.save(filepath)
+            saved_paths.append(filepath)
+
+        bracket_data = extract_full_de_bracket(
+            saved_paths, our_fencer_name, tournament_id
+        )
+
+        return jsonify({
+            'success': True,
+            'extracted_data': bracket_data,
+            'images_processed': len(saved_paths)
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        for path in saved_paths:
+            if path.exists():
+                path.unlink()
+
+
+@app.route('/api/confirm-de-results', methods=['POST'])
+@login_required
+def confirm_de_results():
+    """Save confirmed DE results to database."""
+    data = request.get_json()
+    tournament_id = data.get('tournament_id')
+    bracket_data = data.get('bracket_data')
+
+    if not all([tournament_id, bracket_data]):
+        return jsonify({'error': 'Missing required fields'}), 400
+
+    try:
+        save_de_results_to_db(tournament_id, bracket_data)
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/tournaments/<int:tournament_id>/de-results', methods=['GET'])
+@login_required
+def api_get_de_results(tournament_id):
+    """Get saved DE results for a tournament."""
+    results = get_de_results(tournament_id)
+    if not results:
+        return jsonify({'error': 'No DE results found'}), 404
+    return jsonify(results)
 
 
 if __name__ == '__main__':
