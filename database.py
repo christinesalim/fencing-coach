@@ -2,7 +2,7 @@
 
 import os
 import json
-from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, Float
+from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, Float, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from datetime import datetime
@@ -118,7 +118,7 @@ class EliminationRound(Base):
 
     id = Column(Integer, primary_key=True)
     tournament_id = Column(Integer, index=True)
-    round_name = Column(String(50))
+    round_name = Column(String(255))
     opponent_name = Column(String(255))
     opponent_club = Column(String(255))
     opponent_seed = Column(Integer)
@@ -137,7 +137,7 @@ class DEBracket(Base):
     id = Column(Integer, primary_key=True)
     tournament_id = Column(Integer, index=True)
     bracket_size = Column(Integer)
-    completeness = Column(String(10))
+    completeness = Column(String(50))
     bracket_json = Column(Text)
     our_fencer_path_json = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -177,6 +177,16 @@ def get_database_url():
 engine = create_engine(get_database_url())
 Base.metadata.create_all(engine)
 SessionLocal = sessionmaker(bind=engine)
+
+# Auto-migrate column widths (PostgreSQL enforces VARCHAR limits, SQLite does not)
+if 'postgresql' in get_database_url():
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE elimination_rounds ALTER COLUMN round_name TYPE VARCHAR(255)"))
+            conn.execute(text("ALTER TABLE de_brackets ALTER COLUMN completeness TYPE VARCHAR(50)"))
+            conn.commit()
+    except Exception:
+        pass  # Already migrated or table doesn't exist yet
 
 
 def get_db():
@@ -926,9 +936,9 @@ def save_de_results_to_db(tournament_id, bracket_data):
                 continue
             elim_round = EliminationRound(
                 tournament_id=tournament_id,
-                round_name=bout.get('round_name'),
-                opponent_name=bout.get('opponent_name'),
-                opponent_club=bout.get('opponent_club'),
+                round_name=(bout.get('round_name') or '')[:255],
+                opponent_name=(bout.get('opponent_name') or '')[:255],
+                opponent_club=(bout.get('opponent_club') or '')[:255],
                 opponent_seed=bout.get('opponent_seed'),
                 score_for=bout.get('score_for'),
                 score_against=bout.get('score_against'),
@@ -943,7 +953,7 @@ def save_de_results_to_db(tournament_id, bracket_data):
         de_bracket = DEBracket(
             tournament_id=tournament_id,
             bracket_size=tournament_bracket.get('bracket_size'),
-            completeness=str(tournament_bracket.get('completeness', '')),
+            completeness=str(tournament_bracket.get('completeness', ''))[:50],
             bracket_json=json.dumps(tournament_bracket),
             our_fencer_path_json=json.dumps(our_fencer)
         )

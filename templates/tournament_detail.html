@@ -619,6 +619,7 @@
                     <div class="de-bout-card {{ bout.result }}">
                         <div class="de-round-label">{{ bout.round_name }}</div>
                         <div class="de-bout-opponent">
+                            {% if bout.result == 'won' %}Beat{% elif bout.result == 'lost' %}Lost to{% else %}vs{% endif %}
                             {{ bout.opponent_name }}
                             {% if bout.opponent_seed %}<span class="de-bout-seed">({{ bout.opponent_seed }})</span>{% endif %}
                         </div>
@@ -628,7 +629,6 @@
                         {% if bout.opponent_club %}
                         <div class="de-bout-club">{{ bout.opponent_club }}</div>
                         {% endif %}
-                        <span class="de-result-badge {{ bout.result }}">{{ bout.result | upper }}</span>
                     </div>
                     {% endfor %}
                 </div>
@@ -1009,12 +1009,15 @@
                     clubHtml = '<div class="de-bout-club">' + bout.opponent_club + '</div>';
                 }
 
+                let resultVerb = 'vs';
+                if (bout.result === 'won') resultVerb = 'Beat';
+                else if (bout.result === 'lost') resultVerb = 'Lost to';
+
                 div.innerHTML =
                     '<div class="de-round-label">' + (bout.round_name || '') + '</div>' +
-                    '<div class="de-bout-opponent">' + (bout.opponent_name || 'Unknown') + seedHtml + '</div>' +
+                    '<div class="de-bout-opponent">' + resultVerb + ' ' + (bout.opponent_name || 'Unknown') + seedHtml + '</div>' +
                     scoreHtml +
-                    clubHtml +
-                    '<span class="de-result-badge ' + (bout.result || '') + '">' + (bout.result || '').toUpperCase() + '</span>';
+                    clubHtml;
 
                 timeline.appendChild(div);
             });

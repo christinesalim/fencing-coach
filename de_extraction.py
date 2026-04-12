@@ -69,19 +69,25 @@ def extract_de_bracket_from_photo(image_path):
 displayed on a phone or tablet screen, typically from FencingTimeLive.
 
 HOW TO READ DE BRACKETS:
-- The bracket flows LEFT to RIGHT. Each horizontal matchup is a DE bout.
-- The WINNER advances to the right (connects to the next round). The loser is eliminated.
-- Each column represents a round: Table of 64, Table of 32, Table of 16, etc.
-- Numbers in parentheses like (4) or (36) are SEEDS (pool ranking). Lower number = stronger seed.
-- Scores appear next to the connecting line between rounds, typically as "15-7" or just two numbers.
-  The WINNER's score is always 15 in standard DE bouts (first to 15 touches).
-- "BYE" means no opponent — that fencer automatically advances to the next round.
-- Club names and region abbreviations appear below fencer names (e.g., "AFM / Central California").
-- A fencer's name may appear BOLD or highlighted if they won their bout.
-- Only bouts that have been FENCED will have scores. Upcoming/unfenced bouts show names but no scores.
+- The bracket flows LEFT to RIGHT. Each column is a round: Table of 64 → Table of 32 → Table of 16 → etc.
+- Each bout is a PAIR of two fencers stacked vertically, connected by a horizontal bracket line.
+- The WINNER advances RIGHT to the next round. The LOSER is eliminated.
+- Numbers in parentheses like (4) or (36) are SEEDS (pool ranking).
+- Scores appear between rounds, typically as "15-7". The WINNER's score is always 15 in standard DE (first to 15).
+- "BYE" means no opponent — that fencer advances automatically.
+- Club names appear below fencer names (e.g., "AFM / Central California").
+- Only completed bouts have scores. Upcoming bouts show names but no scores.
 
-Extract EVERY visible bout in this screenshot, including partial/cut-off bouts
-at the edges. Return JSON:
+CRITICAL — AVOIDING DUPLICATE BOUT DETECTION:
+The #1 error in bracket reading is counting the SAME fencer appearing in TWO rounds as two separate bouts against the same opponent. Here is how to avoid this:
+
+1. FIRST, identify each COLUMN (round) in the bracket. Count how many columns you see.
+2. Within each column, identify each PAIR of fencers. A pair is two names stacked vertically with a bracket line connecting them — that is ONE bout.
+3. The WINNER of a bout in column N will appear AGAIN in column N+1, paired with a DIFFERENT opponent. This is a NEW bout, not a duplicate.
+4. If you see "SMITH John" in the Table of 64 column AND in the Table of 32 column, those are TWO DIFFERENT BOUTS with two different opponents. Do not list the same opponent for both.
+5. Follow the bracket lines carefully: the line from the winner connects to a new pairing in the next column.
+
+Extract EVERY visible bout in this screenshot. Return JSON:
 
 {
   "screenshot_metadata": {
@@ -119,14 +125,15 @@ at the edges. Return JSON:
 }
 
 IMPORTANT:
-- Read the bracket structure CAREFULLY left to right before extracting bouts
-- Each bout is a PAIR of fencers connected by bracket lines. Do NOT invent bouts — only extract matchups that are visually connected in the bracket
-- A fencer who WINS round N appears in round N+1. Do NOT create a separate bout entry for the same fencer appearing in the next round — that is their NEXT bout, not the same bout
+- Read the ENTIRE bracket structure left to right BEFORE extracting any bouts
+- Each bout is a PAIR of fencers connected by bracket lines. Do NOT invent bouts
+- A fencer who WINS round N appears in round N+1 paired with a DIFFERENT opponent. That is a separate bout — do NOT give them the same opponent twice
+- Verify: no fencer name should appear as an opponent in two consecutive rounds. If you see this, you have misread the bracket
 - "bracket_position" counts from top of bracket: position 1 is the topmost bout in that round
 - For byes, set is_bye=true, the advancing fencer in fencer_top, and fencer_bottom name as "BYE"
-- If a bout is partially cut off at the edge of the screenshot, set is_partial=true and fill in what you can see
+- If a bout is partially cut off, set is_partial=true and fill in what you can see
 - The winner is the fencer whose score is 15 (or higher), or whose name advances to the next column
-- If a bout has no scores yet (names only, no result), set winner=null and both scores=null
+- If a bout has no scores yet, set winner=null and both scores=null
 - If you cannot read a name or score, use null"""
                 }
             ],
