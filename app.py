@@ -90,11 +90,40 @@ def get_r2_client():
 
 def extract_audio_from_video(video_path):
     """Extract audio from video file and save as temporary audio file."""
-    from moviepy.editor import VideoFileClip
+    import subprocess
+    import shutil
 
     audio_path = video_path.with_suffix('.mp3')
 
+    # Try ffmpeg directly first (handles iPhone HEVC/Dolby Vision better than moviepy)
+    ffmpeg_bin = shutil.which('ffmpeg')
+    if not ffmpeg_bin:
+        # Fall back to moviepy's bundled ffmpeg
+        try:
+            import imageio_ffmpeg
+            ffmpeg_bin = imageio_ffmpeg.get_ffmpeg_exe()
+        except ImportError:
+            pass
+
+    if ffmpeg_bin:
+        try:
+            result = subprocess.run(
+                [ffmpeg_bin, '-i', str(video_path), '-vn', '-acodec', 'libmp3lame',
+                 '-q:a', '4', '-y', str(audio_path)],
+                capture_output=True, text=True, timeout=120
+            )
+            if result.returncode == 0 and audio_path.exists():
+                return audio_path
+        except Exception:
+            pass
+
+    # Fall back to moviepy
     try:
+        try:
+            from moviepy.editor import VideoFileClip
+        except ImportError:
+            from moviepy import VideoFileClip
+
         video = VideoFileClip(str(video_path))
         video.audio.write_audiofile(str(audio_path), verbose=False, logger=None)
         video.close()
@@ -418,7 +447,10 @@ def api_upload_lesson():
         # Extract duration via moviepy
         duration = None
         try:
-            from moviepy.editor import VideoFileClip
+            try:
+                from moviepy.editor import VideoFileClip
+            except ImportError:
+                from moviepy import VideoFileClip
             clip = VideoFileClip(str(filepath))
             duration = clip.duration
             clip.close()
