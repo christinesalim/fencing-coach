@@ -160,6 +160,8 @@ def transcribe(file_path):
 # Fencing terms Whisper commonly mistranscribes
 _FENCING_TERM_FIXES = {
     'flash': 'flèche', 'flesh': 'flèche', 'fleche': 'flèche',
+    'circle sticks': 'circle six', 'circle six repost': 'circle six riposte',
+    'repost': 'riposte',
     'on guard': 'en garde', 'on guard!': 'en garde!',
     'touche': 'touché',
 }
