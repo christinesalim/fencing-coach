@@ -565,6 +565,99 @@
             background: #f5f7fa;
             border-radius: 10px;
         }
+
+        /* Bout video controls */
+        .bout-video {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 8px;
+            font-size: 12px;
+        }
+
+        .bout-video-btn {
+            background: white;
+            border: 1px solid #d0d7de;
+            border-radius: 14px;
+            padding: 4px 10px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            color: #2c3e6b;
+            font-family: inherit;
+        }
+
+        .bout-video-btn:active { opacity: 0.7; }
+        .bout-video-btn.watch { background: #2c3e6b; color: white; border-color: #2c3e6b; }
+        .bout-video-btn.delete { color: #e74c3c; border-color: #f3c7c2; }
+
+        .bout-video-label {
+            display: inline-block;
+            background: white;
+            border: 1px solid #d0d7de;
+            border-radius: 14px;
+            padding: 4px 10px;
+            font-size: 12px;
+            font-weight: 600;
+            color: #2c3e6b;
+            cursor: pointer;
+        }
+
+        .bout-video-label:active { opacity: 0.7; }
+
+        .bout-video-hint {
+            font-size: 11px;
+            color: #999;
+        }
+
+        .bout-video-status {
+            font-size: 11px;
+            color: #4a7fd4;
+        }
+
+        .bout-video-status.error { color: #e74c3c; }
+
+        /* Video modal */
+        .video-modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.9);
+            z-index: 1000;
+            padding: 20px;
+            box-sizing: border-box;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .video-modal.open { display: flex; }
+
+        .video-modal-inner {
+            position: relative;
+            width: 100%;
+            max-width: 900px;
+        }
+
+        .video-modal video {
+            width: 100%;
+            max-height: 80vh;
+            border-radius: 8px;
+            background: black;
+            outline: none;
+        }
+
+        .video-modal-close {
+            position: absolute;
+            top: -40px;
+            right: 0;
+            background: none;
+            border: none;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 4px 10px;
+            font-family: inherit;
+        }
     </style>
 </head>
 <body>
@@ -611,7 +704,7 @@
 
             <h3>Bout Results</h3>
             {% for bout in pool_data.bouts %}
-            <div class="bout-card {{ bout.result }}">
+            <div class="bout-card {{ bout.result }}" data-bout-kind="pool" data-bout-id="{{ bout.id }}">
                 <div class="bout-header">
                     <span class="bout-opponent">{{ bout.opponent_name }}</span>
                     <span class="bout-score {{ bout.result }}">{{ bout.score_for }} - {{ bout.score_against }}</span>
@@ -619,6 +712,17 @@
                 {% if bout.opponent_club %}
                 <div class="bout-club">{{ bout.opponent_club }}</div>
                 {% endif %}
+                <div class="bout-video">
+                    {% if bout.video_r2_key %}
+                    <button type="button" class="bout-video-btn watch" onclick="watchBoutVideo('pool', {{ bout.id }})">Watch</button>
+                    <button type="button" class="bout-video-btn delete" onclick="deleteBoutVideo('pool', {{ bout.id }})">Delete</button>
+                    {% else %}
+                    <input type="file" id="poolBoutVideo{{ bout.id }}" accept="video/*" onchange="uploadBoutVideo('pool', {{ bout.id }}, this)">
+                    <label for="poolBoutVideo{{ bout.id }}" class="bout-video-label">Upload Video</label>
+                    <span class="bout-video-hint">Max 200MB</span>
+                    {% endif %}
+                    <span class="bout-video-status" id="poolBoutStatus{{ bout.id }}"></span>
+                </div>
             </div>
             {% endfor %}
 
@@ -733,7 +837,7 @@
 
                 <div class="de-timeline">
                     {% for bout in de_results.bouts %}
-                    <div class="de-bout-card {{ bout.result }}">
+                    <div class="de-bout-card {{ bout.result }}" data-bout-kind="elim" data-bout-id="{{ bout.id }}">
                         <div class="de-round-label">{{ bout.round_name }}</div>
                         <div class="de-bout-opponent">
                             {% if bout.result == 'won' %}Beat{% elif bout.result == 'lost' %}Lost to{% else %}vs{% endif %}
@@ -746,6 +850,17 @@
                         {% if bout.opponent_club %}
                         <div class="de-bout-club">{{ bout.opponent_club }}</div>
                         {% endif %}
+                        <div class="bout-video">
+                            {% if bout.video_r2_key %}
+                            <button type="button" class="bout-video-btn watch" onclick="watchBoutVideo('elim', {{ bout.id }})">Watch</button>
+                            <button type="button" class="bout-video-btn delete" onclick="deleteBoutVideo('elim', {{ bout.id }})">Delete</button>
+                            {% else %}
+                            <input type="file" id="elimBoutVideo{{ bout.id }}" accept="video/*" onchange="uploadBoutVideo('elim', {{ bout.id }}, this)">
+                            <label for="elimBoutVideo{{ bout.id }}" class="bout-video-label">Upload Video</label>
+                            <span class="bout-video-hint">Max 200MB</span>
+                            {% endif %}
+                            <span class="bout-video-status" id="elimBoutStatus{{ bout.id }}"></span>
+                        </div>
                     </div>
                     {% endfor %}
                 </div>
@@ -1353,6 +1468,100 @@
             });
         }
 
+        // ── Bout video upload / watch / delete ──────────────────────────
+
+        function boutVideoEndpoint(kind, boutId, suffix) {
+            const base = kind === 'pool' ? '/api/pool-bouts/' : '/api/elimination-rounds/';
+            return base + boutId + '/video' + (suffix || '');
+        }
+
+        function boutStatusEl(kind, boutId) {
+            const prefix = kind === 'pool' ? 'poolBoutStatus' : 'elimBoutStatus';
+            return document.getElementById(prefix + boutId);
+        }
+
+        async function uploadBoutVideo(kind, boutId, input) {
+            const file = input.files && input.files[0];
+            if (!file) return;
+
+            const status = boutStatusEl(kind, boutId);
+            const label = input.nextElementSibling;
+            if (status) { status.className = 'bout-video-status'; status.textContent = 'Uploading...'; }
+            if (label) label.style.pointerEvents = 'none';
+
+            const formData = new FormData();
+            formData.append('video', file);
+
+            try {
+                const response = await fetch(boutVideoEndpoint(kind, boutId), {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                if (!response.ok || data.error) throw new Error(data.error || ('HTTP ' + response.status));
+
+                if (status) status.textContent = 'Uploaded!';
+                setTimeout(function() { location.reload(); }, 600);
+            } catch (error) {
+                if (status) { status.className = 'bout-video-status error'; status.textContent = 'Error: ' + error.message; }
+                if (label) label.style.pointerEvents = '';
+                input.value = '';
+            }
+        }
+
+        async function watchBoutVideo(kind, boutId) {
+            const status = boutStatusEl(kind, boutId);
+            if (status) { status.className = 'bout-video-status'; status.textContent = 'Loading...'; }
+
+            try {
+                const response = await fetch(boutVideoEndpoint(kind, boutId));
+                const data = await response.json();
+                if (!response.ok || data.error) throw new Error(data.error || ('HTTP ' + response.status));
+
+                openVideoModal(data.url);
+                if (status) status.textContent = '';
+            } catch (error) {
+                if (status) { status.className = 'bout-video-status error'; status.textContent = 'Error: ' + error.message; }
+            }
+        }
+
+        async function deleteBoutVideo(kind, boutId) {
+            if (!confirm('Delete this bout video?')) return;
+            const status = boutStatusEl(kind, boutId);
+            if (status) { status.className = 'bout-video-status'; status.textContent = 'Deleting...'; }
+
+            try {
+                const response = await fetch(boutVideoEndpoint(kind, boutId, '/delete'), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await response.json();
+                if (!response.ok || data.error) throw new Error(data.error || ('HTTP ' + response.status));
+
+                if (status) status.textContent = 'Deleted';
+                setTimeout(function() { location.reload(); }, 600);
+            } catch (error) {
+                if (status) { status.className = 'bout-video-status error'; status.textContent = 'Error: ' + error.message; }
+            }
+        }
+
+        function openVideoModal(url) {
+            const modal = document.getElementById('videoModal');
+            const video = document.getElementById('videoModalPlayer');
+            video.src = url;
+            modal.classList.add('open');
+            try { video.play(); } catch (e) { /* autoplay may be blocked */ }
+        }
+
+        function closeVideoModal() {
+            const modal = document.getElementById('videoModal');
+            const video = document.getElementById('videoModalPlayer');
+            video.pause();
+            video.removeAttribute('src');
+            video.load();
+            modal.classList.remove('open');
+        }
+
         async function deleteTournament() {
             if (!confirm('Delete this tournament and all its data?')) return;
 
@@ -1370,5 +1579,13 @@
             }
         }
     </script>
+
+    <!-- Bout video playback modal -->
+    <div class="video-modal" id="videoModal" onclick="if(event.target === this) closeVideoModal()">
+        <div class="video-modal-inner">
+            <button type="button" class="video-modal-close" onclick="closeVideoModal()">Close &#215;</button>
+            <video id="videoModalPlayer" controls playsinline></video>
+        </div>
+    </div>
 </body>
 </html>
