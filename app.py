@@ -150,11 +150,32 @@ def transcribe(file_path):
                 file=f,
                 response_format="text",
             )
-        return result
+        return _fix_fencing_terms(result)
     finally:
         # Clean up extracted audio file
         if extracted_audio and audio_path.exists():
             audio_path.unlink()
+
+
+# Fencing terms Whisper commonly mistranscribes
+_FENCING_TERM_FIXES = {
+    'flash': 'flèche', 'flesh': 'flèche', 'fleche': 'flèche',
+    'on guard': 'en garde', 'on guard!': 'en garde!',
+    'touche': 'touché',
+}
+
+
+def _fix_fencing_terms(transcript):
+    """Fix common Whisper mistranscriptions of fencing terminology."""
+    import re
+    for wrong, right in _FENCING_TERM_FIXES.items():
+        transcript = re.sub(
+            r'\b' + re.escape(wrong) + r'\b',
+            right,
+            transcript,
+            flags=re.IGNORECASE
+        )
+    return transcript
 
 
 def extract_fencing_advice(transcript, filename):
