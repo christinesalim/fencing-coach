@@ -7,6 +7,8 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from datetime import datetime
 
+from fuzzy_matching import match_opponent as _match_opponent
+
 Base = declarative_base()
 
 
@@ -177,6 +179,66 @@ class BoutVideo(Base):
     bout_kind = Column(String(10), nullable=False, index=True)  # 'pool' or 'elim'
     bout_id = Column(Integer, nullable=False, index=True)
     r2_key = Column(String(500), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class Opponent(Base):
+    """Represents a known fencing opponent with traits and encounter history."""
+    __tablename__ = 'opponents'
+
+    id = Column(Integer, primary_key=True)
+    canonical_name = Column(String(255), nullable=False, index=True)
+    first_name = Column(String(100))
+    last_name = Column(String(100), index=True)
+    name_aliases = Column(Text)       # JSON array of alternative spellings
+    club = Column(String(255))
+    club_aliases = Column(Text)       # JSON array
+    division = Column(String(100))
+    handedness = Column(String(10))       # left / right / unknown
+    height_category = Column(String(20))  # very_tall / tall / average / short / very_short
+    build = Column(String(20))            # stocky / average / lean / athletic
+    speed_rating = Column(String(20))     # very_fast / fast / average / slow
+    primary_style = Column(String(30))
+    secondary_style = Column(String(30))
+    photo_url = Column(String(500))
+    first_encountered = Column(DateTime)
+    last_encountered = Column(DateTime)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class OpponentTacticalNote(Base):
+    """Per-opponent tactical observation (weakness, favorite action, tell, etc.)."""
+    __tablename__ = 'opponent_tactical_notes'
+
+    id = Column(Integer, primary_key=True)
+    opponent_id = Column(Integer, nullable=False, index=True)
+    category = Column(String(30))
+    observation = Column(Text, nullable=False)
+    times_validated = Column(Integer, default=0)
+    times_invalidated = Column(Integer, default=0)
+    source = Column(String(20), default='manual')
+    observed_at = Column(DateTime)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class BoutRecord(Base):
+    """Opponent-centric bout history (one row per opponent-bout link)."""
+    __tablename__ = 'bout_records'
+
+    id = Column(Integer, primary_key=True)
+    opponent_id = Column(Integer, nullable=False, index=True)
+    tournament_id = Column(Integer, index=True)
+    tournament_name = Column(String(255))
+    tournament_date = Column(DateTime, index=True)
+    bout_type = Column(String(15))                    # pool / elimination
+    pool_bout_id = Column(Integer, index=True)
+    elimination_round_id = Column(Integer, index=True)
+    score_for = Column(Integer)
+    score_against = Column(Integer)
+    result = Column(String(5))                        # won / lost
+    notes = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -1184,3 +1246,476 @@ def delete_bout_video(video_id):
         raise
     finally:
         db.close()
+
+
+# ── Opponent Intelligence helper functions ─────────────────────────────
+
+def _parse_json_list(value):
+    """Deserialize a JSON-encoded list column; tolerate None/empty/invalid."""
+    if not value:
+        return []
+    try:
+        parsed = json.loads(value)
+        if isinstance(parsed, list):
+            return parsed
+        return []
+    except (ValueError, TypeError):
+        return []
+
+
+def _serialize_json_list(value):
+    """Serialize a list (or None) to JSON text; None stays None for nullable cols."""
+    if value is None:
+        return None
+    if not isinstance(value, list):
+        return json.dumps([])
+    return json.dumps(value)
+
+
+def _parse_dt(value):
+    """Parse a datetime-like value: pass through datetime, accept ISO / YYYY-MM-DD."""
+    if value is None or value == '':
+        return None
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, str):
+        # Try full ISO first, then YYYY-MM-DD
+        try:
+            return datetime.fromisoformat(value)
+        except ValueError:
+            pass
+        try:
+            return datetime.strptime(value, '%Y-%m-%d')
+        except ValueError:
+            pass
+    return None
+
+
+def _synthesize_canonical_name(data):
+    """If first_name + last_name supplied but no canonical_name, build 'LASTNAME Firstname'."""
+    canonical = data.get('canonical_name')
+    if canonical:
+        return canonical
+    first = data.get('first_name')
+    last = data.get('last_name')
+    if first and last:
+        return f'{str(last).upper()} {first}'
+    # Fall back to whatever we do have so NOT NULL isn't violated.
+    if last:
+        return str(last).upper()
+    if first:
+        return first
+    return None
+
+
+def _opponent_to_dict(opp):
+    """Convert an Opponent ORM object to a plain dict with deserialized JSON fields."""
+    return {
+        'id': opp.id,
+        'canonical_name': opp.canonical_name,
+        'first_name': opp.first_name,
+        'last_name': opp.last_name,
+        'name_aliases': _parse_json_list(opp.name_aliases),
+        'club': opp.club,
+        'club_aliases': _parse_json_list(opp.club_aliases),
+        'division': opp.division,
+        'handedness': opp.handedness,
+        'height_category': opp.height_category,
+        'build': opp.build,
+        'speed_rating': opp.speed_rating,
+        'primary_style': opp.primary_style,
+        'secondary_style': opp.secondary_style,
+        'photo_url': opp.photo_url,
+        'first_encountered': opp.first_encountered.strftime('%Y-%m-%d') if opp.first_encountered else None,
+        'last_encountered': opp.last_encountered.strftime('%Y-%m-%d') if opp.last_encountered else None,
+        'created_at': opp.created_at.strftime('%Y-%m-%d %H:%M') if opp.created_at else None,
+        'updated_at': opp.updated_at.strftime('%Y-%m-%d %H:%M') if opp.updated_at else None,
+    }
+
+
+def _note_to_dict(note):
+    """Convert an OpponentTacticalNote to a dict including computed confidence."""
+    validated = note.times_validated or 0
+    invalidated = note.times_invalidated or 0
+    total = validated + invalidated
+    confidence = (validated / total) if total > 0 else None
+    return {
+        'id': note.id,
+        'opponent_id': note.opponent_id,
+        'category': note.category,
+        'observation': note.observation,
+        'times_validated': validated,
+        'times_invalidated': invalidated,
+        'confidence': confidence,
+        'source': note.source,
+        'observed_at': note.observed_at.strftime('%Y-%m-%d') if note.observed_at else None,
+        'created_at': note.created_at.strftime('%Y-%m-%d %H:%M') if note.created_at else None,
+        'updated_at': note.updated_at.strftime('%Y-%m-%d %H:%M') if note.updated_at else None,
+    }
+
+
+def _bout_record_to_dict(bout):
+    """Convert a BoutRecord to a dict."""
+    return {
+        'id': bout.id,
+        'opponent_id': bout.opponent_id,
+        'tournament_id': bout.tournament_id,
+        'tournament_name': bout.tournament_name,
+        'tournament_date': bout.tournament_date.strftime('%Y-%m-%d') if bout.tournament_date else None,
+        'bout_type': bout.bout_type,
+        'pool_bout_id': bout.pool_bout_id,
+        'elimination_round_id': bout.elimination_round_id,
+        'score_for': bout.score_for,
+        'score_against': bout.score_against,
+        'result': bout.result,
+        'notes': bout.notes,
+        'created_at': bout.created_at.strftime('%Y-%m-%d %H:%M') if bout.created_at else None,
+    }
+
+
+def create_opponent(data):
+    """Create a new opponent. Returns the serialized opponent dict."""
+    db = get_db()
+    try:
+        opp = Opponent(
+            canonical_name=_synthesize_canonical_name(data),
+            first_name=data.get('first_name'),
+            last_name=data.get('last_name'),
+            name_aliases=_serialize_json_list(data.get('name_aliases')),
+            club=data.get('club'),
+            club_aliases=_serialize_json_list(data.get('club_aliases')),
+            division=data.get('division'),
+            handedness=data.get('handedness'),
+            height_category=data.get('height_category'),
+            build=data.get('build'),
+            speed_rating=data.get('speed_rating'),
+            primary_style=data.get('primary_style'),
+            secondary_style=data.get('secondary_style'),
+            photo_url=data.get('photo_url'),
+            first_encountered=_parse_dt(data.get('first_encountered')),
+            last_encountered=_parse_dt(data.get('last_encountered')),
+        )
+        db.add(opp)
+        db.commit()
+        return _opponent_to_dict(opp)
+    except Exception as e:
+        db.rollback()
+        raise e
+    finally:
+        db.close()
+
+
+def get_opponent(opponent_id):
+    """Get a single opponent with its tactical notes populated."""
+    db = get_db()
+    try:
+        opp = db.query(Opponent).filter_by(id=opponent_id).first()
+        if not opp:
+            return None
+        result = _opponent_to_dict(opp)
+        notes = db.query(OpponentTacticalNote).filter_by(opponent_id=opp.id).order_by(
+            OpponentTacticalNote.created_at.desc()
+        ).all()
+        result['tactical_notes'] = [_note_to_dict(n) for n in notes]
+        return result
+    finally:
+        db.close()
+
+
+def update_opponent(opponent_id, data):
+    """Update opponent fields. Returns the updated dict, or None if not found."""
+    db = get_db()
+    try:
+        opp = db.query(Opponent).filter_by(id=opponent_id).first()
+        if not opp:
+            return None
+
+        simple_fields = (
+            'first_name', 'last_name', 'club', 'division', 'handedness',
+            'height_category', 'build', 'speed_rating', 'primary_style',
+            'secondary_style', 'photo_url',
+        )
+        for field in simple_fields:
+            if field in data:
+                setattr(opp, field, data[field])
+
+        if 'canonical_name' in data:
+            opp.canonical_name = data['canonical_name']
+        elif ('first_name' in data or 'last_name' in data):
+            # Resynthesize when names change and caller didn't pass a canonical form.
+            new_canonical = _synthesize_canonical_name({
+                'canonical_name': None,
+                'first_name': opp.first_name,
+                'last_name': opp.last_name,
+            })
+            if new_canonical:
+                opp.canonical_name = new_canonical
+
+        if 'name_aliases' in data:
+            opp.name_aliases = _serialize_json_list(data['name_aliases'])
+        if 'club_aliases' in data:
+            opp.club_aliases = _serialize_json_list(data['club_aliases'])
+        if 'first_encountered' in data:
+            opp.first_encountered = _parse_dt(data['first_encountered'])
+        if 'last_encountered' in data:
+            opp.last_encountered = _parse_dt(data['last_encountered'])
+
+        db.commit()
+        return _opponent_to_dict(opp)
+    except Exception as e:
+        db.rollback()
+        raise e
+    finally:
+        db.close()
+
+
+def delete_opponent(opponent_id):
+    """Delete an opponent and cascade-delete its tactical notes and bout records."""
+    db = get_db()
+    try:
+        opp = db.query(Opponent).filter_by(id=opponent_id).first()
+        if not opp:
+            return False
+        db.query(OpponentTacticalNote).filter_by(opponent_id=opponent_id).delete()
+        db.query(BoutRecord).filter_by(opponent_id=opponent_id).delete()
+        db.delete(opp)
+        db.commit()
+        return True
+    except Exception as e:
+        db.rollback()
+        raise e
+    finally:
+        db.close()
+
+
+def get_all_opponents():
+    """List every opponent as a dict, ordered by canonical_name."""
+    db = get_db()
+    try:
+        opps = db.query(Opponent).order_by(Opponent.canonical_name).all()
+        return [_opponent_to_dict(o) for o in opps]
+    finally:
+        db.close()
+
+
+def search_opponents_by_name(query):
+    """Fuzzy search by name. Returns list of (opponent_dict, score) tuples sorted desc.
+
+    Score is the max of fuzz.ratio / token_sort_ratio / partial_ratio against the
+    opponent's canonical_name and any name_aliases. Only entries with score >= 70
+    are returned.
+    """
+    from fuzzy_matching import name_score as _name_score
+
+    if not query or not str(query).strip():
+        return []
+
+    opponents = get_all_opponents()
+    results = []
+    for opp in opponents:
+        candidates = [opp['canonical_name']]
+        if opp['first_name'] and opp['last_name']:
+            candidates.append(f"{opp['first_name']} {opp['last_name']}")
+        candidates.extend(opp.get('name_aliases') or [])
+        score = _name_score(query, candidates)
+        if score >= 70:
+            results.append((opp, score))
+
+    results.sort(key=lambda pair: pair[1], reverse=True)
+    return results
+
+
+def search_opponents_by_traits(filters):
+    """Filter opponents by trait fields (handedness, height_category, build,
+    speed_rating, primary_style, secondary_style, division).
+    """
+    db = get_db()
+    try:
+        query = db.query(Opponent)
+        filterable = (
+            'handedness', 'height_category', 'build', 'speed_rating',
+            'primary_style', 'secondary_style', 'division',
+        )
+        for field in filterable:
+            value = filters.get(field) if filters else None
+            if value:
+                query = query.filter(getattr(Opponent, field) == value)
+        opps = query.order_by(Opponent.canonical_name).all()
+        return [_opponent_to_dict(o) for o in opps]
+    finally:
+        db.close()
+
+
+def add_tactical_note(opponent_id, data):
+    """Add a tactical note for an opponent. Returns the note dict."""
+    db = get_db()
+    try:
+        note = OpponentTacticalNote(
+            opponent_id=opponent_id,
+            category=data.get('category'),
+            observation=data.get('observation', ''),
+            times_validated=data.get('times_validated', 0) or 0,
+            times_invalidated=data.get('times_invalidated', 0) or 0,
+            source=data.get('source', 'manual'),
+            observed_at=_parse_dt(data.get('observed_at')),
+        )
+        db.add(note)
+        db.commit()
+        return _note_to_dict(note)
+    except Exception as e:
+        db.rollback()
+        raise e
+    finally:
+        db.close()
+
+
+def update_tactical_note(note_id, data):
+    """Update an existing tactical note. Returns the updated dict or None."""
+    db = get_db()
+    try:
+        note = db.query(OpponentTacticalNote).filter_by(id=note_id).first()
+        if not note:
+            return None
+        if 'category' in data:
+            note.category = data['category']
+        if 'observation' in data:
+            note.observation = data['observation']
+        if 'times_validated' in data:
+            note.times_validated = data['times_validated'] or 0
+        if 'times_invalidated' in data:
+            note.times_invalidated = data['times_invalidated'] or 0
+        if 'source' in data:
+            note.source = data['source']
+        if 'observed_at' in data:
+            note.observed_at = _parse_dt(data['observed_at'])
+        db.commit()
+        return _note_to_dict(note)
+    except Exception as e:
+        db.rollback()
+        raise e
+    finally:
+        db.close()
+
+
+def delete_tactical_note(note_id):
+    """Delete a tactical note by id."""
+    db = get_db()
+    try:
+        note = db.query(OpponentTacticalNote).filter_by(id=note_id).first()
+        if not note:
+            return False
+        db.delete(note)
+        db.commit()
+        return True
+    except Exception as e:
+        db.rollback()
+        raise e
+    finally:
+        db.close()
+
+
+def get_tactical_notes(opponent_id):
+    """Return all tactical notes for an opponent, newest first."""
+    db = get_db()
+    try:
+        notes = db.query(OpponentTacticalNote).filter_by(
+            opponent_id=opponent_id
+        ).order_by(OpponentTacticalNote.created_at.desc()).all()
+        return [_note_to_dict(n) for n in notes]
+    finally:
+        db.close()
+
+
+def add_bout_record(opponent_id, data):
+    """Add a bout record for an opponent. Returns the record dict."""
+    db = get_db()
+    try:
+        bout = BoutRecord(
+            opponent_id=opponent_id,
+            tournament_id=data.get('tournament_id'),
+            tournament_name=data.get('tournament_name'),
+            tournament_date=_parse_dt(data.get('tournament_date')),
+            bout_type=data.get('bout_type'),
+            pool_bout_id=data.get('pool_bout_id'),
+            elimination_round_id=data.get('elimination_round_id'),
+            score_for=data.get('score_for'),
+            score_against=data.get('score_against'),
+            result=data.get('result'),
+            notes=data.get('notes'),
+        )
+        db.add(bout)
+        db.commit()
+        return _bout_record_to_dict(bout)
+    except Exception as e:
+        db.rollback()
+        raise e
+    finally:
+        db.close()
+
+
+def get_head_to_head(opponent_id):
+    """Aggregate head-to-head record from bout_records.
+
+    Returns {wins, losses, touches_for, touches_against, bouts: [...]}.
+    Bouts are sorted newest-first by tournament_date (NULLs last).
+    """
+    db = get_db()
+    try:
+        bouts = db.query(BoutRecord).filter_by(opponent_id=opponent_id).all()
+
+        wins = 0
+        losses = 0
+        touches_for = 0
+        touches_against = 0
+        for b in bouts:
+            touches_for += b.score_for or 0
+            touches_against += b.score_against or 0
+            if (b.result or '').lower() == 'won':
+                wins += 1
+            elif (b.result or '').lower() == 'lost':
+                losses += 1
+
+        # Sort newest first; NULLs (unknown dates) go last.
+        def sort_key(b):
+            dt = b.tournament_date
+            # Tuple: (has_date flag inverted so dates come before Nones, negative ordinal)
+            if dt is None:
+                return (1, 0)
+            return (0, -dt.toordinal() * 86400 - (dt.hour * 3600 + dt.minute * 60 + dt.second))
+
+        sorted_bouts = sorted(bouts, key=sort_key)
+
+        return {
+            'wins': wins,
+            'losses': losses,
+            'touches_for': touches_for,
+            'touches_against': touches_against,
+            'bouts': [_bout_record_to_dict(b) for b in sorted_bouts],
+        }
+    finally:
+        db.close()
+
+
+def lookup_opponents_by_names(name_list):
+    """Batch fuzzy-match a list of names against the opponent directory.
+
+    Each `name_list` entry may be either a plain string (name only) or a dict
+    with `name` / `club` keys. Returns a list of `{query_name, match}` dicts
+    where `match` is the result of `fuzzy_matching.match_opponent`.
+    """
+    opponents = get_all_opponents()
+    results = []
+    for entry in name_list or []:
+        if isinstance(entry, dict):
+            name = entry.get('name') or entry.get('query_name') or ''
+            club = entry.get('club') or ''
+        else:
+            name = entry or ''
+            club = ''
+        match = _match_opponent(name, club, opponents)
+        results.append({'query_name': name, 'match': match})
+    return results
+
+
+# Re-export match_opponent so callers can `from database import match_opponent`.
+match_opponent = _match_opponent
