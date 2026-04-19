@@ -570,9 +570,9 @@
         .bout-videos {
             margin-top: 8px;
             display: flex;
-            flex-wrap: wrap;
+            flex-direction: column;
+            align-items: flex-start;
             gap: 6px;
-            align-items: center;
         }
 
         .bout-video-clip {
@@ -734,7 +734,7 @@
                         <button type="button" class="bout-video-btn delete" onclick="deleteBoutVideo({{ v.id }})">×</button>
                     </span>
                     {% endfor %}
-                    <input type="file" id="poolBoutVideo{{ bout.id }}" class="bout-video-input" accept="video/*" onchange="uploadBoutVideo('pool', {{ bout.id }}, this)">
+                    <input type="file" id="poolBoutVideo{{ bout.id }}" class="bout-video-input" accept="video/*" multiple onchange="uploadBoutVideo('pool', {{ bout.id }}, this)">
                     <label for="poolBoutVideo{{ bout.id }}" class="bout-video-label">{% if bout.videos %}+ Add Clip{% else %}Upload Video{% endif %}</label>
                     <span class="bout-video-status" id="poolBoutStatus{{ bout.id }}"></span>
                 </div>
@@ -873,7 +873,7 @@
                                 <button type="button" class="bout-video-btn delete" onclick="deleteBoutVideo({{ v.id }})">×</button>
                             </span>
                             {% endfor %}
-                            <input type="file" id="elimBoutVideo{{ bout.id }}" class="bout-video-input" accept="video/*" onchange="uploadBoutVideo('elim', {{ bout.id }}, this)">
+                            <input type="file" id="elimBoutVideo{{ bout.id }}" class="bout-video-input" accept="video/*" multiple onchange="uploadBoutVideo('elim', {{ bout.id }}, this)">
                             <label for="elimBoutVideo{{ bout.id }}" class="bout-video-label">{% if bout.videos %}+ Add Clip{% else %}Upload Video{% endif %}</label>
                             <span class="bout-video-status" id="elimBoutStatus{{ bout.id }}"></span>
                         </div>
@@ -1542,30 +1542,38 @@
         }
 
         async function uploadBoutVideo(kind, boutId, input) {
-            const file = input.files && input.files[0];
-            if (!file) return;
+            const files = Array.from(input.files || []);
+            if (!files.length) return;
 
             const container = input.parentElement;
             const key = kind + ':' + boutId;
-            boutUploadCounts[key] = (boutUploadCounts[key] || 0) + 1;
-            refreshBoutUploadStatus(kind, boutId);
             input.value = '';
 
+            boutUploadCounts[key] = (boutUploadCounts[key] || 0) + files.length;
+            refreshBoutUploadStatus(kind, boutId);
+
             const uploadUrl = (kind === 'pool' ? '/api/pool-bouts/' : '/api/elimination-rounds/') + boutId + '/videos';
-            const formData = new FormData();
-            formData.append('video', file);
+            let lastError = null;
 
-            try {
-                const response = await fetch(uploadUrl, { method: 'POST', body: formData });
-                const data = await response.json();
-                if (!response.ok || data.error) throw new Error(data.error || ('HTTP ' + response.status));
-
-                addClipChip(container, data.video_id);
+            for (const file of files) {
+                const formData = new FormData();
+                formData.append('video', file);
+                try {
+                    const response = await fetch(uploadUrl, { method: 'POST', body: formData });
+                    const data = await response.json();
+                    if (!response.ok || data.error) throw new Error(data.error || ('HTTP ' + response.status));
+                    addClipChip(container, data.video_id);
+                } catch (error) {
+                    lastError = file.name + ': ' + error.message;
+                }
                 boutUploadCounts[key]--;
-                refreshBoutUploadStatus(kind, boutId);
-            } catch (error) {
-                boutUploadCounts[key]--;
-                setBoutStatus(kind, boutId, 'Error: ' + error.message, true);
+                if ((boutUploadCounts[key] || 0) > 0) {
+                    refreshBoutUploadStatus(kind, boutId);
+                } else if (lastError) {
+                    setBoutStatus(kind, boutId, 'Error uploading ' + lastError, true);
+                } else {
+                    setBoutStatus(kind, boutId, '');
+                }
             }
         }
 
