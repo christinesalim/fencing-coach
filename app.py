@@ -55,7 +55,7 @@ load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-change-in-production')
-app.config['MAX_CONTENT_LENGTH'] = 200 * 1024 * 1024  # 200MB max file size (for videos)
+app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # 500MB max file size (for videos)
 app.config['UPLOAD_FOLDER'] = Path(__file__).parent / 'uploads'
 app.config['UPLOAD_FOLDER'].mkdir(exist_ok=True)
 
