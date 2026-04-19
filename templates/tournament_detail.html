@@ -728,7 +728,7 @@
                 {% endif %}
                 <div class="bout-videos">
                     {% for v in bout.videos %}
-                    <span class="bout-video-clip">
+                    <span class="bout-video-clip" data-video-id="{{ v.id }}">
                         <span class="bout-video-clip-label">Clip {{ loop.index }}</span>
                         <button type="button" class="bout-video-btn watch" onclick="watchBoutVideo({{ v.id }})">Watch</button>
                         <button type="button" class="bout-video-btn delete" onclick="deleteBoutVideo({{ v.id }})">×</button>
@@ -867,7 +867,7 @@
                         {% endif %}
                         <div class="bout-videos">
                             {% for v in bout.videos %}
-                            <span class="bout-video-clip">
+                            <span class="bout-video-clip" data-video-id="{{ v.id }}">
                                 <span class="bout-video-clip-label">Clip {{ loop.index }}</span>
                                 <button type="button" class="bout-video-btn watch" onclick="watchBoutVideo({{ v.id }})">Watch</button>
                                 <button type="button" class="bout-video-btn delete" onclick="deleteBoutVideo({{ v.id }})">×</button>
@@ -1486,17 +1486,70 @@
 
         // ── Bout video upload / watch / delete ──────────────────────────
 
+        const boutUploadCounts = {};
+
         function boutStatusEl(kind, boutId) {
             const prefix = kind === 'pool' ? 'poolBoutStatus' : 'elimBoutStatus';
             return document.getElementById(prefix + boutId);
+        }
+
+        function setBoutStatus(kind, boutId, text, isError) {
+            const el = boutStatusEl(kind, boutId);
+            if (!el) return;
+            el.className = 'bout-video-status' + (isError ? ' error' : '');
+            el.textContent = text || '';
+        }
+
+        function refreshBoutUploadStatus(kind, boutId) {
+            const key = kind + ':' + boutId;
+            const n = boutUploadCounts[key] || 0;
+            if (n === 0) setBoutStatus(kind, boutId, '');
+            else if (n === 1) setBoutStatus(kind, boutId, 'Uploading...');
+            else setBoutStatus(kind, boutId, 'Uploading ' + n + ' clips...');
+        }
+
+        function renumberBoutClips(container) {
+            container.querySelectorAll('.bout-video-clip').forEach(function(clip, i) {
+                const label = clip.querySelector('.bout-video-clip-label');
+                if (label) label.textContent = 'Clip ' + (i + 1);
+            });
+        }
+
+        function addClipChip(container, videoId) {
+            const chip = document.createElement('span');
+            chip.className = 'bout-video-clip';
+            chip.dataset.videoId = videoId;
+            chip.innerHTML = '<span class="bout-video-clip-label">Clip</span>'
+                + ' <button type="button" class="bout-video-btn watch" onclick="watchBoutVideo(' + videoId + ')">Watch</button>'
+                + ' <button type="button" class="bout-video-btn delete" onclick="deleteBoutVideo(' + videoId + ')">×</button>';
+            const input = container.querySelector('.bout-video-input');
+            container.insertBefore(chip, input);
+            renumberBoutClips(container);
+            const label = container.querySelector('.bout-video-label');
+            if (label) label.textContent = '+ Add Clip';
+        }
+
+        function removeClipChip(videoId) {
+            const chip = document.querySelector('.bout-video-clip[data-video-id="' + videoId + '"]');
+            if (!chip) return;
+            const container = chip.parentElement;
+            chip.remove();
+            renumberBoutClips(container);
+            if (!container.querySelector('.bout-video-clip')) {
+                const label = container.querySelector('.bout-video-label');
+                if (label) label.textContent = 'Upload Video';
+            }
         }
 
         async function uploadBoutVideo(kind, boutId, input) {
             const file = input.files && input.files[0];
             if (!file) return;
 
-            const status = boutStatusEl(kind, boutId);
-            if (status) { status.className = 'bout-video-status'; status.textContent = 'Uploading...'; }
+            const container = input.parentElement;
+            const key = kind + ':' + boutId;
+            boutUploadCounts[key] = (boutUploadCounts[key] || 0) + 1;
+            refreshBoutUploadStatus(kind, boutId);
+            input.value = '';
 
             const uploadUrl = (kind === 'pool' ? '/api/pool-bouts/' : '/api/elimination-rounds/') + boutId + '/videos';
             const formData = new FormData();
@@ -1507,11 +1560,12 @@
                 const data = await response.json();
                 if (!response.ok || data.error) throw new Error(data.error || ('HTTP ' + response.status));
 
-                if (status) status.textContent = 'Uploaded!';
-                setTimeout(function() { location.reload(); }, 600);
+                addClipChip(container, data.video_id);
+                boutUploadCounts[key]--;
+                refreshBoutUploadStatus(kind, boutId);
             } catch (error) {
-                if (status) { status.className = 'bout-video-status error'; status.textContent = 'Error: ' + error.message; }
-                input.value = '';
+                boutUploadCounts[key]--;
+                setBoutStatus(kind, boutId, 'Error: ' + error.message, true);
             }
         }
 
@@ -1535,7 +1589,7 @@
                 });
                 const data = await response.json();
                 if (!response.ok || data.error) throw new Error(data.error || ('HTTP ' + response.status));
-                location.reload();
+                removeClipChip(videoId);
             } catch (error) {
                 alert('Error deleting video: ' + error.message);
             }
