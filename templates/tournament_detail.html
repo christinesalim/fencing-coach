@@ -567,20 +567,36 @@
         }
 
         /* Bout video controls */
-        .bout-video {
-            display: flex;
-            align-items: center;
-            gap: 10px;
+        .bout-videos {
             margin-top: 8px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .bout-video-clip {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: #f5f7fa;
+            border: 1px solid #d0d7de;
+            border-radius: 14px;
+            padding: 3px 4px 3px 10px;
             font-size: 12px;
+            color: #2c3e6b;
+        }
+
+        .bout-video-clip-label {
+            font-weight: 600;
         }
 
         .bout-video-btn {
             background: white;
             border: 1px solid #d0d7de;
-            border-radius: 14px;
-            padding: 4px 10px;
-            font-size: 12px;
+            border-radius: 12px;
+            padding: 2px 8px;
+            font-size: 11px;
             font-weight: 600;
             cursor: pointer;
             color: #2c3e6b;
@@ -591,12 +607,14 @@
         .bout-video-btn.watch { background: #2c3e6b; color: white; border-color: #2c3e6b; }
         .bout-video-btn.delete { color: #e74c3c; border-color: #f3c7c2; }
 
+        .bout-video-input { display: none; }
+
         .bout-video-label {
             display: inline-block;
             background: white;
-            border: 1px solid #d0d7de;
+            border: 1px dashed #a8b4c8;
             border-radius: 14px;
-            padding: 4px 10px;
+            padding: 3px 10px;
             font-size: 12px;
             font-weight: 600;
             color: #2c3e6b;
@@ -605,14 +623,10 @@
 
         .bout-video-label:active { opacity: 0.7; }
 
-        .bout-video-hint {
-            font-size: 11px;
-            color: #999;
-        }
-
         .bout-video-status {
             font-size: 11px;
             color: #4a7fd4;
+            width: 100%;
         }
 
         .bout-video-status.error { color: #e74c3c; }
@@ -712,15 +726,16 @@
                 {% if bout.opponent_club %}
                 <div class="bout-club">{{ bout.opponent_club }}</div>
                 {% endif %}
-                <div class="bout-video">
-                    {% if bout.video_r2_key %}
-                    <button type="button" class="bout-video-btn watch" onclick="watchBoutVideo('pool', {{ bout.id }})">Watch</button>
-                    <button type="button" class="bout-video-btn delete" onclick="deleteBoutVideo('pool', {{ bout.id }})">Delete</button>
-                    {% else %}
-                    <input type="file" id="poolBoutVideo{{ bout.id }}" accept="video/*" onchange="uploadBoutVideo('pool', {{ bout.id }}, this)">
-                    <label for="poolBoutVideo{{ bout.id }}" class="bout-video-label">Upload Video</label>
-                    <span class="bout-video-hint">Max 200MB</span>
-                    {% endif %}
+                <div class="bout-videos">
+                    {% for v in bout.videos %}
+                    <span class="bout-video-clip">
+                        <span class="bout-video-clip-label">Clip {{ loop.index }}</span>
+                        <button type="button" class="bout-video-btn watch" onclick="watchBoutVideo({{ v.id }})">Watch</button>
+                        <button type="button" class="bout-video-btn delete" onclick="deleteBoutVideo({{ v.id }})">×</button>
+                    </span>
+                    {% endfor %}
+                    <input type="file" id="poolBoutVideo{{ bout.id }}" class="bout-video-input" accept="video/*" onchange="uploadBoutVideo('pool', {{ bout.id }}, this)">
+                    <label for="poolBoutVideo{{ bout.id }}" class="bout-video-label">{% if bout.videos %}+ Add Clip{% else %}Upload Video{% endif %}</label>
                     <span class="bout-video-status" id="poolBoutStatus{{ bout.id }}"></span>
                 </div>
             </div>
@@ -850,15 +865,16 @@
                         {% if bout.opponent_club %}
                         <div class="de-bout-club">{{ bout.opponent_club }}</div>
                         {% endif %}
-                        <div class="bout-video">
-                            {% if bout.video_r2_key %}
-                            <button type="button" class="bout-video-btn watch" onclick="watchBoutVideo('elim', {{ bout.id }})">Watch</button>
-                            <button type="button" class="bout-video-btn delete" onclick="deleteBoutVideo('elim', {{ bout.id }})">Delete</button>
-                            {% else %}
-                            <input type="file" id="elimBoutVideo{{ bout.id }}" accept="video/*" onchange="uploadBoutVideo('elim', {{ bout.id }}, this)">
-                            <label for="elimBoutVideo{{ bout.id }}" class="bout-video-label">Upload Video</label>
-                            <span class="bout-video-hint">Max 200MB</span>
-                            {% endif %}
+                        <div class="bout-videos">
+                            {% for v in bout.videos %}
+                            <span class="bout-video-clip">
+                                <span class="bout-video-clip-label">Clip {{ loop.index }}</span>
+                                <button type="button" class="bout-video-btn watch" onclick="watchBoutVideo({{ v.id }})">Watch</button>
+                                <button type="button" class="bout-video-btn delete" onclick="deleteBoutVideo({{ v.id }})">×</button>
+                            </span>
+                            {% endfor %}
+                            <input type="file" id="elimBoutVideo{{ bout.id }}" class="bout-video-input" accept="video/*" onchange="uploadBoutVideo('elim', {{ bout.id }}, this)">
+                            <label for="elimBoutVideo{{ bout.id }}" class="bout-video-label">{% if bout.videos %}+ Add Clip{% else %}Upload Video{% endif %}</label>
                             <span class="bout-video-status" id="elimBoutStatus{{ bout.id }}"></span>
                         </div>
                     </div>
@@ -1470,11 +1486,6 @@
 
         // ── Bout video upload / watch / delete ──────────────────────────
 
-        function boutVideoEndpoint(kind, boutId, suffix) {
-            const base = kind === 'pool' ? '/api/pool-bouts/' : '/api/elimination-rounds/';
-            return base + boutId + '/video' + (suffix || '');
-        }
-
         function boutStatusEl(kind, boutId) {
             const prefix = kind === 'pool' ? 'poolBoutStatus' : 'elimBoutStatus';
             return document.getElementById(prefix + boutId);
@@ -1485,18 +1496,14 @@
             if (!file) return;
 
             const status = boutStatusEl(kind, boutId);
-            const label = input.nextElementSibling;
             if (status) { status.className = 'bout-video-status'; status.textContent = 'Uploading...'; }
-            if (label) label.style.pointerEvents = 'none';
 
+            const uploadUrl = (kind === 'pool' ? '/api/pool-bouts/' : '/api/elimination-rounds/') + boutId + '/videos';
             const formData = new FormData();
             formData.append('video', file);
 
             try {
-                const response = await fetch(boutVideoEndpoint(kind, boutId), {
-                    method: 'POST',
-                    body: formData
-                });
+                const response = await fetch(uploadUrl, { method: 'POST', body: formData });
                 const data = await response.json();
                 if (!response.ok || data.error) throw new Error(data.error || ('HTTP ' + response.status));
 
@@ -1504,44 +1511,33 @@
                 setTimeout(function() { location.reload(); }, 600);
             } catch (error) {
                 if (status) { status.className = 'bout-video-status error'; status.textContent = 'Error: ' + error.message; }
-                if (label) label.style.pointerEvents = '';
                 input.value = '';
             }
         }
 
-        async function watchBoutVideo(kind, boutId) {
-            const status = boutStatusEl(kind, boutId);
-            if (status) { status.className = 'bout-video-status'; status.textContent = 'Loading...'; }
-
+        async function watchBoutVideo(videoId) {
             try {
-                const response = await fetch(boutVideoEndpoint(kind, boutId));
+                const response = await fetch('/api/bout-videos/' + videoId);
                 const data = await response.json();
                 if (!response.ok || data.error) throw new Error(data.error || ('HTTP ' + response.status));
-
                 openVideoModal(data.url);
-                if (status) status.textContent = '';
             } catch (error) {
-                if (status) { status.className = 'bout-video-status error'; status.textContent = 'Error: ' + error.message; }
+                alert('Error loading video: ' + error.message);
             }
         }
 
-        async function deleteBoutVideo(kind, boutId) {
-            if (!confirm('Delete this bout video?')) return;
-            const status = boutStatusEl(kind, boutId);
-            if (status) { status.className = 'bout-video-status'; status.textContent = 'Deleting...'; }
-
+        async function deleteBoutVideo(videoId) {
+            if (!confirm('Delete this video clip?')) return;
             try {
-                const response = await fetch(boutVideoEndpoint(kind, boutId, '/delete'), {
+                const response = await fetch('/api/bout-videos/' + videoId + '/delete', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' }
                 });
                 const data = await response.json();
                 if (!response.ok || data.error) throw new Error(data.error || ('HTTP ' + response.status));
-
-                if (status) status.textContent = 'Deleted';
-                setTimeout(function() { location.reload(); }, 600);
+                location.reload();
             } catch (error) {
-                if (status) { status.className = 'bout-video-status error'; status.textContent = 'Error: ' + error.message; }
+                alert('Error deleting video: ' + error.message);
             }
         }
 

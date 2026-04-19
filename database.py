@@ -127,7 +127,6 @@ class EliminationRound(Base):
     result = Column(String(10))
     bout_order = Column(Integer)
     notes = Column(Text)
-    video_r2_key = Column(String(500))
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -167,7 +166,17 @@ class PoolBout(Base):
     result = Column(String(10))
     bout_order = Column(Integer)
     notes = Column(Text)
-    video_r2_key = Column(String(500))
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class BoutVideo(Base):
+    """Video clip attached to a pool bout or elimination bout. Multiple per bout allowed."""
+    __tablename__ = 'bout_videos'
+
+    id = Column(Integer, primary_key=True)
+    bout_kind = Column(String(10), nullable=False, index=True)  # 'pool' or 'elim'
+    bout_id = Column(Integer, nullable=False, index=True)
+    r2_key = Column(String(500), nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -200,31 +209,31 @@ if 'postgresql' in get_database_url():
     except Exception:
         pass  # Already migrated or table doesn't exist yet
 
-# Auto-add video_r2_key columns to pool_bouts and elimination_rounds if missing.
-# create_all() does not add columns to existing tables, so we run ADD COLUMN here.
-# Works on both SQLite ("IF NOT EXISTS") and PostgreSQL.
-def _ensure_video_r2_columns():
-    is_pg = 'postgresql' in get_database_url()
-    statements = [
-        "ALTER TABLE pool_bouts ADD COLUMN IF NOT EXISTS video_r2_key VARCHAR(500)",
-        "ALTER TABLE elimination_rounds ADD COLUMN IF NOT EXISTS video_r2_key VARCHAR(500)",
-    ]
-    for stmt in statements:
+# One-shot migration: copy any existing video_r2_key values (from the single-video
+# predecessor of this feature) into the new bout_videos table, then null the column.
+# The column itself is left in place — SQLite can't DROP COLUMN cleanly before 3.35.
+def _migrate_video_r2_key_to_bout_videos():
+    for kind, table in (('pool', 'pool_bouts'), ('elim', 'elimination_rounds')):
         try:
             with engine.connect() as conn:
-                conn.execute(text(stmt))
+                rows = conn.execute(text(
+                    f"SELECT id, video_r2_key FROM {table} WHERE video_r2_key IS NOT NULL"
+                )).fetchall()
+                for bout_id, r2_key in rows:
+                    exists = conn.execute(text(
+                        "SELECT 1 FROM bout_videos WHERE bout_kind=:k AND bout_id=:b AND r2_key=:r"
+                    ), {'k': kind, 'b': bout_id, 'r': r2_key}).first()
+                    if not exists:
+                        conn.execute(text(
+                            "INSERT INTO bout_videos (bout_kind, bout_id, r2_key, created_at) "
+                            "VALUES (:k, :b, :r, :t)"
+                        ), {'k': kind, 'b': bout_id, 'r': r2_key, 't': datetime.utcnow()})
+                conn.execute(text(f"UPDATE {table} SET video_r2_key = NULL"))
                 conn.commit()
         except Exception:
-            # SQLite <3.35 doesn't support IF NOT EXISTS on ADD COLUMN; try without it
-            if not is_pg:
-                try:
-                    with engine.connect() as conn:
-                        conn.execute(text(stmt.replace("IF NOT EXISTS ", "")))
-                        conn.commit()
-                except Exception:
-                    pass  # Column already exists
+            pass  # Column doesn't exist (fresh install) or migration already complete
 
-_ensure_video_r2_columns()
+_migrate_video_r2_key_to_bout_videos()
 
 
 def get_db():
@@ -670,6 +679,15 @@ def get_pool_results(tournament_id):
 
         bouts = db.query(PoolBout).filter_by(pool_round_id=pool_round.id).order_by(PoolBout.bout_order).all()
 
+        bout_ids = [b.id for b in bouts]
+        videos_by_bout = {}
+        if bout_ids:
+            vids = db.query(BoutVideo).filter(
+                BoutVideo.bout_kind == 'pool', BoutVideo.bout_id.in_(bout_ids)
+            ).order_by(BoutVideo.created_at).all()
+            for v in vids:
+                videos_by_bout.setdefault(v.bout_id, []).append({'id': v.id})
+
         return {
             'id': pool_round.id,
             'pool_number': pool_round.pool_number,
@@ -690,7 +708,7 @@ def get_pool_results(tournament_id):
                     'result': b.result,
                     'bout_order': b.bout_order,
                     'notes': b.notes,
-                    'video_r2_key': b.video_r2_key
+                    'videos': videos_by_bout.get(b.id, [])
                 }
                 for b in bouts
             ]
@@ -1020,6 +1038,15 @@ def get_de_results(tournament_id):
 
         our_fencer = json.loads(de_bracket.our_fencer_path_json) if de_bracket.our_fencer_path_json else {}
 
+        bout_ids = [r.id for r in elim_rounds]
+        videos_by_bout = {}
+        if bout_ids:
+            vids = db.query(BoutVideo).filter(
+                BoutVideo.bout_kind == 'elim', BoutVideo.bout_id.in_(bout_ids)
+            ).order_by(BoutVideo.created_at).all()
+            for v in vids:
+                videos_by_bout.setdefault(v.bout_id, []).append({'id': v.id})
+
         return {
             'bracket_size': de_bracket.bracket_size,
             'completeness': de_bracket.completeness,
@@ -1035,7 +1062,7 @@ def get_de_results(tournament_id):
                     'score_against': r.score_against,
                     'result': r.result,
                     'bout_order': r.bout_order,
-                    'video_r2_key': r.video_r2_key
+                    'videos': videos_by_bout.get(r.id, [])
                 }
                 for r in elim_rounds
             ]
@@ -1105,61 +1132,55 @@ def get_de_summary(tournament_id):
 
 # ── Bout video helper functions ─────────────────────────────────────
 
-def get_pool_bout_video_key(bout_id):
-    """Return the R2 key for a pool bout's video, or None."""
+def bout_exists(bout_kind, bout_id):
     db = get_db()
     try:
-        bout = db.query(PoolBout).filter_by(id=bout_id).first()
-        if not bout:
-            return False  # sentinel for "not found"
-        return bout.video_r2_key
+        model = PoolBout if bout_kind == 'pool' else EliminationRound
+        return db.query(model).filter_by(id=bout_id).first() is not None
     finally:
         db.close()
 
 
-def set_pool_bout_video_key(bout_id, r2_key):
-    """Set the R2 key for a pool bout's video. Returns previous key or False if bout not found."""
+def add_bout_video(bout_kind, bout_id, r2_key):
+    """Create a BoutVideo row; return the new video id."""
     db = get_db()
     try:
-        bout = db.query(PoolBout).filter_by(id=bout_id).first()
-        if not bout:
-            return False
-        prev = bout.video_r2_key
-        bout.video_r2_key = r2_key
+        v = BoutVideo(bout_kind=bout_kind, bout_id=bout_id, r2_key=r2_key)
+        db.add(v)
         db.commit()
-        return prev
-    except Exception as e:
+        return v.id
+    except Exception:
         db.rollback()
-        raise e
+        raise
     finally:
         db.close()
 
 
-def get_elim_bout_video_key(bout_id):
-    """Return the R2 key for an elimination bout's video, or None."""
+def get_bout_video(video_id):
+    """Return {id, bout_kind, bout_id, r2_key} or None."""
     db = get_db()
     try:
-        bout = db.query(EliminationRound).filter_by(id=bout_id).first()
-        if not bout:
-            return False
-        return bout.video_r2_key
+        v = db.query(BoutVideo).filter_by(id=video_id).first()
+        if not v:
+            return None
+        return {'id': v.id, 'bout_kind': v.bout_kind, 'bout_id': v.bout_id, 'r2_key': v.r2_key}
     finally:
         db.close()
 
 
-def set_elim_bout_video_key(bout_id, r2_key):
-    """Set the R2 key for an elimination bout's video. Returns previous key or False if bout not found."""
+def delete_bout_video(video_id):
+    """Delete the BoutVideo row; return its r2_key so the caller can purge R2, or None if missing."""
     db = get_db()
     try:
-        bout = db.query(EliminationRound).filter_by(id=bout_id).first()
-        if not bout:
-            return False
-        prev = bout.video_r2_key
-        bout.video_r2_key = r2_key
+        v = db.query(BoutVideo).filter_by(id=video_id).first()
+        if not v:
+            return None
+        r2_key = v.r2_key
+        db.delete(v)
         db.commit()
-        return prev
-    except Exception as e:
+        return r2_key
+    except Exception:
         db.rollback()
-        raise e
+        raise
     finally:
         db.close()

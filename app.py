@@ -44,10 +44,10 @@ from database import (
     delete_de_results,
     save_de_summary,
     get_de_summary,
-    get_pool_bout_video_key,
-    set_pool_bout_video_key,
-    get_elim_bout_video_key,
-    set_elim_bout_video_key
+    bout_exists,
+    add_bout_video,
+    get_bout_video,
+    delete_bout_video
 )
 from de_extraction import extract_full_de_bracket
 
@@ -1219,7 +1219,7 @@ def api_get_de_results(tournament_id):
     return jsonify(results)
 
 
-# --- Bout video routes (pool and elimination) ---
+# --- Bout video routes (multiple videos per bout, pool and elim) ---
 
 BOUT_VIDEO_MIME_MAP = {
     '.mp4': 'video/mp4', '.mov': 'video/quicktime', '.avi': 'video/x-msvideo',
@@ -1227,8 +1227,7 @@ BOUT_VIDEO_MIME_MAP = {
 }
 
 
-def _upload_bout_video(bout_kind, bout_id, get_key_fn, set_key_fn):
-    """Shared handler for uploading a video for a pool or elimination bout."""
+def _upload_bout_video(bout_kind, bout_id):
     if 'video' not in request.files:
         return jsonify({'error': 'No video file uploaded'}), 400
 
@@ -1236,9 +1235,7 @@ def _upload_bout_video(bout_kind, bout_id, get_key_fn, set_key_fn):
     if file.filename == '':
         return jsonify({'error': 'No file selected'}), 400
 
-    # Validate that the bout exists
-    existing = get_key_fn(bout_id)
-    if existing is False:
+    if not bout_exists(bout_kind, bout_id):
         return jsonify({'error': 'Bout not found'}), 404
 
     original_filename = secure_filename(file.filename)
@@ -1256,23 +1253,8 @@ def _upload_bout_video(bout_kind, bout_id, get_key_fn, set_key_fn):
             ExtraArgs={'ContentType': content_type}
         )
 
-        prev_key = set_key_fn(bout_id, r2_key)
-        if prev_key is False:
-            # Race: bout was deleted between check and set. Clean up R2 upload.
-            try:
-                get_r2_client().delete_object(Bucket=bucket, Key=r2_key)
-            except Exception:
-                pass
-            return jsonify({'error': 'Bout not found'}), 404
-
-        # Delete old video from R2 if one existed
-        if prev_key:
-            try:
-                get_r2_client().delete_object(Bucket=bucket, Key=prev_key)
-            except Exception:
-                pass
-
-        return jsonify({'success': True, 'video_r2_key': r2_key})
+        video_id = add_bout_video(bout_kind, bout_id, r2_key)
+        return jsonify({'success': True, 'video_id': video_id})
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -1281,19 +1263,30 @@ def _upload_bout_video(bout_kind, bout_id, get_key_fn, set_key_fn):
             filepath.unlink()
 
 
-def _bout_video_playback_url(get_key_fn, bout_id):
-    """Generate a presigned R2 URL to play a bout video."""
-    key = get_key_fn(bout_id)
-    if key is False:
-        return jsonify({'error': 'Bout not found'}), 404
-    if not key:
-        return jsonify({'error': 'No video for this bout'}), 404
+@app.route('/api/pool-bouts/<int:bout_id>/videos', methods=['POST'])
+@login_required
+def api_upload_pool_bout_video(bout_id):
+    return _upload_bout_video('pool', bout_id)
+
+
+@app.route('/api/elimination-rounds/<int:bout_id>/videos', methods=['POST'])
+@login_required
+def api_upload_elim_bout_video(bout_id):
+    return _upload_bout_video('elim', bout_id)
+
+
+@app.route('/api/bout-videos/<int:video_id>', methods=['GET'])
+@login_required
+def api_get_bout_video_playback(video_id):
+    v = get_bout_video(video_id)
+    if not v:
+        return jsonify({'error': 'Video not found'}), 404
     try:
         url = get_r2_client().generate_presigned_url(
             'get_object',
             Params={
                 'Bucket': os.environ.get('R2_BUCKET_NAME', 'fencing-lessons'),
-                'Key': key
+                'Key': v['r2_key']
             },
             ExpiresIn=3600
         )
@@ -1302,60 +1295,18 @@ def _bout_video_playback_url(get_key_fn, bout_id):
         return jsonify({'error': str(e)}), 500
 
 
-def _delete_bout_video(get_key_fn, set_key_fn, bout_id):
-    """Delete a bout's video from R2 and clear the DB field."""
-    key = get_key_fn(bout_id)
-    if key is False:
-        return jsonify({'error': 'Bout not found'}), 404
-    if not key:
-        return jsonify({'success': True})  # Nothing to delete
+@app.route('/api/bout-videos/<int:video_id>/delete', methods=['POST'])
+@login_required
+def api_delete_bout_video(video_id):
+    r2_key = delete_bout_video(video_id)
+    if r2_key is None:
+        return jsonify({'error': 'Video not found'}), 404
     try:
-        # Clear the DB field first so UI is consistent even if R2 deletion fails
-        set_key_fn(bout_id, None)
-        try:
-            bucket = os.environ.get('R2_BUCKET_NAME', 'fencing-lessons')
-            get_r2_client().delete_object(Bucket=bucket, Key=key)
-        except Exception:
-            pass  # Stale R2 object is acceptable
-        return jsonify({'success': True})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-
-@app.route('/api/pool-bouts/<int:bout_id>/video', methods=['POST'])
-@login_required
-def api_upload_pool_bout_video(bout_id):
-    return _upload_bout_video('pool', bout_id, get_pool_bout_video_key, set_pool_bout_video_key)
-
-
-@app.route('/api/pool-bouts/<int:bout_id>/video', methods=['GET'])
-@login_required
-def api_get_pool_bout_video(bout_id):
-    return _bout_video_playback_url(get_pool_bout_video_key, bout_id)
-
-
-@app.route('/api/pool-bouts/<int:bout_id>/video/delete', methods=['POST'])
-@login_required
-def api_delete_pool_bout_video(bout_id):
-    return _delete_bout_video(get_pool_bout_video_key, set_pool_bout_video_key, bout_id)
-
-
-@app.route('/api/elimination-rounds/<int:bout_id>/video', methods=['POST'])
-@login_required
-def api_upload_elim_bout_video(bout_id):
-    return _upload_bout_video('elim', bout_id, get_elim_bout_video_key, set_elim_bout_video_key)
-
-
-@app.route('/api/elimination-rounds/<int:bout_id>/video', methods=['GET'])
-@login_required
-def api_get_elim_bout_video(bout_id):
-    return _bout_video_playback_url(get_elim_bout_video_key, bout_id)
-
-
-@app.route('/api/elimination-rounds/<int:bout_id>/video/delete', methods=['POST'])
-@login_required
-def api_delete_elim_bout_video(bout_id):
-    return _delete_bout_video(get_elim_bout_video_key, set_elim_bout_video_key, bout_id)
+        bucket = os.environ.get('R2_BUCKET_NAME', 'fencing-lessons')
+        get_r2_client().delete_object(Bucket=bucket, Key=r2_key)
+    except Exception:
+        pass  # DB row already gone; stale R2 object is acceptable
+    return jsonify({'success': True})
 
 
 if __name__ == '__main__':
