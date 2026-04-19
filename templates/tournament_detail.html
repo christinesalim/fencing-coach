@@ -1487,6 +1487,29 @@
         // ── Bout video upload / watch / delete ──────────────────────────
 
         const boutUploadCounts = {};
+        let totalBoutUploadsInFlight = 0;
+        let boutUploadWakeLock = null;
+
+        async function acquireBoutUploadWakeLock() {
+            if (!('wakeLock' in navigator)) return;
+            try {
+                boutUploadWakeLock = await navigator.wakeLock.request('screen');
+                boutUploadWakeLock.addEventListener('release', function() { boutUploadWakeLock = null; });
+            } catch (e) { /* denied/unsupported — screen may sleep normally */ }
+        }
+
+        function releaseBoutUploadWakeLock() {
+            if (boutUploadWakeLock) {
+                boutUploadWakeLock.release().catch(function() {});
+                boutUploadWakeLock = null;
+            }
+        }
+
+        document.addEventListener('visibilitychange', function() {
+            if (document.visibilityState === 'visible' && totalBoutUploadsInFlight > 0 && !boutUploadWakeLock) {
+                acquireBoutUploadWakeLock();
+            }
+        });
 
         function boutStatusEl(kind, boutId) {
             const prefix = kind === 'pool' ? 'poolBoutStatus' : 'elimBoutStatus';
@@ -1550,6 +1573,8 @@
             input.value = '';
 
             boutUploadCounts[key] = (boutUploadCounts[key] || 0) + files.length;
+            totalBoutUploadsInFlight += files.length;
+            if (totalBoutUploadsInFlight === files.length) acquireBoutUploadWakeLock();
             refreshBoutUploadStatus(kind, boutId);
 
             const uploadUrl = (kind === 'pool' ? '/api/pool-bouts/' : '/api/elimination-rounds/') + boutId + '/videos';
@@ -1567,6 +1592,7 @@
                     lastError = file.name + ': ' + error.message;
                 }
                 boutUploadCounts[key]--;
+                totalBoutUploadsInFlight--;
                 if ((boutUploadCounts[key] || 0) > 0) {
                     refreshBoutUploadStatus(kind, boutId);
                 } else if (lastError) {
@@ -1574,6 +1600,7 @@
                 } else {
                     setBoutStatus(kind, boutId, '');
                 }
+                if (totalBoutUploadsInFlight === 0) releaseBoutUploadWakeLock();
             }
         }
 
