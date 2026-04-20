@@ -1412,6 +1412,33 @@ def _parse_dt(value):
     return None
 
 
+def _parse_usfa_name(canonical):
+    """Split 'LASTNAME Firstname' (USFA convention) into (first_name, last_name).
+
+    Leading all-uppercase tokens are the surname, the rest is the given name.
+    Falls back to natural-order 'First Last' when no caps leader is present.
+    Returns (None, None) when canonical is empty or can't be split confidently.
+    """
+    if not canonical:
+        return (None, None)
+    tokens = canonical.replace(',', ' ').split()
+    if not tokens:
+        return (None, None)
+    if len(tokens) == 1:
+        return (None, tokens[0])
+    caps_lead = 0
+    for t in tokens:
+        if len(t) > 1 and t.isupper():
+            caps_lead += 1
+        else:
+            break
+    if caps_lead == 0:
+        return (' '.join(tokens[:-1]), tokens[-1])
+    if caps_lead == len(tokens):
+        return (None, ' '.join(tokens))
+    return (' '.join(tokens[caps_lead:]), ' '.join(tokens[:caps_lead]))
+
+
 def _synthesize_canonical_name(data):
     """If first_name + last_name supplied but no canonical_name, build 'LASTNAME Firstname'."""
     canonical = data.get('canonical_name')
@@ -1497,11 +1524,16 @@ def _bout_record_to_dict(bout):
 def create_opponent(data):
     """Create a new opponent. Returns the serialized opponent dict."""
     db = get_db()
+    canonical = _synthesize_canonical_name(data)
+    first = data.get('first_name')
+    last = data.get('last_name')
+    if not first and not last and canonical:
+        first, last = _parse_usfa_name(canonical)
     try:
         opp = Opponent(
-            canonical_name=_synthesize_canonical_name(data),
-            first_name=data.get('first_name'),
-            last_name=data.get('last_name'),
+            canonical_name=canonical,
+            first_name=first,
+            last_name=last,
             name_aliases=_serialize_json_list(data.get('name_aliases')),
             club=data.get('club'),
             club_aliases=_serialize_json_list(data.get('club_aliases')),
