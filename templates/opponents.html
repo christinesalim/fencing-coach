@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Opponent Intel</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #4a7fd4 0%, #1e3a7a 50%, #0f1f4a 100%);
+            min-height: 100vh;
+            padding: 20px;
+            padding-bottom: 100px;
+            color: #333;
+        }
+
+        .container { max-width: 700px; margin: 0 auto; }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 20px;
+            position: relative;
+        }
+        .header h1 { font-size: 2em; margin-bottom: 10px; }
+        .header p { opacity: 0.9; font-size: 1.1em; }
+        .sign-out {
+            position: absolute;
+            top: 0; right: 0;
+            color: rgba(255,255,255,0.7);
+            font-size: 13px;
+            text-decoration: none;
+        }
+
+        .back-btn {
+            display: inline-block;
+            background: white;
+            color: #2c3e6b;
+            padding: 10px 20px;
+            border-radius: 50px;
+            text-decoration: none;
+            font-weight: 600;
+            margin-bottom: 16px;
+            font-size: 14px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 20px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        .card h2 { font-size: 1.2em; margin-bottom: 12px; color: #1a1a2e; }
+        .card .card-desc { font-size: 14px; color: #666; line-height: 1.5; }
+
+        .form-group { margin-bottom: 14px; }
+
+        label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: #555;
+            margin-bottom: 5px;
+        }
+
+        input[type="text"], input[type="date"], input[type="number"], select, textarea {
+            width: 100%;
+            max-width: 100%;
+            padding: 12px 14px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            font-size: 15px;
+            font-family: inherit;
+            outline: none;
+            transition: border-color 0.2s;
+            background: white;
+            -webkit-appearance: none;
+            appearance: none;
+            box-sizing: border-box;
+        }
+
+        input[type="text"]:focus, input[type="date"]:focus, input[type="number"]:focus,
+        select:focus, textarea:focus { border-color: #2c3e6b; }
+
+        .form-row { display: flex; gap: 12px; }
+        .form-row .form-group { flex: 1; min-width: 0; }
+
+        @media (max-width: 480px) {
+            .form-row { flex-direction: column; gap: 0; }
+        }
+
+        .btn-primary {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #4a7fd4 0%, #1e3a7a 50%, #0f1f4a 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .btn-primary:active { opacity: 0.9; }
+
+        .btn-secondary {
+            padding: 10px 16px;
+            background: #f0f2f7;
+            color: #2c3e6b;
+            border: none;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .filter-toggle {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            padding: 10px 0;
+            font-size: 14px;
+            font-weight: 600;
+            color: #2c3e6b;
+            user-select: none;
+        }
+        .filter-toggle .arrow {
+            transition: transform 0.2s;
+            font-size: 13px;
+        }
+        .filter-toggle .arrow.open { transform: rotate(180deg); }
+
+        .filter-content { display: none; padding-top: 10px; }
+        .filter-content.show { display: block; }
+
+        .filter-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 8px;
+            flex-wrap: wrap;
+        }
+
+        .opponent-card {
+            background: white;
+            border-radius: 20px;
+            padding: 18px 22px;
+            margin-bottom: 14px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            text-decoration: none;
+            color: inherit;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 12px;
+            transition: transform 0.15s;
+        }
+        .opponent-card:active { transform: scale(0.98); }
+
+        .opponent-info { flex: 1; min-width: 0; }
+
+        .opponent-name {
+            font-size: 1.05em;
+            font-weight: 700;
+            color: #1a1a2e;
+            margin-bottom: 4px;
+            word-wrap: break-word;
+        }
+
+        .opponent-club {
+            font-size: 13px;
+            color: #777;
+            margin-bottom: 8px;
+            word-wrap: break-word;
+        }
+
+        .trait-pills {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+        }
+
+        .trait-pill {
+            display: inline-block;
+            padding: 3px 9px;
+            border-radius: 10px;
+            background: #e8f0fe;
+            color: #1a3a7a;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: capitalize;
+        }
+
+        .h2h-badge {
+            flex-shrink: 0;
+            padding: 6px 12px;
+            background: #f0f2f7;
+            color: #2c3e6b;
+            border-radius: 10px;
+            font-size: 12px;
+            font-weight: 700;
+            text-align: center;
+            min-width: 52px;
+        }
+        .h2h-badge.winning { background: #d4edda; color: #155724; }
+        .h2h-badge.losing { background: #f8d7da; color: #721c24; }
+
+        .empty-state {
+            text-align: center;
+            color: white;
+            opacity: 0.85;
+            padding: 30px 0;
+            font-size: 15px;
+        }
+
+        .results-heading {
+            color: white;
+            font-size: 14px;
+            font-weight: 600;
+            margin: 10px 4px 8px;
+            opacity: 0.9;
+        }
+
+        .fab {
+            position: fixed;
+            right: 20px;
+            bottom: 20px;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #4a7fd4 0%, #1e3a7a 100%);
+            color: white;
+            border: none;
+            font-size: 30px;
+            font-weight: 400;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+            cursor: pointer;
+            z-index: 100;
+            line-height: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .fab:active { transform: scale(0.95); }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            display: none;
+            align-items: flex-end;
+            justify-content: center;
+        }
+        .modal-overlay.show { display: flex; }
+
+        .modal-content {
+            background: white;
+            border-radius: 20px 20px 0 0;
+            width: 100%;
+            max-width: 700px;
+            max-height: 92vh;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            padding: 0;
+            animation: slideUp 0.3s ease-out;
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 20px;
+            border-bottom: 1px solid #eee;
+            position: sticky;
+            top: 0;
+            background: white;
+            border-radius: 20px 20px 0 0;
+            z-index: 10;
+        }
+        .modal-header h3 { font-size: 1.1em; color: #1a1a2e; }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 28px;
+            cursor: pointer;
+            color: #999;
+            padding: 0 4px;
+            line-height: 1;
+        }
+
+        .modal-body { padding: 20px; }
+
+        .status {
+            padding: 12px;
+            border-radius: 10px;
+            margin-top: 12px;
+            font-size: 14px;
+            display: none;
+        }
+        .status.success { background: #d4edda; color: #155724; display: block; }
+        .status.error { background: #f8d7da; color: #721c24; display: block; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Opponent Intel</h1>
+            <p>Known fencers and tactical notes</p>
+            <a href="/logout" class="sign-out">Sign out</a>
+        </div>
+
+        <a href="/" class="back-btn">&larr; Home</a>
+
+        <!-- Search + filter card -->
+        <div class="card">
+            <h2>Search</h2>
+            <div class="form-group">
+                <label for="searchInput">Name</label>
+                <input type="text" id="searchInput" placeholder="e.g. Salim, Ethan, LUCAS...">
+            </div>
+
+            <div class="filter-toggle" onclick="toggleFilters()">
+                <span>Filter by traits</span>
+                <span class="arrow" id="filterArrow">&#9660;</span>
+            </div>
+
+            <div class="filter-content" id="filterContent">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Handedness</label>
+                        <select id="filterHandedness">
+                            <option value="">Any</option>
+                            <option value="left">Left</option>
+                            <option value="right">Right</option>
+                            <option value="unknown">Unknown</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Height</label>
+                        <select id="filterHeight">
+                            <option value="">Any</option>
+                            <option value="very_tall">Very tall</option>
+                            <option value="tall">Tall</option>
+                            <option value="average">Average</option>
+                            <option value="short">Short</option>
+                            <option value="very_short">Very short</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Build</label>
+                        <select id="filterBuild">
+                            <option value="">Any</option>
+                            <option value="stocky">Stocky</option>
+                            <option value="average">Average</option>
+                            <option value="lean">Lean</option>
+                            <option value="athletic">Athletic</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Speed</label>
+                        <select id="filterSpeed">
+                            <option value="">Any</option>
+                            <option value="very_fast">Very fast</option>
+                            <option value="fast">Fast</option>
+                            <option value="average">Average</option>
+                            <option value="slow">Slow</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Primary style</label>
+                        <select id="filterPrimaryStyle">
+                            <option value="">Any</option>
+                            <option value="aggressive">Aggressive</option>
+                            <option value="defensive">Defensive</option>
+                            <option value="counter_attacker">Counter-attacker</option>
+                            <option value="distance_fighter">Distance fighter</option>
+                            <option value="infighter">Infighter</option>
+                            <option value="tactician">Tactician</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Secondary style</label>
+                        <select id="filterSecondaryStyle">
+                            <option value="">Any</option>
+                            <option value="aggressive">Aggressive</option>
+                            <option value="defensive">Defensive</option>
+                            <option value="counter_attacker">Counter-attacker</option>
+                            <option value="distance_fighter">Distance fighter</option>
+                            <option value="infighter">Infighter</option>
+                            <option value="tactician">Tactician</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="filter-actions">
+                    <button class="btn-secondary" onclick="applyFilters()">Apply filters</button>
+                    <button class="btn-secondary" onclick="clearFilters()">Clear filters</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="results-heading" id="resultsHeading">All opponents</div>
+
+        <div id="opponentsList">
+            {% if opponents %}
+                {% for o in opponents %}
+                <a class="opponent-card" href="/opponents/{{ o.id }}">
+                    <div class="opponent-info">
+                        <div class="opponent-name">{{ o.canonical_name }}</div>
+                        {% if o.club %}<div class="opponent-club">{{ o.club }}</div>{% endif %}
+                        <div class="trait-pills">
+                            {% if o.handedness %}<span class="trait-pill">{{ o.handedness }}</span>{% endif %}
+                            {% if o.height_category %}<span class="trait-pill">{{ o.height_category | replace('_', ' ') }}</span>{% endif %}
+                            {% if o.primary_style %}<span class="trait-pill">{{ o.primary_style | replace('_', ' ') }}</span>{% endif %}
+                            {% if o.speed_rating %}<span class="trait-pill">{{ o.speed_rating | replace('_', ' ') }}</span>{% endif %}
+                        </div>
+                    </div>
+                    <div class="h2h-badge" data-opponent-id="{{ o.id }}">—</div>
+                </a>
+                {% endfor %}
+            {% else %}
+                <div class="empty-state">
+                    <p>No opponents yet. Tap + to add one.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <button class="fab" onclick="openNewOpponentModal()" aria-label="New opponent">+</button>
+
+    <!-- New Opponent Modal -->
+    <div class="modal-overlay" id="newOpponentModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>New Opponent</h3>
+                <button class="modal-close" onclick="closeNewOpponentModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>First name</label>
+                        <input type="text" id="newFirstName" placeholder="Ethan">
+                    </div>
+                    <div class="form-group">
+                        <label>Last name</label>
+                        <input type="text" id="newLastName" placeholder="SALIM">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Canonical name (optional — auto-built from first/last)</label>
+                    <input type="text" id="newCanonicalName" placeholder="SALIM Ethan">
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Club</label>
+                        <input type="text" id="newClub" placeholder="AFM">
+                    </div>
+                    <div class="form-group">
+                        <label>Division</label>
+                        <input type="text" id="newDivision" placeholder="Pacific Coast">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Handedness</label>
+                        <select id="newHandedness">
+                            <option value="">Unknown</option>
+                            <option value="left">Left</option>
+                            <option value="right">Right</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Height</label>
+                        <select id="newHeight">
+                            <option value="">Unknown</option>
+                            <option value="very_tall">Very tall</option>
+                            <option value="tall">Tall</option>
+                            <option value="average">Average</option>
+                            <option value="short">Short</option>
+                            <option value="very_short">Very short</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Build</label>
+                        <select id="newBuild">
+                            <option value="">Unknown</option>
+                            <option value="stocky">Stocky</option>
+                            <option value="average">Average</option>
+                            <option value="lean">Lean</option>
+                            <option value="athletic">Athletic</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Speed</label>
+                        <select id="newSpeed">
+                            <option value="">Unknown</option>
+                            <option value="very_fast">Very fast</option>
+                            <option value="fast">Fast</option>
+                            <option value="average">Average</option>
+                            <option value="slow">Slow</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Primary style</label>
+                        <select id="newPrimaryStyle">
+                            <option value="">Unknown</option>
+                            <option value="aggressive">Aggressive</option>
+                            <option value="defensive">Defensive</option>
+                            <option value="counter_attacker">Counter-attacker</option>
+                            <option value="distance_fighter">Distance fighter</option>
+                            <option value="infighter">Infighter</option>
+                            <option value="tactician">Tactician</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Secondary style</label>
+                        <select id="newSecondaryStyle">
+                            <option value="">Unknown</option>
+                            <option value="aggressive">Aggressive</option>
+                            <option value="defensive">Defensive</option>
+                            <option value="counter_attacker">Counter-attacker</option>
+                            <option value="distance_fighter">Distance fighter</option>
+                            <option value="infighter">Infighter</option>
+                            <option value="tactician">Tactician</option>
+                        </select>
+                    </div>
+                </div>
+
+                <button class="btn-primary" onclick="createOpponent()">Create Opponent</button>
+                <div class="status" id="newOpponentStatus"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Load head-to-head badges on page load
+        async function loadHeadToHeadBadges() {
+            const badges = document.querySelectorAll('.h2h-badge[data-opponent-id]');
+            for (const badge of badges) {
+                const oppId = badge.getAttribute('data-opponent-id');
+                try {
+                    const resp = await fetch(`/api/opponents/${oppId}`);
+                    if (!resp.ok) { badge.textContent = '—'; continue; }
+                    const data = await resp.json();
+                    const h2h = data.head_to_head || {};
+                    const w = h2h.wins || 0;
+                    const l = h2h.losses || 0;
+                    if (w === 0 && l === 0) {
+                        badge.textContent = '—';
+                    } else {
+                        badge.textContent = `${w}W-${l}L`;
+                        if (w > l) badge.classList.add('winning');
+                        else if (l > w) badge.classList.add('losing');
+                    }
+                } catch (e) {
+                    badge.textContent = '—';
+                }
+            }
+        }
+        loadHeadToHeadBadges();
+
+        // Debounced search
+        const searchInput = document.getElementById('searchInput');
+        let searchTimer = null;
+        searchInput.addEventListener('keyup', () => {
+            clearTimeout(searchTimer);
+            searchTimer = setTimeout(runSearch, 300);
+        });
+
+        async function runSearch() {
+            const q = searchInput.value.trim();
+            if (!q) {
+                // Empty query → fall back to current filters (or full list)
+                applyFilters();
+                return;
+            }
+            const heading = document.getElementById('resultsHeading');
+            heading.textContent = `Search: "${q}"`;
+            try {
+                const resp = await fetch(`/api/opponents/search?q=${encodeURIComponent(q)}`);
+                const data = await resp.json();
+                const matches = data.matches || [];
+                const opponents = matches.map(m => m.opponent);
+                renderOpponents(opponents);
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        function toggleFilters() {
+            const content = document.getElementById('filterContent');
+            const arrow = document.getElementById('filterArrow');
+            content.classList.toggle('show');
+            arrow.classList.toggle('open');
+        }
+
+        async function applyFilters() {
+            const params = new URLSearchParams();
+            const fields = [
+                ['handedness', 'filterHandedness'],
+                ['height_category', 'filterHeight'],
+                ['build', 'filterBuild'],
+                ['speed_rating', 'filterSpeed'],
+                ['primary_style', 'filterPrimaryStyle'],
+                ['secondary_style', 'filterSecondaryStyle'],
+            ];
+            let hasFilter = false;
+            fields.forEach(([key, id]) => {
+                const v = document.getElementById(id).value;
+                if (v) { params.set(key, v); hasFilter = true; }
+            });
+
+            const heading = document.getElementById('resultsHeading');
+            heading.textContent = hasFilter ? 'Filtered opponents' : 'All opponents';
+
+            try {
+                const url = '/api/opponents/filter' + (params.toString() ? '?' + params.toString() : '');
+                const resp = await fetch(url);
+                const data = await resp.json();
+                renderOpponents(data.opponents || []);
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        function clearFilters() {
+            ['filterHandedness','filterHeight','filterBuild','filterSpeed',
+             'filterPrimaryStyle','filterSecondaryStyle'].forEach(id => {
+                document.getElementById(id).value = '';
+            });
+            searchInput.value = '';
+            applyFilters();
+        }
+
+        function escapeHtml(s) {
+            if (s == null) return '';
+            return String(s).replace(/[&<>"']/g, c => ({
+                '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
+            })[c]);
+        }
+
+        function titleCase(s) {
+            if (!s) return '';
+            return s.replace(/_/g, ' ');
+        }
+
+        function renderOpponents(opponents) {
+            const list = document.getElementById('opponentsList');
+            if (!opponents || opponents.length === 0) {
+                list.innerHTML = '<div class="empty-state"><p>No opponents match.</p></div>';
+                return;
+            }
+            list.innerHTML = opponents.map(o => {
+                const pills = [];
+                if (o.handedness) pills.push(`<span class="trait-pill">${escapeHtml(o.handedness)}</span>`);
+                if (o.height_category) pills.push(`<span class="trait-pill">${escapeHtml(titleCase(o.height_category))}</span>`);
+                if (o.primary_style) pills.push(`<span class="trait-pill">${escapeHtml(titleCase(o.primary_style))}</span>`);
+                if (o.speed_rating) pills.push(`<span class="trait-pill">${escapeHtml(titleCase(o.speed_rating))}</span>`);
+                const club = o.club ? `<div class="opponent-club">${escapeHtml(o.club)}</div>` : '';
+                return `
+                    <a class="opponent-card" href="/opponents/${o.id}">
+                        <div class="opponent-info">
+                            <div class="opponent-name">${escapeHtml(o.canonical_name || '')}</div>
+                            ${club}
+                            <div class="trait-pills">${pills.join('')}</div>
+                        </div>
+                        <div class="h2h-badge" data-opponent-id="${o.id}">—</div>
+                    </a>
+                `;
+            }).join('');
+            loadHeadToHeadBadges();
+        }
+
+        function openNewOpponentModal() {
+            document.getElementById('newOpponentModal').classList.add('show');
+        }
+        function closeNewOpponentModal() {
+            document.getElementById('newOpponentModal').classList.remove('show');
+        }
+
+        async function createOpponent() {
+            const payload = {
+                first_name: document.getElementById('newFirstName').value.trim() || null,
+                last_name: document.getElementById('newLastName').value.trim() || null,
+                canonical_name: document.getElementById('newCanonicalName').value.trim() || null,
+                club: document.getElementById('newClub').value.trim() || null,
+                division: document.getElementById('newDivision').value.trim() || null,
+                handedness: document.getElementById('newHandedness').value || null,
+                height_category: document.getElementById('newHeight').value || null,
+                build: document.getElementById('newBuild').value || null,
+                speed_rating: document.getElementById('newSpeed').value || null,
+                primary_style: document.getElementById('newPrimaryStyle').value || null,
+                secondary_style: document.getElementById('newSecondaryStyle').value || null,
+            };
+
+            const status = document.getElementById('newOpponentStatus');
+
+            if (!payload.canonical_name && !payload.last_name && !payload.first_name) {
+                status.className = 'status error';
+                status.textContent = 'Provide at least a first or last name.';
+                return;
+            }
+
+            try {
+                const resp = await fetch('/api/opponents', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await resp.json();
+                if (data.error) throw new Error(data.error);
+                status.className = 'status success';
+                status.textContent = 'Created! Reloading...';
+                setTimeout(() => location.reload(), 600);
+            } catch (e) {
+                status.className = 'status error';
+                status.textContent = 'Error: ' + e.message;
+            }
+        }
+    </script>
+</body>
+</html>
