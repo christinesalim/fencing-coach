@@ -1630,6 +1630,138 @@ def api_add_bout_record(opponent_id):
         return jsonify({'error': str(e)}), 500
 
 
+# --- Pre-bout Intel (Phase 4) ---
+
+def _format_trait_phrase(field, value):
+    """Format a single opponent trait field+value into a human phrase.
+
+    Only used by _build_opponent_intel when constructing ``physical_summary``.
+    Returns None for empty / unknown values.
+    """
+    if not value:
+        return None
+    v = str(value).strip()
+    if not v:
+        return None
+    # Snake-case → spaces, then title-case first letter.
+    human = v.replace('_', ' ')
+    if field == 'handedness':
+        # "Left-handed" / "Right-handed"
+        return f"{human.capitalize()}-handed"
+    if field == 'height_category':
+        # "Tall" / "Very tall" / "Short"
+        return human.capitalize()
+    if field == 'primary_style':
+        # "aggressive style" / "counter-attacker style" etc. "style" flows
+        # naturally after every allowed value.
+        return f"{human.lower()} style"
+    if field == 'speed_rating':
+        # "fast" / "very fast" / "slow" — no extra word needed.
+        return human.lower()
+    return human.capitalize()
+
+
+def _build_physical_summary(opponent):
+    """Compose the one-line physical summary string, or None if no traits set."""
+    if not opponent:
+        return None
+    parts = []
+    for field in ('handedness', 'height_category', 'primary_style', 'speed_rating'):
+        phrase = _format_trait_phrase(field, opponent.get(field))
+        if phrase:
+            parts.append(phrase)
+    if not parts:
+        return None
+    return ', '.join(parts)
+
+
+def _sort_notes_by_confidence(notes):
+    """Sort notes by confidence DESC then created_at DESC; None-confidence last."""
+    def key(n):
+        conf = n.get('confidence')
+        created = n.get('created_at') or ''
+        # True sorts after False, so `conf is None` puts unset last.
+        # Use negative confidence via inversion: rely on (1 - conf) so higher
+        # confidences come first within the populated group.
+        return (conf is None, -(conf or 0.0), )
+    # Two-stage sort so created_at ties are broken newest-first.
+    sorted_by_created = sorted(notes, key=lambda n: n.get('created_at') or '', reverse=True)
+    return sorted(sorted_by_created, key=key)
+
+
+def _build_opponent_intel(opponent_id):
+    """Return the consolidated pre-bout intel dict for an opponent, or None.
+
+    Shape matches the spec in PLAN_OPPONENT_INTELLIGENCE.md §2:
+      { opponent, head_to_head, notes_by_section, physical_summary,
+        last_encounter }
+    """
+    opponent = get_opponent(opponent_id)
+    if not opponent:
+        return None
+
+    head_to_head = get_head_to_head(opponent_id) or {
+        'wins': 0, 'losses': 0, 'touches_for': 0, 'touches_against': 0, 'bouts': []
+    }
+    all_notes = get_tactical_notes(opponent_id) or []
+
+    what_works = [n for n in all_notes if (n.get('category') or '') == 'what_worked']
+    watch_out_for = [
+        n for n in all_notes
+        if (n.get('category') or '') in ('favorite_action', 'tell')
+    ]
+    weaknesses = [n for n in all_notes if (n.get('category') or '') == 'weakness']
+
+    notes_by_section = {
+        'what_works': _sort_notes_by_confidence(what_works),
+        'watch_out_for': _sort_notes_by_confidence(watch_out_for),
+        'weaknesses': _sort_notes_by_confidence(weaknesses),
+    }
+
+    physical_summary = _build_physical_summary(opponent)
+
+    last_encounter = None
+    bouts = head_to_head.get('bouts') or []
+    if bouts:
+        # get_head_to_head returns bouts sorted newest-first already.
+        top = bouts[0]
+        last_encounter = {
+            'tournament_name': top.get('tournament_name'),
+            'tournament_date': top.get('tournament_date'),
+            'result': (top.get('result') or None),
+            'score_for': top.get('score_for'),
+            'score_against': top.get('score_against'),
+        }
+
+    return {
+        'opponent': opponent,
+        'head_to_head': head_to_head,
+        'notes_by_section': notes_by_section,
+        'physical_summary': physical_summary,
+        'last_encounter': last_encounter,
+    }
+
+
+@app.route('/opponents/<int:opponent_id>/intel')
+@login_required
+def opponent_intel_page(opponent_id):
+    """Pre-bout intel page — the phone-glance briefing view."""
+    intel = _build_opponent_intel(opponent_id)
+    if not intel:
+        return 'Opponent not found', 404
+    return render_template('opponent_intel.html', **intel)
+
+
+@app.route('/api/opponents/<int:opponent_id>/intel', methods=['GET'])
+@login_required
+def api_opponent_intel(opponent_id):
+    """JSON payload used by the pre-bout intel page."""
+    intel = _build_opponent_intel(opponent_id)
+    if not intel:
+        return jsonify({'error': 'Opponent not found'}), 404
+    return jsonify(intel)
+
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5001))
     app.run(host='0.0.0.0', port=port, debug=False)

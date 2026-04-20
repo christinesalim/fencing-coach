@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>{{ opponent.canonical_name }} - Pre-Bout Intel</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #4a7fd4 0%, #1e3a7a 50%, #0f1f4a 100%);
+            min-height: 100vh;
+            padding: 20px;
+            padding-bottom: 80px;
+            color: #333;
+        }
+
+        .container { max-width: 700px; margin: 0 auto; }
+
+        .back-link {
+            display: inline-block;
+            color: rgba(255,255,255,0.85);
+            text-decoration: none;
+            font-size: 13px;
+            margin-bottom: 12px;
+            padding: 4px 0;
+        }
+        .back-link:active { color: #fff; }
+
+        .card {
+            background: white;
+            border-radius: 20px;
+            padding: 25px;
+            margin-bottom: 16px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            max-width: 100%;
+            overflow-wrap: break-word;
+            word-wrap: break-word;
+        }
+
+        /* Name header card */
+        .name-card {
+            background: linear-gradient(135deg, #4a7fd4 0%, #1e3a7a 50%, #0f1f4a 100%);
+            color: white;
+            text-align: center;
+            padding: 28px 20px;
+        }
+        .name-card h1 {
+            font-size: 1.95em;
+            font-weight: 800;
+            line-height: 1.15;
+            word-wrap: break-word;
+            margin-bottom: 8px;
+        }
+        .name-card .meta {
+            opacity: 0.85;
+            font-size: 0.95em;
+            line-height: 1.4;
+        }
+
+        /* H2H summary */
+        .h2h-card {
+            font-size: 1.05em;
+            line-height: 1.5;
+        }
+        .h2h-line strong { color: #1a1a2e; font-size: 1.1em; }
+
+        .trend-pill {
+            display: inline-flex;
+            gap: 6px;
+            margin-top: 10px;
+            align-items: center;
+        }
+        .trend-pill span {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 700;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .trend-pill .w { background: #d4edda; color: #155724; }
+        .trend-pill .l { background: #f8d7da; color: #721c24; }
+        .trend-pill .none { background: #e9ecef; color: #6c757d; }
+        .trend-label {
+            font-size: 13px;
+            color: #666;
+            margin-right: 2px;
+        }
+
+        /* Last encounter card */
+        .last-encounter-card {
+            background: #f4f6fa;
+            color: #444;
+            font-size: 14px;
+            padding: 14px 18px;
+            border-radius: 14px;
+            margin-bottom: 16px;
+            box-shadow: none;
+            line-height: 1.5;
+        }
+        .last-encounter-card strong { color: #1a1a2e; }
+        .last-encounter-card .result-pill {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 12px;
+            margin-left: 4px;
+        }
+        .last-encounter-card .result-pill.won { background: #d4edda; color: #155724; }
+        .last-encounter-card .result-pill.lost { background: #f8d7da; color: #721c24; }
+
+        /* Intel section cards */
+        .intel-section {
+            border-left: 4px solid #ccc;
+        }
+        .intel-section h2 {
+            font-size: 1.05em;
+            font-weight: 800;
+            letter-spacing: 0.5px;
+            margin-bottom: 14px;
+        }
+        .intel-section.what-works { border-left-color: #28a745; }
+        .intel-section.what-works h2 { color: #1e7e34; }
+        .intel-section.watch-out { border-left-color: #e74c3c; }
+        .intel-section.watch-out h2 { color: #c0392b; }
+        .intel-section.weaknesses { border-left-color: #4a7fd4; }
+        .intel-section.weaknesses h2 { color: #1e3a7a; }
+
+        .note-row {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 10px 0;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 16px;
+            line-height: 1.45;
+        }
+        .note-row:last-child { border-bottom: none; }
+        .note-row .note-text {
+            flex: 1;
+            min-width: 0;
+            color: #1a1a2e;
+            font-weight: 500;
+            word-wrap: break-word;
+        }
+        .conf-pill {
+            flex-shrink: 0;
+            padding: 4px 10px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: 700;
+            background: #e9ecef;
+            color: #6c757d;
+            white-space: nowrap;
+        }
+        .conf-pill.high { background: #d4edda; color: #155724; }
+
+        /* Physical summary */
+        .physical-card {
+            background: #f4f6fa;
+            color: #555;
+            font-size: 14px;
+            padding: 14px 18px;
+            border-radius: 14px;
+            margin-bottom: 16px;
+            box-shadow: none;
+            font-style: italic;
+        }
+
+        /* Edit link */
+        .edit-link {
+            display: block;
+            text-align: center;
+            color: rgba(255,255,255,0.85);
+            text-decoration: none;
+            font-size: 14px;
+            padding: 14px;
+            margin-top: 6px;
+        }
+        .edit-link:active { color: #fff; }
+
+        /* Empty state */
+        .empty-state {
+            text-align: center;
+            color: #666;
+            padding: 24px 16px;
+            font-size: 15px;
+            line-height: 1.55;
+        }
+        .empty-state a {
+            display: inline-block;
+            margin-top: 10px;
+            color: #1e3a7a;
+            font-weight: 600;
+            text-decoration: none;
+        }
+
+        @media (max-width: 480px) {
+            body { padding: 14px; padding-bottom: 60px; }
+            .card { padding: 20px; }
+            .name-card h1 { font-size: 1.7em; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/opponents/{{ opponent.id }}" class="back-link">&larr; back to profile</a>
+
+        <!-- Opponent name header -->
+        <div class="card name-card">
+            <h1>{{ opponent.canonical_name }}</h1>
+            {% if opponent.club or opponent.division %}
+            <div class="meta">
+                {{ opponent.club or '' }}{% if opponent.club and opponent.division %} &middot; {% endif %}{{ opponent.division or '' }}
+            </div>
+            {% endif %}
+        </div>
+
+        {% set bouts = head_to_head.bouts or [] %}
+        {% set any_notes = notes_by_section.what_works or notes_by_section.watch_out_for or notes_by_section.weaknesses %}
+
+        {% if not bouts and not any_notes and not physical_summary %}
+        <div class="card">
+            <div class="empty-state">
+                No intel yet — add notes from the profile page.
+                <br>
+                <a href="/opponents/{{ opponent.id }}">Go to profile &rarr;</a>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Head-to-head summary -->
+        {% if bouts %}
+        <div class="card h2h-card">
+            {% set total_bouts = bouts | length %}
+            <div class="h2h-line">
+                You're
+                <strong>{{ head_to_head.wins or 0 }}-{{ head_to_head.losses or 0 }}</strong>
+                against this fencer.
+                <strong>+{{ head_to_head.touches_for or 0 }} / -{{ head_to_head.touches_against or 0 }}</strong>
+                touches.
+            </div>
+            {% set last3 = bouts[:3] %}
+            {% if last3 %}
+            <div class="trend-pill">
+                <span class="trend-label">Last {{ last3 | length }}:</span>
+                {% for b in last3 %}
+                    {% set r = (b.result or '') | lower %}
+                    {% if r == 'won' %}<span class="w">W</span>
+                    {% elif r == 'lost' %}<span class="l">L</span>
+                    {% else %}<span class="none">-</span>{% endif %}
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- Last encounter -->
+        {% if last_encounter %}
+        <div class="last-encounter-card">
+            Last faced
+            {% if last_encounter.tournament_name %}at <strong>{{ last_encounter.tournament_name }}</strong>{% endif %}
+            {% if last_encounter.tournament_date %}, {{ last_encounter.tournament_date }}{% endif %}
+            {% if last_encounter.result %}
+                —
+                <span class="result-pill {{ last_encounter.result | lower }}">
+                    {{ last_encounter.result | capitalize }}
+                    {% if last_encounter.score_for is not none and last_encounter.score_against is not none %}
+                    {{ last_encounter.score_for }}-{{ last_encounter.score_against }}
+                    {% endif %}
+                </span>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- WHAT WORKS -->
+        {% if notes_by_section.what_works %}
+        <div class="card intel-section what-works">
+            <h2>WHAT WORKS</h2>
+            {% for n in notes_by_section.what_works %}
+            <div class="note-row">
+                <div class="note-text">{{ n.observation }}</div>
+                {% if n.confidence is not none and n.confidence >= 0.7 %}
+                <span class="conf-pill high">{{ (n.confidence * 100) | round | int }}%</span>
+                {% elif n.confidence is not none %}
+                <span class="conf-pill">{{ (n.confidence * 100) | round | int }}%</span>
+                {% else %}
+                <span class="conf-pill">new</span>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- WATCH OUT FOR -->
+        {% if notes_by_section.watch_out_for %}
+        <div class="card intel-section watch-out">
+            <h2>WATCH OUT FOR</h2>
+            {% for n in notes_by_section.watch_out_for %}
+            <div class="note-row">
+                <div class="note-text">{{ n.observation }}</div>
+                {% if n.confidence is not none and n.confidence >= 0.7 %}
+                <span class="conf-pill high">{{ (n.confidence * 100) | round | int }}%</span>
+                {% elif n.confidence is not none %}
+                <span class="conf-pill">{{ (n.confidence * 100) | round | int }}%</span>
+                {% else %}
+                <span class="conf-pill">new</span>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- WEAKNESSES TO EXPLOIT -->
+        {% if notes_by_section.weaknesses %}
+        <div class="card intel-section weaknesses">
+            <h2>WEAKNESSES TO EXPLOIT</h2>
+            {% for n in notes_by_section.weaknesses %}
+            <div class="note-row">
+                <div class="note-text">{{ n.observation }}</div>
+                {% if n.confidence is not none and n.confidence >= 0.7 %}
+                <span class="conf-pill high">{{ (n.confidence * 100) | round | int }}%</span>
+                {% elif n.confidence is not none %}
+                <span class="conf-pill">{{ (n.confidence * 100) | round | int }}%</span>
+                {% else %}
+                <span class="conf-pill">new</span>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Physical summary -->
+        {% if physical_summary %}
+        <div class="physical-card">{{ physical_summary }}</div>
+        {% endif %}
+
+        <!-- Edit link -->
+        <a href="/opponents/{{ opponent.id }}" class="edit-link">Edit notes &amp; profile &rarr;</a>
+    </div>
+</body>
+</html>
