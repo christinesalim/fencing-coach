@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>{{ opponent.canonical_name }} - Opponent Profile</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #4a7fd4 0%, #1e3a7a 50%, #0f1f4a 100%);
+            min-height: 100vh;
+            padding: 20px;
+            padding-bottom: 80px;
+            color: #333;
+        }
+
+        .container { max-width: 700px; margin: 0 auto; }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 20px;
+            position: relative;
+        }
+        .sign-out {
+            position: absolute;
+            top: 0; right: 0;
+            color: rgba(255,255,255,0.7);
+            font-size: 13px;
+            text-decoration: none;
+        }
+        .header h1 { font-size: 1.6em; margin-bottom: 6px; word-wrap: break-word; }
+        .header p { opacity: 0.9; font-size: 1em; }
+
+        .back-btn {
+            display: inline-block;
+            background: white;
+            color: #2c3e6b;
+            padding: 10px 20px;
+            border-radius: 50px;
+            text-decoration: none;
+            font-weight: 600;
+            margin-bottom: 16px;
+            font-size: 14px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 20px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        .card h2 { font-size: 1.2em; margin-bottom: 16px; color: #1a1a2e; }
+
+        .form-group { margin-bottom: 14px; }
+
+        label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: #555;
+            margin-bottom: 5px;
+        }
+
+        input[type="text"], input[type="date"], input[type="number"], select, textarea {
+            width: 100%;
+            max-width: 100%;
+            padding: 12px 14px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            font-size: 15px;
+            font-family: inherit;
+            outline: none;
+            transition: border-color 0.2s;
+            background: white;
+            -webkit-appearance: none;
+            appearance: none;
+            box-sizing: border-box;
+        }
+
+        input:focus, select:focus, textarea:focus { border-color: #2c3e6b; }
+
+        .form-row { display: flex; gap: 12px; }
+        .form-row .form-group { flex: 1; min-width: 0; }
+        @media (max-width: 480px) {
+            .form-row { flex-direction: column; gap: 0; }
+        }
+
+        .btn-primary {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #4a7fd4 0%, #1e3a7a 50%, #0f1f4a 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .btn-primary:active { opacity: 0.9; }
+
+        .btn-secondary {
+            padding: 10px 16px;
+            background: #f0f2f7;
+            color: #2c3e6b;
+            border: none;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .btn-delete {
+            width: 100%;
+            padding: 14px;
+            background: #fee2e2;
+            color: #dc2626;
+            border: none;
+            border-radius: 12px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 12px;
+        }
+
+        .small-btn {
+            padding: 6px 10px;
+            background: #f0f2f7;
+            color: #2c3e6b;
+            border: none;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .small-btn.danger { background: #fee2e2; color: #dc2626; }
+        .small-btn.success { background: #d4edda; color: #155724; }
+
+        .readonly-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 6px;
+            gap: 8px;
+        }
+
+        .h2h-summary {
+            background: #f0f4fb;
+            border-radius: 12px;
+            padding: 14px;
+            margin-bottom: 14px;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        .h2h-summary strong { color: #1a1a2e; }
+
+        .trend-pill {
+            display: inline-flex;
+            gap: 4px;
+            margin-top: 4px;
+        }
+        .trend-pill span {
+            width: 22px;
+            height: 22px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 700;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .trend-pill .w { background: #d4edda; color: #155724; }
+        .trend-pill .l { background: #f8d7da; color: #721c24; }
+
+        .bouts-group { margin-bottom: 14px; }
+        .bouts-group-header {
+            font-size: 13px;
+            font-weight: 700;
+            color: #2c3e6b;
+            margin-bottom: 8px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        .bout-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            font-size: 14px;
+            align-items: center;
+            gap: 8px;
+        }
+        .bout-row .bout-desc {
+            color: #444;
+            flex: 1;
+            min-width: 0;
+        }
+        .bout-row .bout-score {
+            font-weight: 700;
+            color: #1a1a2e;
+            flex-shrink: 0;
+        }
+        .bout-row .bout-result {
+            padding: 3px 9px;
+            border-radius: 8px;
+            font-size: 11px;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+        .bout-row .bout-result.won { background: #d4edda; color: #155724; }
+        .bout-row .bout-result.lost { background: #f8d7da; color: #721c24; }
+
+        .note-group { margin-bottom: 16px; }
+        .note-group-header {
+            font-size: 14px;
+            font-weight: 700;
+            color: #1a1a2e;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .note-group-header .category-label {
+            text-transform: capitalize;
+        }
+
+        .note-item {
+            background: #f9fafb;
+            border-radius: 10px;
+            padding: 12px;
+            margin-bottom: 8px;
+        }
+        .note-obs {
+            font-size: 14px;
+            color: #333;
+            line-height: 1.5;
+            margin-bottom: 8px;
+            word-wrap: break-word;
+        }
+        .note-edit-input {
+            width: 100%;
+            font-size: 14px;
+            padding: 10px;
+            border: 2px solid #2c3e6b;
+            border-radius: 8px;
+            font-family: inherit;
+            margin-bottom: 8px;
+            box-sizing: border-box;
+            resize: vertical;
+        }
+        .note-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            align-items: center;
+            font-size: 11px;
+        }
+        .note-pill {
+            padding: 3px 8px;
+            border-radius: 8px;
+            background: #e8f0fe;
+            color: #1a3a7a;
+            font-weight: 600;
+        }
+        .note-pill.confidence-high { background: #d4edda; color: #155724; }
+        .note-pill.confidence-low { background: #f8d7da; color: #721c24; }
+        .note-pill.source { background: #fef3c7; color: #92400e; text-transform: capitalize; }
+
+        .note-actions {
+            margin-left: auto;
+            display: flex;
+            gap: 4px;
+        }
+
+        .add-note-form {
+            display: none;
+            margin-top: 8px;
+            padding: 10px;
+            background: #f9fafb;
+            border-radius: 10px;
+        }
+        .add-note-form.show { display: block; }
+
+        .status {
+            padding: 12px;
+            border-radius: 10px;
+            margin-top: 12px;
+            font-size: 14px;
+            display: none;
+        }
+        .status.success { background: #d4edda; color: #155724; display: block; }
+        .status.error { background: #f8d7da; color: #721c24; display: block; }
+
+        .empty-inline {
+            font-size: 13px;
+            color: #999;
+            font-style: italic;
+            padding: 8px 0;
+        }
+
+        /* Modal (for adding bout) */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            display: none;
+            align-items: flex-end;
+            justify-content: center;
+        }
+        .modal-overlay.show { display: flex; }
+
+        .modal-content {
+            background: white;
+            border-radius: 20px 20px 0 0;
+            width: 100%;
+            max-width: 700px;
+            max-height: 92vh;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            animation: slideUp 0.3s ease-out;
+        }
+        @keyframes slideUp {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 20px;
+            border-bottom: 1px solid #eee;
+            position: sticky;
+            top: 0;
+            background: white;
+            border-radius: 20px 20px 0 0;
+            z-index: 10;
+        }
+        .modal-header h3 { font-size: 1.1em; color: #1a1a2e; }
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 28px;
+            cursor: pointer;
+            color: #999;
+            padding: 0 4px;
+            line-height: 1;
+        }
+        .modal-body { padding: 20px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 id="profileTitle">{{ opponent.canonical_name }}</h1>
+            {% if opponent.club %}<p>{{ opponent.club }}</p>{% endif %}
+            <a href="/logout" class="sign-out">Sign out</a>
+        </div>
+
+        <a href="/opponents" class="back-btn">&larr; All Opponents</a>
+
+        <!-- Profile card (editable) -->
+        <div class="card">
+            <h2>Profile</h2>
+            <input type="hidden" id="opponentId" value="{{ opponent.id }}">
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>First name</label>
+                    <input type="text" id="firstName" value="{{ opponent.first_name or '' }}">
+                </div>
+                <div class="form-group">
+                    <label>Last name</label>
+                    <input type="text" id="lastName" value="{{ opponent.last_name or '' }}">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Canonical name</label>
+                <input type="text" id="canonicalName" value="{{ opponent.canonical_name or '' }}">
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Club</label>
+                    <input type="text" id="club" value="{{ opponent.club or '' }}">
+                </div>
+                <div class="form-group">
+                    <label>Division</label>
+                    <input type="text" id="division" value="{{ opponent.division or '' }}">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Handedness</label>
+                    <select id="handedness">
+                        <option value="">Unknown</option>
+                        <option value="left" {% if opponent.handedness == 'left' %}selected{% endif %}>Left</option>
+                        <option value="right" {% if opponent.handedness == 'right' %}selected{% endif %}>Right</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Height</label>
+                    <select id="heightCategory">
+                        <option value="">Unknown</option>
+                        {% for v, lbl in [('very_tall','Very tall'),('tall','Tall'),('average','Average'),('short','Short'),('very_short','Very short')] %}
+                        <option value="{{ v }}" {% if opponent.height_category == v %}selected{% endif %}>{{ lbl }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Build</label>
+                    <select id="build">
+                        <option value="">Unknown</option>
+                        {% for v in ['stocky','average','lean','athletic'] %}
+                        <option value="{{ v }}" {% if opponent.build == v %}selected{% endif %}>{{ v | capitalize }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Speed</label>
+                    <select id="speedRating">
+                        <option value="">Unknown</option>
+                        {% for v, lbl in [('very_fast','Very fast'),('fast','Fast'),('average','Average'),('slow','Slow')] %}
+                        <option value="{{ v }}" {% if opponent.speed_rating == v %}selected{% endif %}>{{ lbl }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Primary style</label>
+                    <select id="primaryStyle">
+                        <option value="">Unknown</option>
+                        {% for v, lbl in [('aggressive','Aggressive'),('defensive','Defensive'),('counter_attacker','Counter-attacker'),('distance_fighter','Distance fighter'),('infighter','Infighter'),('tactician','Tactician')] %}
+                        <option value="{{ v }}" {% if opponent.primary_style == v %}selected{% endif %}>{{ lbl }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Secondary style</label>
+                    <select id="secondaryStyle">
+                        <option value="">Unknown</option>
+                        {% for v, lbl in [('aggressive','Aggressive'),('defensive','Defensive'),('counter_attacker','Counter-attacker'),('distance_fighter','Distance fighter'),('infighter','Infighter'),('tactician','Tactician')] %}
+                        <option value="{{ v }}" {% if opponent.secondary_style == v %}selected{% endif %}>{{ lbl }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div class="readonly-row">
+                <span>First encountered:</span>
+                <span>{{ opponent.first_encountered or '—' }}</span>
+            </div>
+            <div class="readonly-row">
+                <span>Last encountered:</span>
+                <span>{{ opponent.last_encountered or '—' }}</span>
+            </div>
+
+            <button class="btn-primary" onclick="saveOpponent()" style="margin-top: 14px;">Save Changes</button>
+            <div class="status" id="profileStatus"></div>
+
+            <button class="btn-delete" onclick="deleteOpponent()">Delete Opponent</button>
+        </div>
+
+        <!-- Head-to-head card -->
+        <div class="card" id="h2hCard" {% if not head_to_head.bouts %}style="display:none;"{% endif %}>
+            <h2>Head-to-Head</h2>
+            <div id="h2hSummary"></div>
+            <div id="h2hBouts"></div>
+            <button class="btn-secondary" onclick="openBoutModal()" style="margin-top: 12px;">+ Add Historical Bout</button>
+        </div>
+
+        <!-- If no H2H yet, still show a card so user can add one -->
+        <div class="card" id="h2hEmptyCard" {% if head_to_head.bouts %}style="display:none;"{% endif %}>
+            <h2>Head-to-Head</h2>
+            <div class="empty-inline">No bouts recorded yet.</div>
+            <button class="btn-secondary" onclick="openBoutModal()" style="margin-top: 6px;">+ Add Historical Bout</button>
+        </div>
+
+        <!-- Tactical notes card -->
+        <div class="card">
+            <h2>Tactical Notes</h2>
+            <div id="notesContainer"></div>
+        </div>
+    </div>
+
+    <!-- Bout Modal -->
+    <div class="modal-overlay" id="boutModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Add Historical Bout</h3>
+                <button class="modal-close" onclick="closeBoutModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Tournament name</label>
+                    <input type="text" id="boutTournamentName" placeholder="e.g. NAC Chicago 2026">
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Date</label>
+                        <input type="date" id="boutTournamentDate">
+                    </div>
+                    <div class="form-group">
+                        <label>Bout type</label>
+                        <select id="boutType">
+                            <option value="pool">Pool</option>
+                            <option value="elimination">DE / Elimination</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Score for</label>
+                        <input type="number" id="boutScoreFor" min="0" max="15">
+                    </div>
+                    <div class="form-group">
+                        <label>Score against</label>
+                        <input type="number" id="boutScoreAgainst" min="0" max="15">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Result</label>
+                    <select id="boutResult">
+                        <option value="won">Won</option>
+                        <option value="lost">Lost</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Notes (optional)</label>
+                    <textarea id="boutNotes" rows="2" placeholder="e.g. Round of 16, close bout"></textarea>
+                </div>
+                <button class="btn-primary" onclick="submitBout()">Add Bout</button>
+                <div class="status" id="boutStatus"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const OPPONENT_ID = parseInt(document.getElementById('opponentId').value, 10);
+        const NOTE_CATEGORIES = [
+            ['favorite_action', 'Favorite Action'],
+            ['weakness', 'Weakness'],
+            ['tell', 'Tell'],
+            ['what_worked', 'What Worked'],
+            ['what_failed', 'What Failed'],
+            ['physical_trait', 'Physical Trait'],
+            ['mental_trait', 'Mental Trait'],
+            ['general', 'General'],
+        ];
+
+        let CURRENT_NOTES = {{ opponent.tactical_notes | tojson }};
+        let CURRENT_H2H = {{ head_to_head | tojson }};
+
+        function escapeHtml(s) {
+            if (s == null) return '';
+            return String(s).replace(/[&<>"']/g, c => ({
+                '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+            })[c]);
+        }
+
+        // --- Save profile ---
+        async function saveOpponent() {
+            const payload = {
+                first_name: document.getElementById('firstName').value.trim() || null,
+                last_name: document.getElementById('lastName').value.trim() || null,
+                canonical_name: document.getElementById('canonicalName').value.trim() || null,
+                club: document.getElementById('club').value.trim() || null,
+                division: document.getElementById('division').value.trim() || null,
+                handedness: document.getElementById('handedness').value || null,
+                height_category: document.getElementById('heightCategory').value || null,
+                build: document.getElementById('build').value || null,
+                speed_rating: document.getElementById('speedRating').value || null,
+                primary_style: document.getElementById('primaryStyle').value || null,
+                secondary_style: document.getElementById('secondaryStyle').value || null,
+            };
+            const status = document.getElementById('profileStatus');
+            try {
+                const resp = await fetch(`/api/opponents/${OPPONENT_ID}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await resp.json();
+                if (data.error) throw new Error(data.error);
+                status.className = 'status success';
+                status.textContent = 'Saved.';
+                if (data.opponent) {
+                    document.getElementById('profileTitle').textContent = data.opponent.canonical_name || '';
+                    document.getElementById('canonicalName').value = data.opponent.canonical_name || '';
+                }
+                setTimeout(() => { status.style.display = 'none'; }, 2000);
+            } catch (e) {
+                status.className = 'status error';
+                status.textContent = 'Error: ' + e.message;
+            }
+        }
+
+        // --- Delete opponent ---
+        async function deleteOpponent() {
+            if (!confirm('Delete this opponent? This will also delete all tactical notes and bout records. This cannot be undone.')) return;
+            try {
+                const resp = await fetch(`/api/opponents/${OPPONENT_ID}/delete`, { method: 'POST' });
+                const data = await resp.json();
+                if (data.error) throw new Error(data.error);
+                window.location.href = '/opponents';
+            } catch (e) {
+                alert('Error: ' + e.message);
+            }
+        }
+
+        // --- H2H rendering ---
+        function renderH2H() {
+            const bouts = (CURRENT_H2H && CURRENT_H2H.bouts) || [];
+            const h2hCard = document.getElementById('h2hCard');
+            const h2hEmpty = document.getElementById('h2hEmptyCard');
+            if (bouts.length === 0) {
+                h2hCard.style.display = 'none';
+                h2hEmpty.style.display = '';
+                return;
+            }
+            h2hCard.style.display = '';
+            h2hEmpty.style.display = 'none';
+
+            const wins = CURRENT_H2H.wins || 0;
+            const losses = CURRENT_H2H.losses || 0;
+            const tf = CURRENT_H2H.touches_for || 0;
+            const ta = CURRENT_H2H.touches_against || 0;
+
+            const last3 = bouts.slice(0, 3).map(b => (b.result || '').toLowerCase());
+            const trendHtml = last3.map(r =>
+                r === 'won' ? '<span class="w">W</span>' :
+                r === 'lost' ? '<span class="l">L</span>' :
+                '<span>-</span>'
+            ).join('');
+
+            const summary = document.getElementById('h2hSummary');
+            summary.innerHTML = `
+                <div class="h2h-summary">
+                    <div><strong>${bouts.length} bout${bouts.length === 1 ? '' : 's'}</strong>
+                         — ${wins}W-${losses}L, touches +${tf} / -${ta}</div>
+                    ${last3.length > 0 ? `<div style="margin-top:6px;">Last ${last3.length}: <span class="trend-pill">${trendHtml}</span></div>` : ''}
+                </div>
+            `;
+
+            // Group by tournament_name + tournament_date
+            const groups = {};
+            const order = [];
+            bouts.forEach(b => {
+                const key = `${b.tournament_name || 'Unknown tournament'}__${b.tournament_date || ''}`;
+                if (!(key in groups)) {
+                    groups[key] = { name: b.tournament_name || 'Unknown tournament',
+                                    date: b.tournament_date || '',
+                                    bouts: [] };
+                    order.push(key);
+                }
+                groups[key].bouts.push(b);
+            });
+
+            const boutsContainer = document.getElementById('h2hBouts');
+            boutsContainer.innerHTML = order.map(key => {
+                const g = groups[key];
+                const rows = g.bouts.map(b => {
+                    const label = b.bout_type === 'pool' ? 'Pool' : (b.bout_type === 'elimination' ? 'DE' : (b.bout_type || 'Bout'));
+                    const result = (b.result || '').toLowerCase();
+                    const sf = b.score_for == null ? '—' : b.score_for;
+                    const sa = b.score_against == null ? '—' : b.score_against;
+                    const notes = b.notes ? ` — ${escapeHtml(b.notes)}` : '';
+                    return `
+                        <div class="bout-row">
+                            <div class="bout-desc">${escapeHtml(label)}${notes}</div>
+                            <div class="bout-score">${sf}-${sa}</div>
+                            <div class="bout-result ${result}">${result ? result.toUpperCase() : '—'}</div>
+                        </div>
+                    `;
+                }).join('');
+                const dateLabel = g.date ? ` — ${escapeHtml(g.date)}` : '';
+                return `
+                    <div class="bouts-group">
+                        <div class="bouts-group-header">${escapeHtml(g.name)}${dateLabel}</div>
+                        ${rows}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // --- Add bout modal ---
+        function openBoutModal() {
+            document.getElementById('boutModal').classList.add('show');
+        }
+        function closeBoutModal() {
+            document.getElementById('boutModal').classList.remove('show');
+        }
+
+        async function submitBout() {
+            const payload = {
+                tournament_name: document.getElementById('boutTournamentName').value.trim() || null,
+                tournament_date: document.getElementById('boutTournamentDate').value || null,
+                bout_type: document.getElementById('boutType').value,
+                score_for: parseIntOrNull(document.getElementById('boutScoreFor').value),
+                score_against: parseIntOrNull(document.getElementById('boutScoreAgainst').value),
+                result: document.getElementById('boutResult').value,
+                notes: document.getElementById('boutNotes').value.trim() || null,
+            };
+            const status = document.getElementById('boutStatus');
+            try {
+                const resp = await fetch(`/api/opponents/${OPPONENT_ID}/bouts`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await resp.json();
+                if (data.error) throw new Error(data.error);
+                status.className = 'status success';
+                status.textContent = 'Bout added.';
+                // Refresh H2H
+                const refresh = await fetch(`/api/opponents/${OPPONENT_ID}`);
+                const refreshData = await refresh.json();
+                CURRENT_H2H = refreshData.head_to_head || { bouts: [] };
+                renderH2H();
+                setTimeout(() => {
+                    closeBoutModal();
+                    status.style.display = 'none';
+                    // Clear form
+                    document.getElementById('boutTournamentName').value = '';
+                    document.getElementById('boutTournamentDate').value = '';
+                    document.getElementById('boutScoreFor').value = '';
+                    document.getElementById('boutScoreAgainst').value = '';
+                    document.getElementById('boutNotes').value = '';
+                }, 900);
+            } catch (e) {
+                status.className = 'status error';
+                status.textContent = 'Error: ' + e.message;
+            }
+        }
+
+        function parseIntOrNull(v) {
+            if (v === '' || v === null || v === undefined) return null;
+            const n = parseInt(v, 10);
+            return Number.isNaN(n) ? null : n;
+        }
+
+        // --- Tactical notes ---
+        function renderNotes() {
+            const container = document.getElementById('notesContainer');
+            const byCategory = {};
+            (CURRENT_NOTES || []).forEach(n => {
+                const c = n.category || 'general';
+                if (!byCategory[c]) byCategory[c] = [];
+                byCategory[c].push(n);
+            });
+
+            container.innerHTML = NOTE_CATEGORIES.map(([key, label]) => {
+                const notes = byCategory[key] || [];
+                const notesHtml = notes.length === 0
+                    ? '<div class="empty-inline">No notes yet.</div>'
+                    : notes.map(n => renderNote(n)).join('');
+                return `
+                    <div class="note-group">
+                        <div class="note-group-header">
+                            <span class="category-label">${escapeHtml(label)} (${notes.length})</span>
+                            <button class="small-btn" onclick="toggleAddNoteForm('${key}')">+ Add</button>
+                        </div>
+                        <div class="add-note-form" id="addForm_${key}">
+                            <textarea id="addObs_${key}" rows="2" placeholder="Observation..."></textarea>
+                            <button class="btn-secondary" onclick="submitNewNote('${key}')" style="margin-top:8px;">Save</button>
+                        </div>
+                        ${notesHtml}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderNote(n) {
+            const confPct = n.confidence == null ? null : Math.round(n.confidence * 100);
+            const confClass = confPct == null ? '' :
+                (confPct >= 70 ? 'confidence-high' :
+                 (confPct <= 40 ? 'confidence-low' : ''));
+            const confLabel = confPct == null ? 'No data yet' : `${confPct}% confidence`;
+            const source = n.source || 'manual';
+            return `
+                <div class="note-item" data-note-id="${n.id}">
+                    <div class="note-obs" id="obs_${n.id}">${escapeHtml(n.observation || '')}</div>
+                    <div class="note-meta">
+                        <span class="note-pill ${confClass}">${escapeHtml(confLabel)}</span>
+                        <span class="note-pill source">${escapeHtml(source)}</span>
+                        <span class="note-pill">+${n.times_validated || 0} / -${n.times_invalidated || 0}</span>
+                        <div class="note-actions">
+                            <button class="small-btn success" onclick="validateNote(${n.id})" title="This was true">&#128077;</button>
+                            <button class="small-btn danger" onclick="invalidateNote(${n.id})" title="This was wrong">&#128078;</button>
+                            <button class="small-btn" onclick="editNote(${n.id})">Edit</button>
+                            <button class="small-btn danger" onclick="deleteNote(${n.id})">Delete</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function toggleAddNoteForm(category) {
+            const form = document.getElementById(`addForm_${category}`);
+            form.classList.toggle('show');
+        }
+
+        async function submitNewNote(category) {
+            const obsEl = document.getElementById(`addObs_${category}`);
+            const observation = obsEl.value.trim();
+            if (!observation) {
+                alert('Enter an observation first.');
+                return;
+            }
+            try {
+                const resp = await fetch(`/api/opponents/${OPPONENT_ID}/notes`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ category, observation })
+                });
+                const data = await resp.json();
+                if (data.error) throw new Error(data.error);
+                obsEl.value = '';
+                document.getElementById(`addForm_${category}`).classList.remove('show');
+                await refreshNotes();
+            } catch (e) {
+                alert('Error: ' + e.message);
+            }
+        }
+
+        async function refreshNotes() {
+            const resp = await fetch(`/api/opponents/${OPPONENT_ID}`);
+            const data = await resp.json();
+            CURRENT_NOTES = (data.opponent && data.opponent.tactical_notes) || [];
+            renderNotes();
+        }
+
+        async function validateNote(noteId) {
+            try {
+                const resp = await fetch(`/api/opponents/${OPPONENT_ID}/notes/${noteId}/validate`, { method: 'POST' });
+                const data = await resp.json();
+                if (data.error) throw new Error(data.error);
+                await refreshNotes();
+            } catch (e) { alert('Error: ' + e.message); }
+        }
+
+        async function invalidateNote(noteId) {
+            try {
+                const resp = await fetch(`/api/opponents/${OPPONENT_ID}/notes/${noteId}/invalidate`, { method: 'POST' });
+                const data = await resp.json();
+                if (data.error) throw new Error(data.error);
+                await refreshNotes();
+            } catch (e) { alert('Error: ' + e.message); }
+        }
+
+        async function deleteNote(noteId) {
+            if (!confirm('Delete this note?')) return;
+            try {
+                const resp = await fetch(`/api/opponents/${OPPONENT_ID}/notes/${noteId}/delete`, { method: 'POST' });
+                const data = await resp.json();
+                if (data.error) throw new Error(data.error);
+                await refreshNotes();
+            } catch (e) { alert('Error: ' + e.message); }
+        }
+
+        function editNote(noteId) {
+            const obsEl = document.getElementById(`obs_${noteId}`);
+            const current = obsEl.textContent;
+            obsEl.innerHTML = `
+                <textarea class="note-edit-input" id="editInput_${noteId}" rows="2">${escapeHtml(current)}</textarea>
+                <div style="display:flex; gap:8px;">
+                    <button class="small-btn" onclick="saveNoteEdit(${noteId})">Save</button>
+                    <button class="small-btn" onclick="refreshNotes()">Cancel</button>
+                </div>
+            `;
+        }
+
+        async function saveNoteEdit(noteId) {
+            const newText = document.getElementById(`editInput_${noteId}`).value.trim();
+            if (!newText) { alert('Observation cannot be empty.'); return; }
+            try {
+                const resp = await fetch(`/api/opponents/${OPPONENT_ID}/notes/${noteId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ observation: newText })
+                });
+                const data = await resp.json();
+                if (data.error) throw new Error(data.error);
+                await refreshNotes();
+            } catch (e) { alert('Error: ' + e.message); }
+        }
+
+        // Initial render
+        renderH2H();
+        renderNotes();
+    </script>
+</body>
+</html>

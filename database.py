@@ -1614,6 +1614,40 @@ def delete_tactical_note(note_id):
         db.close()
 
 
+def increment_note_validated(note_id):
+    """Increment times_validated on a tactical note. Returns the updated note dict or None."""
+    db = get_db()
+    try:
+        note = db.query(OpponentTacticalNote).filter_by(id=note_id).first()
+        if not note:
+            return None
+        note.times_validated = (note.times_validated or 0) + 1
+        db.commit()
+        return _note_to_dict(note)
+    except Exception as e:
+        db.rollback()
+        raise e
+    finally:
+        db.close()
+
+
+def increment_note_invalidated(note_id):
+    """Increment times_invalidated on a tactical note. Returns the updated note dict or None."""
+    db = get_db()
+    try:
+        note = db.query(OpponentTacticalNote).filter_by(id=note_id).first()
+        if not note:
+            return None
+        note.times_invalidated = (note.times_invalidated or 0) + 1
+        db.commit()
+        return _note_to_dict(note)
+    except Exception as e:
+        db.rollback()
+        raise e
+    finally:
+        db.close()
+
+
 def get_tactical_notes(opponent_id):
     """Return all tactical notes for an opponent, newest first."""
     db = get_db()

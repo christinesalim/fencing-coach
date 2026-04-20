@@ -47,7 +47,22 @@ from database import (
     bout_exists,
     add_bout_video,
     get_bout_video,
-    delete_bout_video
+    delete_bout_video,
+    create_opponent,
+    get_opponent,
+    update_opponent,
+    delete_opponent,
+    get_all_opponents,
+    search_opponents_by_name,
+    search_opponents_by_traits,
+    add_tactical_note,
+    update_tactical_note,
+    delete_tactical_note,
+    get_tactical_notes,
+    add_bout_record,
+    get_head_to_head,
+    increment_note_validated,
+    increment_note_invalidated,
 )
 from de_extraction import extract_full_de_bracket
 
@@ -1307,6 +1322,209 @@ def api_delete_bout_video(video_id):
     except Exception:
         pass  # DB row already gone; stale R2 object is acceptable
     return jsonify({'success': True})
+
+
+# --- Opponent Intelligence routes ---
+
+@app.route('/opponents')
+@login_required
+def opponents_page():
+    """Opponent list page."""
+    return render_template('opponents.html', opponents=get_all_opponents())
+
+
+@app.route('/opponents/<int:opponent_id>')
+@login_required
+def opponent_profile_page(opponent_id):
+    """Single opponent profile page."""
+    opponent = get_opponent(opponent_id)
+    if not opponent:
+        return 'Opponent not found', 404
+    head_to_head = get_head_to_head(opponent_id)
+    return render_template(
+        'opponent_profile.html',
+        opponent=opponent,
+        head_to_head=head_to_head,
+    )
+
+
+@app.route('/api/opponents', methods=['POST'])
+@login_required
+def api_create_opponent():
+    """Create a new opponent."""
+    data = request.get_json() or {}
+    if not (data.get('canonical_name') or data.get('last_name') or data.get('first_name')):
+        return jsonify({'error': 'Name is required (canonical_name or first_name/last_name)'}), 400
+    try:
+        opponent = create_opponent(data)
+        return jsonify({'success': True, 'opponent': opponent})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/opponents', methods=['GET'])
+@login_required
+def api_list_opponents():
+    """List all opponents."""
+    return jsonify({'opponents': get_all_opponents()})
+
+
+@app.route('/api/opponents/<int:opponent_id>', methods=['GET'])
+@login_required
+def api_get_opponent(opponent_id):
+    """Get a single opponent with head-to-head."""
+    opponent = get_opponent(opponent_id)
+    if not opponent:
+        return jsonify({'error': 'Opponent not found'}), 404
+    return jsonify({
+        'opponent': opponent,
+        'head_to_head': get_head_to_head(opponent_id),
+    })
+
+
+@app.route('/api/opponents/<int:opponent_id>', methods=['POST'])
+@login_required
+def api_update_opponent(opponent_id):
+    """Update an opponent."""
+    data = request.get_json() or {}
+    try:
+        opponent = update_opponent(opponent_id, data)
+        if not opponent:
+            return jsonify({'error': 'Opponent not found'}), 404
+        return jsonify({'success': True, 'opponent': opponent})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/opponents/<int:opponent_id>/delete', methods=['POST'])
+@login_required
+def api_delete_opponent(opponent_id):
+    """Delete an opponent (cascades to notes and bout records)."""
+    try:
+        success = delete_opponent(opponent_id)
+        if not success:
+            return jsonify({'error': 'Opponent not found'}), 404
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# Tactical notes
+
+@app.route('/api/opponents/<int:opponent_id>/notes', methods=['POST'])
+@login_required
+def api_add_tactical_note(opponent_id):
+    """Add a tactical note for an opponent."""
+    if not get_opponent(opponent_id):
+        return jsonify({'error': 'Opponent not found'}), 404
+    data = request.get_json() or {}
+    if not data.get('observation'):
+        return jsonify({'error': 'observation is required'}), 400
+    try:
+        note = add_tactical_note(opponent_id, data)
+        return jsonify({'success': True, 'note': note})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/opponents/<int:opponent_id>/notes/<int:note_id>', methods=['POST'])
+@login_required
+def api_update_tactical_note(opponent_id, note_id):
+    """Update a tactical note."""
+    data = request.get_json() or {}
+    try:
+        note = update_tactical_note(note_id, data)
+        if not note:
+            return jsonify({'error': 'Note not found'}), 404
+        return jsonify({'success': True, 'note': note})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/opponents/<int:opponent_id>/notes/<int:note_id>/delete', methods=['POST'])
+@login_required
+def api_delete_tactical_note(opponent_id, note_id):
+    """Delete a tactical note."""
+    try:
+        success = delete_tactical_note(note_id)
+        if not success:
+            return jsonify({'error': 'Note not found'}), 404
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/opponents/<int:opponent_id>/notes/<int:note_id>/validate', methods=['POST'])
+@login_required
+def api_validate_tactical_note(opponent_id, note_id):
+    """Increment times_validated on a tactical note."""
+    try:
+        note = increment_note_validated(note_id)
+        if not note:
+            return jsonify({'error': 'Note not found'}), 404
+        return jsonify({'success': True, 'note': note})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/opponents/<int:opponent_id>/notes/<int:note_id>/invalidate', methods=['POST'])
+@login_required
+def api_invalidate_tactical_note(opponent_id, note_id):
+    """Increment times_invalidated on a tactical note."""
+    try:
+        note = increment_note_invalidated(note_id)
+        if not note:
+            return jsonify({'error': 'Note not found'}), 404
+        return jsonify({'success': True, 'note': note})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# Search / filter
+
+@app.route('/api/opponents/search', methods=['GET'])
+@login_required
+def api_search_opponents():
+    """Fuzzy name search for opponents."""
+    query = request.args.get('q', '').strip()
+    if not query:
+        return jsonify({'matches': []})
+    results = search_opponents_by_name(query)
+    return jsonify({
+        'matches': [{'opponent': opp, 'score': score} for opp, score in results]
+    })
+
+
+@app.route('/api/opponents/filter', methods=['GET'])
+@login_required
+def api_filter_opponents():
+    """Filter opponents by trait fields (handedness, height_category, build, etc.)."""
+    trait_fields = (
+        'handedness', 'height_category', 'build', 'speed_rating',
+        'primary_style', 'secondary_style', 'division',
+    )
+    filters = {}
+    for field in trait_fields:
+        value = request.args.get(field, '').strip()
+        if value:
+            filters[field] = value
+    return jsonify({'opponents': search_opponents_by_traits(filters)})
+
+
+# Manual bout entry
+
+@app.route('/api/opponents/<int:opponent_id>/bouts', methods=['POST'])
+@login_required
+def api_add_bout_record(opponent_id):
+    """Add a historical bout record for an opponent."""
+    if not get_opponent(opponent_id):
+        return jsonify({'error': 'Opponent not found'}), 404
+    data = request.get_json() or {}
+    try:
+        bout = add_bout_record(opponent_id, data)
+        return jsonify({'success': True, 'bout': bout})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 if __name__ == '__main__':
