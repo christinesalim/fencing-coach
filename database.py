@@ -667,8 +667,30 @@ def delete_tournament(tournament_id):
     """Delete a tournament and its pool data, DE data, and tips."""
     db = get_db()
     try:
-        # Delete pool bouts first
+        # Find all the pool_bout and elimination_round IDs that belong to this
+        # tournament so we can purge the matching BoutRecord rows too.
         pool_rounds = db.query(PoolRound).filter_by(tournament_id=tournament_id).all()
+        pool_bout_ids = []
+        for pr in pool_rounds:
+            pool_bout_ids.extend(
+                b.id for b in db.query(PoolBout).filter_by(pool_round_id=pr.id).all()
+            )
+        elim_ids = [
+            r.id for r in db.query(EliminationRound).filter_by(tournament_id=tournament_id).all()
+        ]
+
+        # Purge BoutRecord rows that point into this tournament. This keeps
+        # the opponent-centric view consistent with the tournament-centric view.
+        if pool_bout_ids:
+            db.query(BoutRecord).filter(
+                BoutRecord.pool_bout_id.in_(pool_bout_ids)
+            ).delete(synchronize_session=False)
+        if elim_ids:
+            db.query(BoutRecord).filter(
+                BoutRecord.elimination_round_id.in_(elim_ids)
+            ).delete(synchronize_session=False)
+        db.query(BoutRecord).filter_by(tournament_id=tournament_id).delete()
+
         for pr in pool_rounds:
             db.query(PoolBout).filter_by(pool_round_id=pr.id).delete()
         db.query(PoolRound).filter_by(tournament_id=tournament_id).delete()
@@ -693,8 +715,19 @@ def delete_tournament(tournament_id):
 
 
 def save_pool_results_to_db(tournament_id, pool_data):
-    """Save extracted pool results to database."""
+    """Save extracted pool results to database.
+
+    Returns a dict with:
+        {'pool_round_id': int, 'opponent_intel': [ {opponent_name, opponent_club,
+            action, tier, opponent_id, known, name_score, club_score}, ... ]}
+
+    Opponent intel entries are aligned to the bouts order in ``pool_data['bouts']``.
+    An opponent sync failure never aborts the save — the error is logged and the
+    bout still gets persisted.
+    """
     db = get_db()
+    saved_bouts = []  # list of (bout_dict, pool_bout_id)
+    pool_round_id = None
     try:
         pool_round = PoolRound(
             tournament_id=tournament_id,
@@ -721,14 +754,38 @@ def save_pool_results_to_db(tournament_id, pool_data):
                 bout_order=bout.get('bout_order')
             )
             db.add(pool_bout)
+            db.flush()
+            saved_bouts.append((bout, pool_bout.id))
 
         db.commit()
-        return pool_round.id
+        pool_round_id = pool_round.id
     except Exception as e:
         db.rollback()
         raise e
     finally:
         db.close()
+
+    # After the bouts are committed, sync each to an Opponent record. This
+    # runs outside the main transaction so sync failures can't roll back the
+    # bout data that's already safely persisted.
+    tournament_context = _build_tournament_context(tournament_id)
+    opponent_intel = []
+    for bout, pool_bout_id in saved_bouts:
+        sync_data = {
+            'opponent_name': bout.get('opponent_name'),
+            'opponent_club': bout.get('opponent_club'),
+            'score_for': bout.get('score_for'),
+            'score_against': bout.get('score_against'),
+            'result': bout.get('result'),
+            'pool_bout_id': pool_bout_id,
+        }
+        summary = sync_bout_to_opponent('pool', sync_data, tournament_context)
+        opponent_intel.append(_sync_summary_to_intel(bout, summary))
+
+    return {
+        'pool_round_id': pool_round_id,
+        'opponent_intel': opponent_intel,
+    }
 
 
 def get_pool_results(tournament_id):
@@ -750,6 +807,15 @@ def get_pool_results(tournament_id):
             for v in vids:
                 videos_by_bout.setdefault(v.bout_id, []).append({'id': v.id})
 
+        opponent_id_by_bout = {}
+        if bout_ids:
+            records = db.query(BoutRecord).filter(
+                BoutRecord.pool_bout_id.in_(bout_ids)
+            ).all()
+            for rec in records:
+                # First writer wins; duplicates shouldn't exist but be defensive.
+                opponent_id_by_bout.setdefault(rec.pool_bout_id, rec.opponent_id)
+
         return {
             'id': pool_round.id,
             'pool_number': pool_round.pool_number,
@@ -770,7 +836,8 @@ def get_pool_results(tournament_id):
                     'result': b.result,
                     'bout_order': b.bout_order,
                     'notes': b.notes,
-                    'videos': videos_by_bout.get(b.id, [])
+                    'videos': videos_by_bout.get(b.id, []),
+                    'opponent_id': opponent_id_by_bout.get(b.id),
                 }
                 for b in bouts
             ]
@@ -1042,17 +1109,36 @@ def get_de_prep_tips(tournament_id):
 # ── DE Bracket helper functions ─────────────────────────────────────
 
 def save_de_results_to_db(tournament_id, bracket_data):
-    """Save DE bracket results to database. Replaces any existing DE data."""
+    """Save DE bracket results to database. Replaces any existing DE data.
+
+    Returns a dict with:
+        {'opponent_intel': [ {opponent_name, opponent_club, action, tier,
+            opponent_id, known, name_score, club_score}, ... ]}
+
+    Opponent intel entries are aligned to the (non-BYE) bouts order from
+    ``bracket_data['our_fencer']['path']``. Sync failures are logged and skipped;
+    they never abort the save.
+    """
     db = get_db()
+    saved_rounds = []  # list of (bout_dict, elimination_round_id)
     try:
-        # Delete existing DE data for this tournament
+        # Delete existing DE data for this tournament. Also delete any
+        # BoutRecord rows that were linked to the old EliminationRound rows —
+        # otherwise the new sync would duplicate them.
+        old_elim_ids = [
+            r.id for r in db.query(EliminationRound).filter_by(tournament_id=tournament_id).all()
+        ]
+        if old_elim_ids:
+            db.query(BoutRecord).filter(
+                BoutRecord.elimination_round_id.in_(old_elim_ids)
+            ).delete(synchronize_session=False)
         db.query(EliminationRound).filter_by(tournament_id=tournament_id).delete()
         db.query(DEBracket).filter_by(tournament_id=tournament_id).delete()
 
         # Save our fencer's path as elimination_round records
         our_fencer = bracket_data.get('our_fencer', {})
         for i, bout in enumerate(our_fencer.get('path', [])):
-            if bout.get('opponent_name', '').upper() == 'BYE':
+            if (bout.get('opponent_name') or '').upper() == 'BYE':
                 continue
             elim_round = EliminationRound(
                 tournament_id=tournament_id,
@@ -1067,6 +1153,8 @@ def save_de_results_to_db(tournament_id, bracket_data):
                 notes=None
             )
             db.add(elim_round)
+            db.flush()
+            saved_rounds.append((bout, elim_round.id))
 
         # Save full bracket as JSON
         tournament_bracket = bracket_data.get('tournament_bracket', {})
@@ -1084,6 +1172,23 @@ def save_de_results_to_db(tournament_id, bracket_data):
         raise e
     finally:
         db.close()
+
+    # After the elimination rounds are committed, sync each to an Opponent.
+    tournament_context = _build_tournament_context(tournament_id)
+    opponent_intel = []
+    for bout, elim_id in saved_rounds:
+        sync_data = {
+            'opponent_name': bout.get('opponent_name'),
+            'opponent_club': bout.get('opponent_club'),
+            'score_for': bout.get('score_for'),
+            'score_against': bout.get('score_against'),
+            'result': bout.get('result'),
+            'elimination_round_id': elim_id,
+        }
+        summary = sync_bout_to_opponent('elim', sync_data, tournament_context)
+        opponent_intel.append(_sync_summary_to_intel(bout, summary))
+
+    return {'opponent_intel': opponent_intel}
 
 
 def get_de_results(tournament_id):
@@ -1109,6 +1214,14 @@ def get_de_results(tournament_id):
             for v in vids:
                 videos_by_bout.setdefault(v.bout_id, []).append({'id': v.id})
 
+        opponent_id_by_bout = {}
+        if bout_ids:
+            records = db.query(BoutRecord).filter(
+                BoutRecord.elimination_round_id.in_(bout_ids)
+            ).all()
+            for rec in records:
+                opponent_id_by_bout.setdefault(rec.elimination_round_id, rec.opponent_id)
+
         return {
             'bracket_size': de_bracket.bracket_size,
             'completeness': de_bracket.completeness,
@@ -1124,7 +1237,8 @@ def get_de_results(tournament_id):
                     'score_against': r.score_against,
                     'result': r.result,
                     'bout_order': r.bout_order,
-                    'videos': videos_by_bout.get(r.id, [])
+                    'videos': videos_by_bout.get(r.id, []),
+                    'opponent_id': opponent_id_by_bout.get(r.id),
                 }
                 for r in elim_rounds
             ]
@@ -1134,9 +1248,16 @@ def get_de_results(tournament_id):
 
 
 def delete_de_results(tournament_id):
-    """Delete DE results for a tournament."""
+    """Delete DE results for a tournament, including any linked BoutRecord rows."""
     db = get_db()
     try:
+        elim_ids = [
+            r.id for r in db.query(EliminationRound).filter_by(tournament_id=tournament_id).all()
+        ]
+        if elim_ids:
+            db.query(BoutRecord).filter(
+                BoutRecord.elimination_round_id.in_(elim_ids)
+            ).delete(synchronize_session=False)
         db.query(EliminationRound).filter_by(tournament_id=tournament_id).delete()
         db.query(DEBracket).filter_by(tournament_id=tournament_id).delete()
         db.commit()
@@ -1753,3 +1874,185 @@ def lookup_opponents_by_names(name_list):
 
 # Re-export match_opponent so callers can `from database import match_opponent`.
 match_opponent = _match_opponent
+
+
+# ── Opponent auto-sync (Phase 3) ──────────────────────────────────────
+
+def _build_tournament_context(tournament_id):
+    """Assemble the tournament-context dict used by sync_bout_to_opponent.
+
+    Returns {'tournament_id', 'tournament_name', 'tournament_date'} with None
+    for any field that can't be resolved.
+    """
+    if not tournament_id:
+        return {'tournament_id': None, 'tournament_name': None, 'tournament_date': None}
+    db = get_db()
+    try:
+        t = db.query(Tournament).filter_by(id=tournament_id).first()
+        if not t:
+            return {'tournament_id': tournament_id, 'tournament_name': None, 'tournament_date': None}
+        return {
+            'tournament_id': t.id,
+            'tournament_name': t.name,
+            'tournament_date': t.date,
+        }
+    finally:
+        db.close()
+
+
+def _sync_summary_to_intel(bout, summary):
+    """Translate a sync_bout_to_opponent summary into the opponent_intel entry
+    shape expected by the upload endpoints + tests.
+    """
+    summary = summary or {}
+    action = summary.get('action') or 'skipped'
+    return {
+        'opponent_name': bout.get('opponent_name'),
+        'opponent_club': bout.get('opponent_club'),
+        'action': action,
+        'tier': summary.get('tier'),
+        'opponent_id': summary.get('opponent_id'),
+        'known': action == 'auto_link',
+        'name_score': summary.get('name_score', 0) or 0,
+        'club_score': summary.get('club_score', 0) or 0,
+    }
+
+
+def sync_bout_to_opponent(bout_kind, bout_data, tournament_context):
+    """Link a just-saved pool or DE bout to an Opponent record.
+
+    Parameters
+    ----------
+    bout_kind : str
+        ``'pool'`` or ``'elim'``.
+    bout_data : dict
+        Must contain ``opponent_name`` and ``opponent_club``; plus
+        ``score_for`` / ``score_against`` / ``result`` and either
+        ``pool_bout_id`` or ``elimination_round_id``.
+    tournament_context : dict
+        ``{tournament_id, tournament_name, tournament_date}``; any can be ``None``.
+
+    Returns a summary dict:
+        {
+            'action': 'auto_link' | 'stub_created' | 'skipped',
+            'opponent_id': int | None,
+            'bout_record_id': int | None,
+            'tier': 1-4 | None,
+            'name_score': int,
+            'club_score': int,
+            'error': str (only if action == 'skipped' due to exception),
+        }
+
+    Never raises — a sync failure must not break the calling save path.
+    """
+    try:
+        opponent_name = (bout_data or {}).get('opponent_name')
+        opponent_club = (bout_data or {}).get('opponent_club')
+        if not opponent_name or not str(opponent_name).strip():
+            return {
+                'action': 'skipped',
+                'opponent_id': None,
+                'bout_record_id': None,
+                'tier': None,
+                'name_score': 0,
+                'club_score': 0,
+            }
+
+        tournament_context = tournament_context or {}
+        tournament_id = tournament_context.get('tournament_id')
+        tournament_name = tournament_context.get('tournament_name')
+        tournament_date = tournament_context.get('tournament_date')
+        parsed_date = _parse_dt(tournament_date)
+
+        all_opponents = get_all_opponents()
+        match = _match_opponent(opponent_name, opponent_club, all_opponents)
+
+        tier = match.get('tier')
+        name_score = int(match.get('name_score') or 0)
+        club_score = int(match.get('club_score') or 0)
+
+        opponent_id = None
+        action = None
+
+        if tier in (1, 2) and match.get('opponent'):
+            # Auto-link to the matched opponent; bump encounter dates.
+            opponent_id = match['opponent']['id']
+            _touch_opponent_encounter(opponent_id, parsed_date)
+            action = 'auto_link'
+        else:
+            # Tier 3, 4, or None — create a silent stub. A later phase will
+            # add a "confirm fuzzy match" UI for Tier 3/4.
+            stub = create_opponent({
+                'canonical_name': opponent_name,
+                'club': opponent_club or None,
+                'first_encountered': parsed_date,
+                'last_encountered': parsed_date,
+            })
+            opponent_id = stub['id']
+            action = 'stub_created'
+
+        bout_type = 'pool' if bout_kind == 'pool' else 'elimination'
+        record_payload = {
+            'tournament_id': tournament_id,
+            'tournament_name': tournament_name,
+            'tournament_date': parsed_date,
+            'bout_type': bout_type,
+            'pool_bout_id': bout_data.get('pool_bout_id') if bout_kind == 'pool' else None,
+            'elimination_round_id': bout_data.get('elimination_round_id') if bout_kind == 'elim' else None,
+            'score_for': bout_data.get('score_for'),
+            'score_against': bout_data.get('score_against'),
+            'result': bout_data.get('result'),
+        }
+        bout_record = add_bout_record(opponent_id, record_payload)
+
+        return {
+            'action': action,
+            'opponent_id': opponent_id,
+            'bout_record_id': bout_record.get('id') if bout_record else None,
+            'tier': tier,
+            'name_score': name_score,
+            'club_score': club_score,
+        }
+    except Exception as e:
+        # Sync failures never propagate — log and move on.
+        print(f"[opponent-sync] failure for bout_kind={bout_kind} "
+              f"name={(bout_data or {}).get('opponent_name')!r}: {e}")
+        return {
+            'action': 'skipped',
+            'opponent_id': None,
+            'bout_record_id': None,
+            'tier': None,
+            'name_score': 0,
+            'club_score': 0,
+            'error': str(e),
+        }
+
+
+def _touch_opponent_encounter(opponent_id, encounter_date):
+    """Bump last_encountered (and fill first_encountered if null) on an opponent.
+
+    No-op if ``encounter_date`` is None. Swallows its own errors because it's
+    a convenience side-effect of the sync; the sync caller will still record
+    the bout.
+    """
+    if not encounter_date:
+        return
+    db = get_db()
+    try:
+        opp = db.query(Opponent).filter_by(id=opponent_id).first()
+        if not opp:
+            return
+        changed = False
+        if opp.first_encountered is None or encounter_date < opp.first_encountered:
+            opp.first_encountered = encounter_date
+            changed = True
+        if opp.last_encountered is None or encounter_date > opp.last_encountered:
+            opp.last_encountered = encounter_date
+            changed = True
+        if changed:
+            db.commit()
+    except Exception as e:
+        db.rollback()
+        print(f"[opponent-sync] touch_encounter failed for opponent {opponent_id}: {e}")
+    finally:
+        db.close()
