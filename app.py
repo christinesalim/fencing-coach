@@ -63,6 +63,8 @@ from database import (
     get_head_to_head,
     increment_note_validated,
     increment_note_invalidated,
+    lookup_opponents_by_names,
+    sync_bout_to_opponent,
 )
 from de_extraction import extract_full_de_bracket
 
@@ -941,9 +943,11 @@ def upload_pool_photo():
 
     try:
         pool_data = extract_pool_results_from_photo(filepath)
+        opponent_intel = _build_preview_opponent_intel(pool_data.get('bouts') or [])
         return jsonify({
             'success': True,
-            'extracted_data': pool_data
+            'extracted_data': pool_data,
+            'opponent_intel': opponent_intel,
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -964,10 +968,11 @@ def confirm_pool_results():
         return jsonify({'error': 'Missing required fields'}), 400
 
     try:
-        pool_round_id = save_pool_results_to_db(tournament_id, pool_data)
+        result = save_pool_results_to_db(tournament_id, pool_data)
         return jsonify({
             'success': True,
-            'pool_round_id': pool_round_id
+            'pool_round_id': result.get('pool_round_id'),
+            'opponent_intel': result.get('opponent_intel') or [],
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -1193,10 +1198,18 @@ def upload_de_bracket():
             saved_paths, our_fencer_name, tournament_id
         )
 
+        our_fencer = (bracket_data or {}).get('our_fencer') or {}
+        path_bouts = [
+            b for b in (our_fencer.get('path') or [])
+            if (b.get('opponent_name') or '').upper() != 'BYE'
+        ]
+        opponent_intel = _build_preview_opponent_intel(path_bouts)
+
         return jsonify({
             'success': True,
             'extracted_data': bracket_data,
-            'images_processed': len(saved_paths)
+            'images_processed': len(saved_paths),
+            'opponent_intel': opponent_intel,
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -1218,8 +1231,11 @@ def confirm_de_results():
         return jsonify({'error': 'Missing required fields'}), 400
 
     try:
-        save_de_results_to_db(tournament_id, bracket_data)
-        return jsonify({'success': True})
+        result = save_de_results_to_db(tournament_id, bracket_data) or {}
+        return jsonify({
+            'success': True,
+            'opponent_intel': result.get('opponent_intel') or [],
+        })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1322,6 +1338,74 @@ def api_delete_bout_video(video_id):
     except Exception:
         pass  # DB row already gone; stale R2 object is acceptable
     return jsonify({'success': True})
+
+
+# --- Opponent preview helpers (used by pool/DE upload endpoints) ---
+
+def _build_preview_opponent_intel(bouts):
+    """Build an opponent_intel preview list (lookup-only — no stubs created).
+
+    Each entry is aligned to the input bouts order with shape:
+        {opponent_name, opponent_club, action, tier, opponent_id, known,
+         name_score, club_score}
+
+    ``action`` is 'auto_link' when the lookup returns Tier 1 or 2; otherwise
+    'skipped' (we leave stub creation to the confirm/save step so the user
+    can correct misread names before we persist anything).
+    """
+    if not bouts:
+        return []
+    names = []
+    for b in bouts:
+        names.append({'name': b.get('opponent_name') or '', 'club': b.get('opponent_club') or ''})
+    try:
+        matches = lookup_opponents_by_names(names) or []
+    except Exception as e:
+        print(f"[opponent-sync] preview lookup failed: {e}")
+        matches = [{'query_name': n['name'], 'match': None} for n in names]
+
+    intel = []
+    for bout, entry in zip(bouts, matches):
+        match = (entry or {}).get('match') or {}
+        tier = match.get('tier')
+        opp = match.get('opponent') or {}
+        opponent_name = bout.get('opponent_name')
+        opponent_club = bout.get('opponent_club')
+        if not opponent_name or not str(opponent_name).strip():
+            intel.append({
+                'opponent_name': opponent_name,
+                'opponent_club': opponent_club,
+                'action': 'skipped',
+                'tier': None,
+                'opponent_id': None,
+                'known': False,
+                'name_score': 0,
+                'club_score': 0,
+            })
+            continue
+        if tier in (1, 2) and opp.get('id'):
+            intel.append({
+                'opponent_name': opponent_name,
+                'opponent_club': opponent_club,
+                'action': 'auto_link',
+                'tier': tier,
+                'opponent_id': opp.get('id'),
+                'known': True,
+                'name_score': int(match.get('name_score') or 0),
+                'club_score': int(match.get('club_score') or 0),
+            })
+        else:
+            intel.append({
+                'opponent_name': opponent_name,
+                'opponent_club': opponent_club,
+                'action': 'skipped',
+                'tier': tier,
+                'opponent_id': opp.get('id'),
+                'known': False,
+                'name_score': int(match.get('name_score') or 0),
+                'club_score': int(match.get('club_score') or 0),
+            })
+    return intel
 
 
 # --- Opponent Intelligence routes ---
@@ -1509,6 +1593,25 @@ def api_filter_opponents():
         if value:
             filters[field] = value
     return jsonify({'opponents': search_opponents_by_traits(filters)})
+
+
+@app.route('/api/opponents/lookup', methods=['POST'])
+@login_required
+def api_lookup_opponents():
+    """Batch fuzzy lookup: POST {"names": ["JI Dylan", {"name":"...","club":"..."}, ...]}.
+
+    Returns {matches: [...]} — one entry per input, in order, with the full match
+    dict shape from ``lookup_opponents_by_names``.
+    """
+    data = request.get_json(silent=True) or {}
+    names = data.get('names')
+    if not isinstance(names, list):
+        return jsonify({'error': '`names` must be a list'}), 400
+    try:
+        matches = lookup_opponents_by_names(names)
+        return jsonify({'matches': matches})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 # Manual bout entry

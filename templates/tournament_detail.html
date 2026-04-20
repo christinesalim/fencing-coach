@@ -226,6 +226,31 @@
             color: #777;
         }
 
+        .opponent-badge {
+            display: inline-block;
+            margin-left: 6px;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: 600;
+            vertical-align: middle;
+            text-decoration: none;
+            line-height: 1.4;
+        }
+        .opponent-badge.linked {
+            background: #e8f4ff;
+            color: #1e3a7a;
+            border: 1px solid #b7d4f1;
+        }
+        .opponent-badge.linked:hover,
+        .opponent-badge.linked:active { background: #d4e8ff; }
+        .opponent-badge.unlinked {
+            color: #999;
+            font-weight: 500;
+            font-size: 10px;
+            font-style: italic;
+        }
+
         .status {
             padding: 12px;
             border-radius: 10px;
@@ -720,7 +745,12 @@
             {% for bout in pool_data.bouts %}
             <div class="bout-card {{ bout.result }}" data-bout-kind="pool" data-bout-id="{{ bout.id }}">
                 <div class="bout-header">
-                    <span class="bout-opponent">{{ bout.opponent_name }}</span>
+                    <span class="bout-opponent">
+                        {{ bout.opponent_name }}
+                        {% if bout.opponent_id %}
+                        <a class="opponent-badge linked" href="/opponents/{{ bout.opponent_id }}" title="View opponent intel">🎯 View Intel</a>
+                        {% endif %}
+                    </span>
                     <span class="bout-score {{ bout.result }}">{{ bout.score_for }} - {{ bout.score_against }}</span>
                 </div>
                 {% if bout.opponent_club %}
@@ -858,6 +888,9 @@
                             {% if bout.result == 'won' %}Beat{% elif bout.result == 'lost' %}Lost to{% else %}vs{% endif %}
                             {{ bout.opponent_name }}
                             {% if bout.opponent_seed %}<span class="de-bout-seed">({{ bout.opponent_seed }})</span>{% endif %}
+                            {% if bout.opponent_id %}
+                            <a class="opponent-badge linked" href="/opponents/{{ bout.opponent_id }}" title="View opponent intel">🎯 View Intel</a>
+                            {% endif %}
                         </div>
                         {% if bout.score_for is not none and bout.score_against is not none %}
                         <div class="de-bout-score {{ bout.result }}">{{ bout.score_for }} - {{ bout.score_against }}</div>
