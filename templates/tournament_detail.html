@@ -251,6 +251,27 @@
             font-style: italic;
         }
 
+        .intel-badge {
+            display: inline-block;
+            margin-top: 4px;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: 600;
+            text-decoration: none;
+            line-height: 1.4;
+            border: 1px solid transparent;
+        }
+        .intel-badge.known {
+            background: #d4edda; color: #155724; border-color: #c3e6cb;
+        }
+        .intel-badge.maybe {
+            background: #fff3cd; color: #856404; border-color: #ffeeba;
+        }
+        .intel-badge.new {
+            background: #f1f3f5; color: #495057; border-color: #dee2e6;
+        }
+
         .status {
             padding: 12px;
             border-radius: 10px;
@@ -1109,7 +1130,7 @@
                     if (data.error) throw new Error(data.error);
 
                     extractedData = data.extracted_data;
-                    populateExtractedResults(extractedData);
+                    populateExtractedResults(extractedData, data.opponent_intel || []);
 
                     loader.style.display = 'none';
                     status.style.display = 'none';
@@ -1122,7 +1143,21 @@
             });
         }
 
-        function populateExtractedResults(data) {
+        function renderIntelBadge(intel) {
+            if (!intel) return '';
+            const name = (intel.opponent_name || '').trim();
+            if (!name) return '';
+            if (intel.action === 'auto_link' && intel.opponent_id) {
+                return '<a href="/opponents/' + intel.opponent_id + '/intel" class="intel-badge known">✓ Known — view intel</a>';
+            }
+            if ((intel.tier === 3 || intel.tier === 4) && intel.opponent_id) {
+                return '<a href="/opponents/' + intel.opponent_id + '/intel" class="intel-badge maybe">? Possibly known — check</a>';
+            }
+            return '<span class="intel-badge new">+ New opponent</span>';
+        }
+
+        function populateExtractedResults(data, opponentIntel) {
+            opponentIntel = opponentIntel || [];
             document.getElementById('poolNumber').value = data.pool_number || '';
             document.getElementById('positionInPool').value = data.position_in_pool || '';
             document.getElementById('victories').value = data.victories || '';
@@ -1137,6 +1172,7 @@
             (data.bouts || []).forEach((bout, i) => {
                 const div = document.createElement('div');
                 div.className = 'bout-card editable-bout ' + (bout.result || '');
+                const badge = renderIntelBadge(opponentIntel[i]);
                 div.innerHTML = `
                     <div class="form-row">
                         <div class="form-group" style="flex:2">
@@ -1165,6 +1201,7 @@
                             <input type="number" class="bout-score-against" value="${bout.score_against != null ? bout.score_against : ''}">
                         </div>
                     </div>
+                    ${badge}
                 `;
                 boutsList.appendChild(div);
             });
@@ -1346,7 +1383,7 @@
                     if (data.error) throw new Error(data.error);
 
                     deExtractedData = data.extracted_data;
-                    populateDEReview(deExtractedData);
+                    populateDEReview(deExtractedData, data.opponent_intel || []);
 
                     loader.style.display = 'none';
                     status.style.display = 'none';
@@ -1360,14 +1397,15 @@
             });
         }
 
-        function populateDEReview(data) {
+        function populateDEReview(data, opponentIntel) {
+            opponentIntel = opponentIntel || [];
             const timeline = document.getElementById('deReviewTimeline');
             timeline.innerHTML = '';
 
             const ourFencer = data.our_fencer || {};
             const path = ourFencer.path || [];
 
-            path.forEach(function(bout) {
+            path.forEach(function(bout, i) {
                 const div = document.createElement('div');
                 div.className = 'de-bout-card ' + (bout.result || '');
 
@@ -1391,11 +1429,14 @@
                 if (bout.result === 'won') resultVerb = 'Beat';
                 else if (bout.result === 'lost') resultVerb = 'Lost to';
 
+                const badge = renderIntelBadge(opponentIntel[i]);
+
                 div.innerHTML =
                     '<div class="de-round-label">' + (bout.round_name || '') + '</div>' +
                     '<div class="de-bout-opponent">' + resultVerb + ' ' + (bout.opponent_name || 'Unknown') + seedHtml + '</div>' +
                     scoreHtml +
-                    clubHtml;
+                    clubHtml +
+                    (badge ? '<div>' + badge + '</div>' : '');
 
                 timeline.appendChild(div);
             });
@@ -1503,7 +1544,7 @@
                     if (data.error) throw new Error(data.error);
 
                     deExtractedData = data.extracted_data;
-                    populateDEReview(deExtractedData);
+                    populateDEReview(deExtractedData, data.opponent_intel || []);
 
                     loader.style.display = 'none';
                     status.style.display = 'none';
