@@ -748,7 +748,7 @@
                     <span class="bout-opponent">
                         {{ bout.opponent_name }}
                         {% if bout.opponent_id %}
-                        <a class="opponent-badge linked" href="/opponents/{{ bout.opponent_id }}" title="View opponent intel">🎯 View Intel</a>
+                        <a class="opponent-badge linked" href="/opponents/{{ bout.opponent_id }}/intel" title="View opponent intel">🎯 View Intel</a>
                         {% endif %}
                     </span>
                     <span class="bout-score {{ bout.result }}">{{ bout.score_for }} - {{ bout.score_against }}</span>
@@ -889,7 +889,7 @@
                             {{ bout.opponent_name }}
                             {% if bout.opponent_seed %}<span class="de-bout-seed">({{ bout.opponent_seed }})</span>{% endif %}
                             {% if bout.opponent_id %}
-                            <a class="opponent-badge linked" href="/opponents/{{ bout.opponent_id }}" title="View opponent intel">🎯 View Intel</a>
+                            <a class="opponent-badge linked" href="/opponents/{{ bout.opponent_id }}/intel" title="View opponent intel">🎯 View Intel</a>
                             {% endif %}
                         </div>
                         {% if bout.score_for is not none and bout.score_against is not none %}
