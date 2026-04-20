@@ -651,7 +651,16 @@
 
         .bout-video-btn:active { opacity: 0.7; }
         .bout-video-btn.watch { background: #2c3e6b; color: white; border-color: #2c3e6b; }
-        .bout-video-btn.delete { color: #e74c3c; border-color: #f3c7c2; }
+        .bout-video-btn.delete {
+            color: #e74c3c;
+            border-color: #f3c7c2;
+            margin-left: 14px;
+            padding: 4px 10px;
+            font-size: 14px;
+            line-height: 1;
+            min-width: 32px;
+            min-height: 32px;
+        }
 
         .bout-video-input { display: none; }
 
@@ -782,7 +791,7 @@
                     <span class="bout-video-clip" data-video-id="{{ v.id }}">
                         <span class="bout-video-clip-label">Clip {{ loop.index }}</span>
                         <button type="button" class="bout-video-btn watch" onclick="watchBoutVideo({{ v.id }})">Watch</button>
-                        <button type="button" class="bout-video-btn delete" onclick="deleteBoutVideo({{ v.id }})">×</button>
+                        <button type="button" class="bout-video-btn delete" onclick="deleteBoutVideo({{ v.id }})" aria-label="Delete clip">🗑</button>
                     </span>
                     {% endfor %}
                     <input type="file" id="poolBoutVideo{{ bout.id }}" class="bout-video-input" accept="video/*" multiple onchange="uploadBoutVideo('pool', {{ bout.id }}, this)">
@@ -924,7 +933,7 @@
                             <span class="bout-video-clip" data-video-id="{{ v.id }}">
                                 <span class="bout-video-clip-label">Clip {{ loop.index }}</span>
                                 <button type="button" class="bout-video-btn watch" onclick="watchBoutVideo({{ v.id }})">Watch</button>
-                                <button type="button" class="bout-video-btn delete" onclick="deleteBoutVideo({{ v.id }})">×</button>
+                                <button type="button" class="bout-video-btn delete" onclick="deleteBoutVideo({{ v.id }})" aria-label="Delete clip">🗑</button>
                             </span>
                             {% endfor %}
                             <input type="file" id="elimBoutVideo{{ bout.id }}" class="bout-video-input" accept="video/*" multiple onchange="uploadBoutVideo('elim', {{ bout.id }}, this)">
@@ -1618,7 +1627,7 @@
             chip.dataset.videoId = videoId;
             chip.innerHTML = '<span class="bout-video-clip-label">Clip</span>'
                 + ' <button type="button" class="bout-video-btn watch" onclick="watchBoutVideo(' + videoId + ')">Watch</button>'
-                + ' <button type="button" class="bout-video-btn delete" onclick="deleteBoutVideo(' + videoId + ')">×</button>';
+                + ' <button type="button" class="bout-video-btn delete" onclick="deleteBoutVideo(' + videoId + ')" aria-label="Delete clip">🗑</button>';
             const input = container.querySelector('.bout-video-input');
             container.insertBefore(chip, input);
             renumberBoutClips(container);
