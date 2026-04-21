@@ -85,6 +85,11 @@ class Tournament(Base):
     level = Column(String(20))
     notes = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
+    # Populated by Phase 5 Final Results photo extraction. String (not Integer)
+    # so ties like "28T" and ranges fit alongside plain ranks like "5".
+    final_rank = Column(String(10))
+    total_fencers = Column(Integer)
+    event_name = Column(String(255))
 
 
 class PoolRound(Base):
@@ -152,6 +157,20 @@ class DESummary(Base):
     id = Column(Integer, primary_key=True)
     tournament_id = Column(Integer, index=True)
     summary_json = Column(Text)
+    generated_at = Column(DateTime, default=datetime.utcnow)
+
+
+class TournamentSummary(Base):
+    """Claude-generated tournament-wide narrative summary (Phase 5).
+
+    Stores the full podium + rank + narrative as a single JSON blob keyed by
+    tournament_id. Replaces itself on regenerate.
+    """
+    __tablename__ = 'tournament_summaries'
+
+    id = Column(Integer, primary_key=True)
+    tournament_id = Column(Integer, index=True)
+    summary_json = Column(Text)       # JSON: {narrative, podium, final_rank, total_fencers, event_name}
     generated_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -296,6 +315,44 @@ def _migrate_video_r2_key_to_bout_videos():
             pass  # Column doesn't exist (fresh install) or migration already complete
 
 _migrate_video_r2_key_to_bout_videos()
+
+
+# Phase 5 migration: add final_rank / total_fencers / event_name columns to
+# the existing `tournaments` table for databases provisioned before Phase 5.
+# create_all() above will handle fresh installs — this block covers upgrades.
+def _ensure_tournament_final_results_columns():
+    """Ensure Tournament has final_rank, total_fencers, event_name columns."""
+    is_postgres = 'postgresql' in get_database_url()
+    # Column definitions keyed by name so we can apply them one at a time.
+    # SQLite flavor comes first (no IF NOT EXISTS) then falls back for Postgres.
+    columns = (
+        ('final_rank', 'VARCHAR(10)'),
+        ('total_fencers', 'INTEGER'),
+        ('event_name', 'VARCHAR(255)'),
+    )
+    for col_name, col_type in columns:
+        try:
+            with engine.connect() as conn:
+                if is_postgres:
+                    conn.execute(text(
+                        f"ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS {col_name} {col_type}"
+                    ))
+                else:
+                    # SQLite pre-3.35 lacks IF NOT EXISTS; detect existing col via PRAGMA.
+                    existing = {
+                        row[1] for row in conn.execute(text("PRAGMA table_info(tournaments)")).fetchall()
+                    }
+                    if col_name not in existing:
+                        conn.execute(text(
+                            f"ALTER TABLE tournaments ADD COLUMN {col_name} {col_type}"
+                        ))
+                conn.commit()
+        except Exception:
+            # Column already exists (or table missing on a truly fresh install).
+            pass
+
+
+_ensure_tournament_final_results_columns()
 
 
 def get_db():
@@ -602,12 +659,34 @@ def get_tournaments():
 
 
 def get_tournament(tournament_id):
-    """Get a single tournament by ID."""
+    """Get a single tournament by ID.
+
+    Includes Phase 5 final-results columns (`final_rank`, `total_fencers`,
+    `event_name`) and, if present, an embedded `summary` dict from the
+    TournamentSummary table so the detail page can render in one query pass.
+    """
     db = get_db()
     try:
         t = db.query(Tournament).filter_by(id=tournament_id).first()
         if not t:
             return None
+
+        summary_payload = None
+        summary_row = db.query(TournamentSummary).filter_by(
+            tournament_id=tournament_id
+        ).first()
+        if summary_row and summary_row.summary_json:
+            try:
+                summary_payload = {
+                    'id': summary_row.id,
+                    'tournament_id': tournament_id,
+                    'data': json.loads(summary_row.summary_json),
+                    'generated_at': summary_row.generated_at.strftime('%b %-d, %-I:%M %p')
+                        if summary_row.generated_at else None,
+                }
+            except (ValueError, TypeError):
+                summary_payload = None
+
         return {
             'id': t.id,
             'name': t.name,
@@ -617,6 +696,10 @@ def get_tournament(tournament_id):
             'age_category': t.age_category,
             'level': t.level,
             'notes': t.notes,
+            'final_rank': t.final_rank,
+            'total_fencers': t.total_fencers,
+            'event_name': t.event_name,
+            'summary': summary_payload,
             'created_at': t.created_at.strftime('%B %d, %Y')
         }
     finally:
@@ -700,6 +783,9 @@ def delete_tournament(tournament_id):
         db.query(EliminationRound).filter_by(tournament_id=tournament_id).delete()
         db.query(DEBracket).filter_by(tournament_id=tournament_id).delete()
         db.query(DESummary).filter_by(tournament_id=tournament_id).delete()
+
+        # Phase 5: wipe any tournament-wide narrative summary too.
+        db.query(TournamentSummary).filter_by(tournament_id=tournament_id).delete()
 
         t = db.query(Tournament).filter_by(id=tournament_id).first()
         if t:
@@ -1309,6 +1395,150 @@ def get_de_summary(tournament_id):
             'summary': json.loads(record.summary_json),
             'generated_at': record.generated_at.strftime('%b %-d, %-I:%M %p')
         }
+    finally:
+        db.close()
+
+
+# ── Tournament Summary helper functions (Phase 5) ───────────────────────
+
+def save_tournament_summary(tournament_id, summary_dict):
+    """Save (or replace) the tournament-wide narrative summary.
+
+    `summary_dict` stores the full payload: narrative text, podium, final_rank,
+    total_fencers, event_name. Returns the serialized dict with generated_at.
+    """
+    db = get_db()
+    try:
+        db.query(TournamentSummary).filter_by(tournament_id=tournament_id).delete()
+        record = TournamentSummary(
+            tournament_id=tournament_id,
+            summary_json=json.dumps(summary_dict or {}),
+            generated_at=datetime.utcnow(),
+        )
+        db.add(record)
+        db.commit()
+        return {
+            'id': record.id,
+            'tournament_id': tournament_id,
+            'data': summary_dict or {},
+            'generated_at': record.generated_at.strftime('%b %-d, %-I:%M %p'),
+        }
+    except Exception as e:
+        db.rollback()
+        raise e
+    finally:
+        db.close()
+
+
+def get_tournament_summary(tournament_id):
+    """Get saved tournament summary, or None."""
+    db = get_db()
+    try:
+        record = db.query(TournamentSummary).filter_by(tournament_id=tournament_id).first()
+        if not record:
+            return None
+        try:
+            data = json.loads(record.summary_json) if record.summary_json else {}
+        except (ValueError, TypeError):
+            data = {}
+        return {
+            'id': record.id,
+            'tournament_id': tournament_id,
+            'data': data,
+            'generated_at': record.generated_at.strftime('%b %-d, %-I:%M %p')
+                if record.generated_at else None,
+        }
+    finally:
+        db.close()
+
+
+def update_tournament_final_results(tournament_id, final_results):
+    """Persist extracted final-results data for a tournament.
+
+    `final_results` is a dict with optional keys ``final_rank`` (str),
+    ``total_fencers`` (int), ``event_name`` (str), and ``podium`` (list of
+    dicts). The first three are written to the Tournament row; the podium is
+    stored inside the TournamentSummary JSON blob so we don't need another
+    table. Returns a dict echoing what was written, or None if the tournament
+    doesn't exist.
+
+    Any narrative already stored on the summary is preserved; callers that
+    want to regenerate the narrative should do so via
+    `_generate_tournament_narrative` + `save_tournament_summary`.
+    """
+    if final_results is None:
+        final_results = {}
+
+    db = get_db()
+    try:
+        t = db.query(Tournament).filter_by(id=tournament_id).first()
+        if not t:
+            return None
+
+        # Write the three direct Tournament columns. Accept None explicitly as
+        # "clear this value" so callers can wipe bad extractions.
+        if 'final_rank' in final_results:
+            rank = final_results.get('final_rank')
+            t.final_rank = (str(rank)[:10] if rank not in (None, '') else None)
+        if 'total_fencers' in final_results:
+            tf = final_results.get('total_fencers')
+            if tf in (None, ''):
+                t.total_fencers = None
+            else:
+                try:
+                    t.total_fencers = int(tf)
+                except (TypeError, ValueError):
+                    t.total_fencers = None
+        if 'event_name' in final_results:
+            en = final_results.get('event_name')
+            t.event_name = (str(en)[:255] if en else None)
+
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise e
+    finally:
+        db.close()
+
+    # Store podium + final_rank/total/event inside TournamentSummary so the
+    # detail page can render it without a Tournament re-query. Preserve any
+    # existing narrative string on the summary blob.
+    existing = get_tournament_summary(tournament_id)
+    existing_data = (existing or {}).get('data') or {}
+
+    podium = final_results.get('podium')
+    if podium is None:
+        podium = existing_data.get('podium') or []
+
+    new_data = {
+        'narrative': existing_data.get('narrative'),
+        'podium': list(podium) if isinstance(podium, list) else [],
+        'final_rank': final_results.get('final_rank', existing_data.get('final_rank')),
+        'total_fencers': final_results.get('total_fencers', existing_data.get('total_fencers')),
+        'event_name': final_results.get('event_name', existing_data.get('event_name')),
+        'warnings': final_results.get('warnings', existing_data.get('warnings') or []),
+    }
+    save_tournament_summary(tournament_id, new_data)
+
+    return {
+        'tournament_id': tournament_id,
+        'final_rank': new_data['final_rank'],
+        'total_fencers': new_data['total_fencers'],
+        'event_name': new_data['event_name'],
+        'podium': new_data['podium'],
+    }
+
+
+def delete_tournament_summary(tournament_id):
+    """Remove the tournament summary row (if any). Returns True if deleted."""
+    db = get_db()
+    try:
+        n = db.query(TournamentSummary).filter_by(tournament_id=tournament_id).delete()
+        db.commit()
+        return bool(n)
+    except Exception as e:
+        db.rollback()
+        raise e
     finally:
         db.close()
 
