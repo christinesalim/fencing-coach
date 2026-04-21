@@ -44,6 +44,9 @@ from database import (
     delete_de_results,
     save_de_summary,
     get_de_summary,
+    save_tournament_summary,
+    get_tournament_summary,
+    update_tournament_final_results,
     bout_exists,
     add_bout_video,
     get_bout_video,
@@ -67,6 +70,7 @@ from database import (
     sync_bout_to_opponent,
 )
 from de_extraction import extract_full_de_bracket
+from final_results_extraction import extract_final_results
 
 load_dotenv()
 
@@ -1248,6 +1252,262 @@ def api_get_de_results(tournament_id):
     if not results:
         return jsonify({'error': 'No DE results found'}), 404
     return jsonify(results)
+
+
+# --- Phase 5: Final Results photo extraction + tournament summary ---
+
+def _generate_tournament_narrative(tournament_id):
+    """Generate a Claude-written narrative summary of the tournament.
+
+    Pulls pool results, DE results, and the just-saved final rank / podium
+    and asks Claude Sonnet for a 2-4 sentence summary. Stores the result
+    (narrative + podium + final_rank + total_fencers + event_name) via
+    `save_tournament_summary` and returns the serialized dict.
+
+    Raises on Claude failure — caller should handle the error response.
+    """
+    tournament = get_tournament(tournament_id)
+    if not tournament:
+        raise ValueError(f"Tournament {tournament_id} not found")
+
+    pool = get_pool_results(tournament_id)
+    de = get_de_results(tournament_id)
+    summary_row = get_tournament_summary(tournament_id)
+    existing = (summary_row or {}).get('data') or {}
+
+    final_rank = tournament.get('final_rank') or existing.get('final_rank')
+    total_fencers = tournament.get('total_fencers') or existing.get('total_fencers')
+    event_name = tournament.get('event_name') or existing.get('event_name')
+    podium = existing.get('podium') or []
+
+    # Build pool summary lines (only if pool data exists).
+    pool_block = 'Pool: (not recorded)'
+    if pool:
+        pool_block_parts = [
+            f"Record: {pool.get('victories', 0)}V-{pool.get('defeats', 0)}D",
+            f"Indicator: {pool.get('indicator')}",
+            f"TS/TR: {pool.get('touches_scored')}/{pool.get('touches_received')}",
+        ]
+        pool_block = "Pool: " + " | ".join(str(p) for p in pool_block_parts if p is not None)
+
+    # Build DE summary.
+    de_block = 'DE: (not recorded)'
+    if de and de.get('bouts'):
+        de_lines = []
+        for bout in de['bouts']:
+            score = ''
+            if bout.get('score_for') is not None and bout.get('score_against') is not None:
+                score = f" {bout['score_for']}-{bout['score_against']}"
+            de_lines.append(
+                f"{bout.get('round_name', '?')}: "
+                f"{(bout.get('result') or '?').upper()} vs {bout.get('opponent_name', '?')}{score}"
+            )
+        de_block = "DE:\n  " + "\n  ".join(de_lines)
+
+    # Podium block.
+    if podium:
+        podium_lines = []
+        for row in podium:
+            place = row.get('place') or '?'
+            name = row.get('name') or '?'
+            club = row.get('club') or ''
+            podium_lines.append(f"{place}. {name} ({club})" if club else f"{place}. {name}")
+        podium_block = "Podium:\n  " + "\n  ".join(podium_lines)
+    else:
+        podium_block = "Podium: (not recorded)"
+
+    rank_line = ''
+    if final_rank and total_fencers:
+        rank_line = f"Ethan's final placement: {final_rank} of {total_fencers}"
+    elif final_rank:
+        rank_line = f"Ethan's final placement: {final_rank}"
+
+    event_line = f"Event: {event_name}" if event_name else ""
+
+    prompt = f"""You are an experienced epee fencing coach summarizing a Y-12 fencer's full tournament in 2-4 short sentences. The fencer is Ethan, coached by Ziad.
+
+Tournament: {tournament['name']}
+Date: {tournament['date']}
+{event_line}
+{rank_line}
+
+{pool_block}
+
+{de_block}
+
+{podium_block}
+
+Write a natural-language summary (2-4 sentences, no bullet points) covering:
+1. Pool performance (record + what the indicator/scores suggest)
+2. DE performance (how he did in elimination, any upset wins or tough losses)
+3. Final placement relative to the field
+4. ONE concrete tactical takeaway for the next tournament
+
+Tone: honest but encouraging, age-appropriate for an 11-12 year old, no right-of-way (this is epee). Reference specific scores/opponents where useful. Do NOT wrap the output in JSON or markdown — just return the prose."""
+
+    message = get_claude_client().messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=512,
+        messages=[{"role": "user", "content": prompt}],
+    )
+
+    narrative = (message.content[0].text or '').strip()
+
+    payload = {
+        'narrative': narrative,
+        'podium': podium,
+        'final_rank': final_rank,
+        'total_fencers': total_fencers,
+        'event_name': event_name,
+        'warnings': existing.get('warnings') or [],
+    }
+    return save_tournament_summary(tournament_id, payload)
+
+
+@app.route('/api/upload-final-results', methods=['POST'])
+@login_required
+def upload_final_results():
+    """Handle Final Results screenshot upload + Vision extraction.
+
+    Multi-image; mirrors `/api/upload-de-bracket`. Saves each file to
+    UPLOAD_FOLDER, runs Claude Vision via `extract_final_results`, then
+    deletes the temp files in `finally`.
+    """
+    if 'images' not in request.files:
+        return jsonify({'error': 'No images uploaded'}), 400
+
+    tournament_id = request.form.get('tournament_id')
+    if not tournament_id:
+        return jsonify({'error': 'Tournament ID required'}), 400
+
+    files = request.files.getlist('images')
+    if not files or files[0].filename == '':
+        return jsonify({'error': 'No files selected'}), 400
+
+    if len(files) > 8:
+        return jsonify({'error': 'Maximum 8 photos allowed'}), 400
+
+    our_fencer_name = (
+        request.form.get('fencer_name')
+        or os.environ.get('DEFAULT_FENCER_NAME')
+        or 'SALIM Ethan'
+    )
+
+    saved_paths = []
+    try:
+        for file in files:
+            filename = secure_filename(file.filename)
+            filepath = app.config['UPLOAD_FOLDER'] / f"final_{uuid.uuid4().hex[:8]}_{filename}"
+            file.save(filepath)
+            saved_paths.append(filepath)
+
+        extracted = extract_final_results(
+            saved_paths, our_fencer_name, tournament_id
+        )
+
+        return jsonify({
+            'success': True,
+            'extracted_data': extracted,
+            'images_processed': len(saved_paths),
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        for path in saved_paths:
+            try:
+                if path.exists():
+                    path.unlink()
+            except Exception:
+                pass
+
+
+def _normalize_final_results_payload(raw):
+    """Map extractor output (ethan_rank) to storage fields (final_rank).
+
+    Accepts either key — the Vision extractor returns ``ethan_rank`` but the
+    storage helper and Tournament column are named ``final_rank``. We also
+    strip any fields the helper doesn't know about.
+    """
+    raw = raw or {}
+    normalized = {}
+    # ethan_rank is the extractor's name; final_rank is the column name.
+    if 'final_rank' in raw:
+        normalized['final_rank'] = raw.get('final_rank')
+    elif 'ethan_rank' in raw:
+        normalized['final_rank'] = raw.get('ethan_rank')
+    if 'total_fencers' in raw:
+        normalized['total_fencers'] = raw.get('total_fencers')
+    if 'event_name' in raw:
+        normalized['event_name'] = raw.get('event_name')
+    if 'podium' in raw:
+        normalized['podium'] = raw.get('podium') or []
+    if 'warnings' in raw:
+        normalized['warnings'] = raw.get('warnings') or []
+    return normalized
+
+
+@app.route('/api/confirm-final-results', methods=['POST'])
+@login_required
+def confirm_final_results():
+    """Persist extracted final-results data + kick off narrative generation."""
+    data = request.get_json(silent=True) or {}
+    tournament_id = data.get('tournament_id')
+    final_results = _normalize_final_results_payload(data.get('final_results'))
+
+    if not tournament_id:
+        return jsonify({'error': 'Missing tournament_id'}), 400
+
+    try:
+        tournament_id = int(tournament_id)
+    except (TypeError, ValueError):
+        return jsonify({'error': 'Invalid tournament_id'}), 400
+
+    # 404 when the tournament doesn't exist.
+    if not get_tournament(tournament_id):
+        return jsonify({'error': 'Tournament not found'}), 404
+
+    try:
+        # Persist rank/total/event/podium. Even an all-None payload is OK —
+        # caller may just want to wipe and regenerate later.
+        update_tournament_final_results(tournament_id, final_results)
+    except Exception as e:
+        return jsonify({'error': f'Failed to save final results: {e}'}), 500
+
+    # Now generate the narrative. This hits Claude — let errors bubble
+    # through with a clear message rather than silently swallowing them.
+    try:
+        summary = _generate_tournament_narrative(tournament_id)
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f'Final results saved but narrative generation failed: {e}',
+        }), 500
+
+    return jsonify({'success': True, 'summary': summary})
+
+
+@app.route('/api/tournaments/<int:tournament_id>/regenerate-summary', methods=['POST'])
+@login_required
+def api_regenerate_tournament_summary(tournament_id):
+    """Regenerate the Claude narrative on demand."""
+    if not get_tournament(tournament_id):
+        return jsonify({'error': 'Tournament not found'}), 404
+
+    try:
+        summary = _generate_tournament_narrative(tournament_id)
+        return jsonify({'success': True, 'summary': summary})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/tournaments/<int:tournament_id>/summary', methods=['GET'])
+@login_required
+def api_get_tournament_summary(tournament_id):
+    """Read the stored tournament summary."""
+    summary = get_tournament_summary(tournament_id)
+    if not summary:
+        return jsonify({'error': 'No summary found'}), 404
+    return jsonify(summary)
 
 
 # --- Bout video routes (multiple videos per bout, pool and elim) ---

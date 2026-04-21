@@ -727,6 +727,141 @@
             padding: 4px 10px;
             font-family: inherit;
         }
+
+        /* Tournament Summary card (Phase 5) */
+        .tsum-header {
+            text-align: center;
+            padding: 14px;
+            border-radius: 14px;
+            background: linear-gradient(135deg, #f6f8fc 0%, #eef2f9 100%);
+            margin-bottom: 16px;
+        }
+
+        .tsum-event {
+            font-size: 13px;
+            color: #4a7fd4;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+
+        .tsum-rank {
+            font-size: 1.4em;
+            font-weight: 700;
+            color: #1a1a2e;
+        }
+
+        .tsum-rank-total {
+            color: #777;
+            font-weight: 500;
+            font-size: 0.9em;
+        }
+
+        .tsum-warnings {
+            background: #fff4e5;
+            border-left: 4px solid #fd7e14;
+            color: #8a4a00;
+            padding: 10px 14px;
+            font-size: 13px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+        }
+
+        .tsum-warnings ul {
+            margin: 6px 0 0 20px;
+        }
+
+        .tsum-podium {
+            margin-bottom: 16px;
+        }
+
+        .tsum-podium-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            border-radius: 12px;
+            background: #f5f7fa;
+            margin-bottom: 6px;
+            border-left: 4px solid #d0d7de;
+        }
+
+        .tsum-podium-row.place-1 { border-left-color: #d4af37; background: linear-gradient(90deg, #fdf6da 0%, #f5f7fa 100%); }
+        .tsum-podium-row.place-2 { border-left-color: #c0c0c0; background: linear-gradient(90deg, #f2f2f2 0%, #f5f7fa 100%); }
+        .tsum-podium-row.place-3t { border-left-color: #cd7f32; background: linear-gradient(90deg, #f9ece0 0%, #f5f7fa 100%); }
+
+        .tsum-place-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 36px;
+            padding: 4px 8px;
+            font-weight: 700;
+            font-size: 14px;
+            background: white;
+            border-radius: 10px;
+            color: #1a1a2e;
+        }
+
+        .tsum-podium-name {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .tsum-podium-name .name {
+            font-weight: 600;
+            font-size: 14px;
+            color: #1a1a2e;
+        }
+
+        .tsum-podium-name .club {
+            font-size: 12px;
+            color: #777;
+            margin-top: 2px;
+        }
+
+        .tsum-narrative {
+            font-size: 14px;
+            line-height: 1.6;
+            color: #333;
+            padding: 14px;
+            background: #fafbff;
+            border-left: 4px solid #4a7fd4;
+            border-radius: 10px;
+            margin-bottom: 10px;
+        }
+
+        .tsum-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+            color: #999;
+            margin-top: 10px;
+        }
+
+        .tsum-regenerate {
+            background: none;
+            border: none;
+            color: #4a7fd4;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: underline;
+            padding: 0;
+            font-family: inherit;
+        }
+
+        .tsum-regenerate:active { opacity: 0.6; }
+
+        @media (max-width: 480px) {
+            .tsum-footer {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 6px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -1058,6 +1193,90 @@
             <div class="status" id="summaryStatus"></div>
         </div>
         {% endif %}
+
+        <!-- Phase 5: Final Results + Tournament Summary -->
+        <div class="card" id="finalResultsCard">
+            <h2>Final Results</h2>
+
+            {% if tournament.summary and tournament.summary.data %}
+            {% set fr = tournament.summary.data %}
+            <div id="tsumDisplay">
+                <div class="tsum-header">
+                    {% if fr.event_name %}
+                    <div class="tsum-event">{{ fr.event_name }}</div>
+                    {% endif %}
+                    <div class="tsum-rank">
+                        {% if fr.final_rank %}{{ fr.final_rank }}{% else %}—{% endif %}{% if fr.total_fencers %}<span class="tsum-rank-total"> of {{ fr.total_fencers }}</span>{% endif %}
+                    </div>
+                </div>
+
+                {% if fr.warnings %}
+                <div class="tsum-warnings">
+                    Some rows may be missing from the extraction:
+                    <ul>
+                        {% for w in fr.warnings %}<li>{{ w }}</li>{% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+
+                {% if fr.podium %}
+                <div class="tsum-podium">
+                    <h3 style="font-size:13px;color:#777;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Podium</h3>
+                    {% for row in fr.podium %}
+                    <div class="tsum-podium-row place-{{ (row.place or '').lower() }}">
+                        <span class="tsum-place-badge">{{ row.place or '?' }}</span>
+                        <div class="tsum-podium-name">
+                            <div class="name">{{ row.name or '?' }}</div>
+                            {% if row.club %}<div class="club">{{ row.club }}{% if row.division %} · {{ row.division }}{% endif %}</div>{% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                {% if fr.narrative %}
+                <div class="tsum-narrative">{{ fr.narrative }}</div>
+                {% endif %}
+
+                <div class="tsum-footer">
+                    <span>Generated {{ tournament.summary.generated_at or '' }}</span>
+                    <button type="button" class="tsum-regenerate" onclick="regenerateTournamentSummary()">Regenerate summary</button>
+                </div>
+
+                <button class="btn-secondary" style="margin-top:14px;" onclick="showFinalResultsUpload()">Re-upload final results</button>
+            </div>
+            {% endif %}
+
+            <!-- Upload section (shown when no summary exists yet, or by button above) -->
+            <div id="finalResultsUploadSection" style="text-align:center;{% if tournament.summary and tournament.summary.data %}display:none;{% endif %}">
+                <p style="color:#777;margin-bottom:16px;font-size:14px;">Upload one or more screenshots of the final standings page to capture Ethan's rank, the podium, and a Claude-written recap of the tournament.</p>
+                <input type="file" id="finalResultsPhotos" accept="image/*" multiple>
+                <label for="finalResultsPhotos" class="upload-btn">Upload Final Results</label>
+                <div class="photo-count" id="finalResultsPhotoCount"></div>
+            </div>
+
+            <div class="loader" id="finalResultsLoader"></div>
+            <div class="status" id="finalResultsStatus"></div>
+
+            <!-- Extraction preview (shown after upload, before confirm) -->
+            <div id="finalResultsPreview" style="display:none;">
+                <h3>Review extracted results</h3>
+                <p style="font-size:13px;color:#777;margin-bottom:14px;">Check the data below, then confirm to save and generate a tournament summary.</p>
+
+                <div class="tsum-header">
+                    <div class="tsum-event" id="previewEventName"></div>
+                    <div class="tsum-rank" id="previewRank"></div>
+                </div>
+
+                <div id="previewWarnings" class="tsum-warnings" style="display:none;"></div>
+
+                <div id="previewPodium" class="tsum-podium"></div>
+
+                <button class="btn-primary" onclick="confirmFinalResults()" style="margin-top:8px;">Confirm &amp; Save</button>
+                <button class="btn-secondary" onclick="cancelFinalResultsPreview()">Cancel</button>
+                <div class="status" id="finalResultsConfirmStatus"></div>
+            </div>
+        </div>
 
         <!-- Tournament Info (editable) -->
         <div class="card">
@@ -1744,6 +1963,174 @@
                 window.location.href = '/tournaments';
             } catch (error) {
                 alert('Error: ' + error.message);
+            }
+        }
+
+        // ── Phase 5: Final Results photo upload + tournament summary ───────
+        let finalResultsExtracted = null;
+
+        function escapeHTML(s) {
+            return String(s == null ? '' : s)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function showFinalResultsUpload() {
+            const display = document.getElementById('tsumDisplay');
+            if (display) display.style.display = 'none';
+            const upload = document.getElementById('finalResultsUploadSection');
+            if (upload) upload.style.display = 'block';
+        }
+
+        function cancelFinalResultsPreview() {
+            finalResultsExtracted = null;
+            document.getElementById('finalResultsPreview').style.display = 'none';
+            document.getElementById('finalResultsUploadSection').style.display = 'block';
+            const inputEl = document.getElementById('finalResultsPhotos');
+            if (inputEl) inputEl.value = '';
+            document.getElementById('finalResultsPhotoCount').textContent = '';
+        }
+
+        function renderFinalResultsPreview(data) {
+            data = data || {};
+            document.getElementById('previewEventName').textContent = data.event_name || '';
+            document.getElementById('previewRank').innerHTML =
+                (data.ethan_rank ? escapeHTML(data.ethan_rank) : '—') +
+                (data.total_fencers ? '<span class="tsum-rank-total"> of ' + escapeHTML(data.total_fencers) + '</span>' : '');
+
+            const warningsDiv = document.getElementById('previewWarnings');
+            const warnings = data.warnings || [];
+            if (warnings.length > 0) {
+                warningsDiv.style.display = 'block';
+                warningsDiv.innerHTML = 'Possible issues with the extraction:<ul>' +
+                    warnings.map(function(w) { return '<li>' + escapeHTML(w) + '</li>'; }).join('') +
+                    '</ul>';
+            } else {
+                warningsDiv.style.display = 'none';
+                warningsDiv.innerHTML = '';
+            }
+
+            const podiumDiv = document.getElementById('previewPodium');
+            const podium = data.podium || [];
+            if (podium.length === 0) {
+                podiumDiv.innerHTML = '<p style="color:#777;font-size:13px;">Podium not detected. You can still save and regenerate later.</p>';
+            } else {
+                podiumDiv.innerHTML = '<h3 style="font-size:13px;color:#777;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Podium</h3>' +
+                    podium.map(function(row) {
+                        const placeClass = 'place-' + String(row.place || '').toLowerCase();
+                        const clubLine = row.club
+                            ? '<div class="club">' + escapeHTML(row.club) + (row.division ? ' · ' + escapeHTML(row.division) : '') + '</div>'
+                            : '';
+                        return '<div class="tsum-podium-row ' + placeClass + '">' +
+                            '<span class="tsum-place-badge">' + escapeHTML(row.place || '?') + '</span>' +
+                            '<div class="tsum-podium-name">' +
+                                '<div class="name">' + escapeHTML(row.name || '?') + '</div>' +
+                                clubLine +
+                            '</div>' +
+                        '</div>';
+                    }).join('');
+            }
+        }
+
+        const finalResultsInput = document.getElementById('finalResultsPhotos');
+        if (finalResultsInput) {
+            finalResultsInput.addEventListener('change', async function(e) {
+                const files = e.target.files;
+                if (!files || files.length === 0) return;
+
+                const countEl = document.getElementById('finalResultsPhotoCount');
+                countEl.textContent = files.length + ' photo' + (files.length > 1 ? 's' : '') + ' selected';
+
+                if (files.length > 8) {
+                    const status = document.getElementById('finalResultsStatus');
+                    status.className = 'status error';
+                    status.style.display = 'block';
+                    status.textContent = 'Maximum 8 photos allowed.';
+                    return;
+                }
+
+                const loader = document.getElementById('finalResultsLoader');
+                const status = document.getElementById('finalResultsStatus');
+                loader.style.display = 'block';
+                status.className = 'status processing';
+                status.style.display = 'block';
+                status.textContent = 'Extracting final standings from ' + files.length + ' photo' + (files.length > 1 ? 's' : '') + '...';
+
+                const formData = new FormData();
+                for (let i = 0; i < files.length; i++) formData.append('images', files[i]);
+                formData.append('tournament_id', tournamentId);
+
+                try {
+                    const response = await fetch('/api/upload-final-results', {
+                        method: 'POST',
+                        body: formData,
+                    });
+                    const data = await response.json();
+                    if (data.error) throw new Error(data.error);
+
+                    finalResultsExtracted = data.extracted_data || {};
+                    renderFinalResultsPreview(finalResultsExtracted);
+
+                    loader.style.display = 'none';
+                    status.style.display = 'none';
+                    document.getElementById('finalResultsUploadSection').style.display = 'none';
+                    document.getElementById('finalResultsPreview').style.display = 'block';
+                } catch (error) {
+                    loader.style.display = 'none';
+                    status.className = 'status error';
+                    status.textContent = 'Error: ' + error.message;
+                }
+            });
+        }
+
+        async function confirmFinalResults() {
+            const status = document.getElementById('finalResultsConfirmStatus');
+            status.className = 'status processing';
+            status.style.display = 'block';
+            status.textContent = 'Saving and generating summary...';
+
+            try {
+                const response = await fetch('/api/confirm-final-results', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        tournament_id: tournamentId,
+                        final_results: finalResultsExtracted || {}
+                    })
+                });
+                const data = await response.json();
+                if (!response.ok || data.error) throw new Error(data.error || ('HTTP ' + response.status));
+
+                status.className = 'status success';
+                status.textContent = 'Saved!';
+                setTimeout(function() { location.reload(); }, 800);
+            } catch (error) {
+                status.className = 'status error';
+                status.textContent = 'Error: ' + error.message;
+            }
+        }
+
+        async function regenerateTournamentSummary() {
+            if (!confirm('Regenerate the tournament summary? This calls Claude.')) return;
+
+            const footer = document.querySelector('#tsumDisplay .tsum-footer');
+            const prevText = footer ? footer.innerHTML : '';
+            if (footer) footer.innerHTML = '<span style="color:#4a7fd4;">Regenerating…</span>';
+
+            try {
+                const response = await fetch('/api/tournaments/' + tournamentId + '/regenerate-summary', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await response.json();
+                if (!response.ok || data.error) throw new Error(data.error || ('HTTP ' + response.status));
+                location.reload();
+            } catch (error) {
+                if (footer) footer.innerHTML = prevText;
+                alert('Error regenerating summary: ' + error.message);
             }
         }
     </script>
