@@ -927,12 +927,23 @@ def api_update_tournament(tournament_id):
 @app.route('/api/tournaments/<int:tournament_id>/delete', methods=['POST'])
 @login_required
 def api_delete_tournament(tournament_id):
-    """Delete a tournament."""
+    """Delete a tournament and its associated R2 videos."""
     try:
-        success = delete_tournament(tournament_id)
-        if success:
-            return jsonify({'success': True})
-        return jsonify({'error': 'Tournament not found'}), 404
+        result = delete_tournament(tournament_id)
+        if result is False:
+            return jsonify({'error': 'Tournament not found'}), 404
+
+        # Clean up R2 video objects
+        r2_keys = result if isinstance(result, list) else []
+        if r2_keys:
+            bucket = os.environ.get('R2_BUCKET_NAME', 'fencing-lessons')
+            for key in r2_keys:
+                try:
+                    get_r2_client().delete_object(Bucket=bucket, Key=key)
+                except Exception:
+                    pass  # DB rows already gone; stale R2 objects are acceptable
+
+        return jsonify({'success': True})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

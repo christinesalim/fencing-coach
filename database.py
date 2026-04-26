@@ -747,7 +747,12 @@ def update_tournament(tournament_id, data):
 
 
 def delete_tournament(tournament_id):
-    """Delete a tournament and its pool data, DE data, and tips."""
+    """Delete a tournament and its pool data, DE data, tips, and videos.
+
+    Returns a list of R2 keys for videos that were deleted from the DB.
+    The caller is responsible for deleting the R2 objects.
+    Returns False if tournament not found.
+    """
     db = get_db()
     try:
         # Find all the pool_bout and elimination_round IDs that belong to this
@@ -761,6 +766,25 @@ def delete_tournament(tournament_id):
         elim_ids = [
             r.id for r in db.query(EliminationRound).filter_by(tournament_id=tournament_id).all()
         ]
+
+        # Collect R2 keys for bout videos before deleting them
+        r2_keys_to_delete = []
+        if pool_bout_ids:
+            pool_videos = db.query(BoutVideo).filter(
+                BoutVideo.bout_kind == 'pool',
+                BoutVideo.bout_id.in_(pool_bout_ids)
+            ).all()
+            r2_keys_to_delete.extend(v.r2_key for v in pool_videos)
+            for v in pool_videos:
+                db.delete(v)
+        if elim_ids:
+            elim_videos = db.query(BoutVideo).filter(
+                BoutVideo.bout_kind == 'elim',
+                BoutVideo.bout_id.in_(elim_ids)
+            ).all()
+            r2_keys_to_delete.extend(v.r2_key for v in elim_videos)
+            for v in elim_videos:
+                db.delete(v)
 
         # Purge BoutRecord rows that point into this tournament. This keeps
         # the opponent-centric view consistent with the tournament-centric view.
@@ -791,7 +815,7 @@ def delete_tournament(tournament_id):
         if t:
             db.delete(t)
             db.commit()
-            return True
+            return r2_keys_to_delete
         return False
     except Exception as e:
         db.rollback()
