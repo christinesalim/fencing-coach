@@ -956,9 +956,17 @@ def api_upload_tournament_photo(tournament_id):
 
     try:
         file_ext = Path(filename).suffix.lower()
+        content_type = {
+            '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+            '.png': 'image/png', '.heic': 'image/heic',
+            '.webp': 'image/webp', '.gif': 'image/gif',
+        }.get(file_ext, 'image/jpeg')
         r2_key = f"tournament-photos/{tournament_id}/{uuid.uuid4()}{file_ext}"
         bucket = os.environ.get('R2_BUCKET_NAME', 'fencing-lessons')
-        get_r2_client().upload_file(str(filepath), bucket, r2_key)
+        get_r2_client().upload_file(
+            str(filepath), bucket, r2_key,
+            ExtraArgs={'ContentType': content_type}
+        )
 
         result = save_tournament_photo(tournament_id, r2_key, caption)
         return jsonify({'success': True, 'photo': result})
@@ -979,11 +987,18 @@ def api_get_tournament_photo_url(photo_id):
         photo = db.query(TournamentPhoto).filter_by(id=photo_id).first()
         if not photo:
             return jsonify({'error': 'Photo not found'}), 404
+        ext = Path(photo.r2_key).suffix.lower()
+        content_type = {
+            '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+            '.png': 'image/png', '.heic': 'image/heic',
+            '.webp': 'image/webp', '.gif': 'image/gif',
+        }.get(ext, 'image/jpeg')
         url = get_r2_client().generate_presigned_url(
             'get_object',
             Params={
                 'Bucket': os.environ.get('R2_BUCKET_NAME', 'fencing-lessons'),
                 'Key': photo.r2_key,
+                'ResponseContentType': content_type,
             },
             ExpiresIn=3600
         )
