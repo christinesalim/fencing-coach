@@ -815,33 +815,90 @@ def save_pool_results_to_db(tournament_id, pool_data):
     saved_bouts = []  # list of (bout_dict, pool_bout_id)
     pool_round_id = None
     try:
-        pool_round = PoolRound(
-            tournament_id=tournament_id,
-            pool_number=pool_data.get('pool_number'),
-            position_in_pool=pool_data.get('position_in_pool'),
-            victories=pool_data.get('victories'),
-            defeats=pool_data.get('defeats'),
-            touches_scored=pool_data.get('touches_scored'),
-            touches_received=pool_data.get('touches_received'),
-            indicator=pool_data.get('indicator'),
-            notes=f"Strip {pool_data['strip_number']}" if pool_data.get('strip_number') else None
-        )
-        db.add(pool_round)
-        db.flush()
+        existing = db.query(PoolRound).filter_by(tournament_id=tournament_id).first()
 
-        for bout in pool_data.get('bouts', []):
-            pool_bout = PoolBout(
-                pool_round_id=pool_round.id,
-                opponent_name=bout.get('opponent_name'),
-                opponent_club=bout.get('opponent_club'),
-                score_for=bout.get('score_for'),
-                score_against=bout.get('score_against'),
-                result=bout.get('result'),
-                bout_order=bout.get('bout_order')
-            )
-            db.add(pool_bout)
+        if existing:
+            # Update existing pool round (preserves bout IDs → keeps videos)
+            existing.pool_number = pool_data.get('pool_number') or existing.pool_number
+            existing.position_in_pool = pool_data.get('position_in_pool') or existing.position_in_pool
+            existing.victories = pool_data.get('victories') if pool_data.get('victories') is not None else existing.victories
+            existing.defeats = pool_data.get('defeats') if pool_data.get('defeats') is not None else existing.defeats
+            existing.touches_scored = pool_data.get('touches_scored') if pool_data.get('touches_scored') is not None else existing.touches_scored
+            existing.touches_received = pool_data.get('touches_received') if pool_data.get('touches_received') is not None else existing.touches_received
+            existing.indicator = pool_data.get('indicator') if pool_data.get('indicator') is not None else existing.indicator
+            if pool_data.get('strip_number'):
+                existing.notes = f"Strip {pool_data['strip_number']}"
             db.flush()
-            saved_bouts.append((bout, pool_bout.id))
+            pool_round = existing
+
+            # Match incoming bouts to existing bouts by opponent name
+            existing_bouts = db.query(PoolBout).filter_by(pool_round_id=pool_round.id).all()
+            existing_by_name = {}
+            for eb in existing_bouts:
+                key = (eb.opponent_name or '').strip().upper()
+                existing_by_name[key] = eb
+
+            for bout in pool_data.get('bouts', []):
+                incoming_name = (bout.get('opponent_name') or '').strip().upper()
+                matched = existing_by_name.get(incoming_name)
+
+                if matched:
+                    # Update scores on existing bout (preserves bout ID + videos)
+                    if bout.get('score_for') is not None:
+                        matched.score_for = bout['score_for']
+                    if bout.get('score_against') is not None:
+                        matched.score_against = bout['score_against']
+                    if bout.get('result'):
+                        matched.result = bout['result']
+                    if bout.get('bout_order'):
+                        matched.bout_order = bout['bout_order']
+                    if bout.get('opponent_club'):
+                        matched.opponent_club = bout['opponent_club']
+                    db.flush()
+                    saved_bouts.append((bout, matched.id))
+                else:
+                    # New opponent not in previous upload
+                    pool_bout = PoolBout(
+                        pool_round_id=pool_round.id,
+                        opponent_name=bout.get('opponent_name'),
+                        opponent_club=bout.get('opponent_club'),
+                        score_for=bout.get('score_for'),
+                        score_against=bout.get('score_against'),
+                        result=bout.get('result'),
+                        bout_order=bout.get('bout_order')
+                    )
+                    db.add(pool_bout)
+                    db.flush()
+                    saved_bouts.append((bout, pool_bout.id))
+        else:
+            # First upload — create new pool round
+            pool_round = PoolRound(
+                tournament_id=tournament_id,
+                pool_number=pool_data.get('pool_number'),
+                position_in_pool=pool_data.get('position_in_pool'),
+                victories=pool_data.get('victories'),
+                defeats=pool_data.get('defeats'),
+                touches_scored=pool_data.get('touches_scored'),
+                touches_received=pool_data.get('touches_received'),
+                indicator=pool_data.get('indicator'),
+                notes=f"Strip {pool_data['strip_number']}" if pool_data.get('strip_number') else None
+            )
+            db.add(pool_round)
+            db.flush()
+
+            for bout in pool_data.get('bouts', []):
+                pool_bout = PoolBout(
+                    pool_round_id=pool_round.id,
+                    opponent_name=bout.get('opponent_name'),
+                    opponent_club=bout.get('opponent_club'),
+                    score_for=bout.get('score_for'),
+                    score_against=bout.get('score_against'),
+                    result=bout.get('result'),
+                    bout_order=bout.get('bout_order')
+                )
+                db.add(pool_bout)
+                db.flush()
+                saved_bouts.append((bout, pool_bout.id))
 
         db.commit()
         pool_round_id = pool_round.id

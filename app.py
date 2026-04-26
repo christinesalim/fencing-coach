@@ -770,12 +770,18 @@ def extract_pool_results_from_photo(image_path):
 
 The fencer to track is SALIM Ethan (or the first fencer listed). Extract results from HIS ROW ONLY.
 
+IMPORTANT: The pool sheet may be in one of three states:
+1. EMPTY — names are listed but NO bouts have been fenced yet (all cells empty). Extract opponent names only.
+2. PARTIAL — some bouts have scores, others are still empty. Extract what's available, use null for unfenced bouts.
+3. COMPLETE — all bouts have scores and summary stats are filled in.
+
 HOW TO READ THE POOL GRID:
 - Each row is one fencer. The columns (numbered 1-6) correspond to each fencer's number.
 - The cell where a fencer's row meets an opponent's column shows the result of THAT bout.
 - D4 in a cell means the ROW fencer LOST and scored 4 touches. The opponent scored 5 (pool bouts go to 5).
 - V5 in a cell means the ROW fencer WON and scored 5 touches. To find the opponent's score, look at the opponent's row in the column for our fencer.
 - Black/diagonal cells are where a fencer's row meets their own column (no bout against yourself).
+- EMPTY cells mean that bout has NOT been fenced yet.
 
 EXAMPLE: If SALIM (row 1) has "D4" in column 2, that means:
   - SALIM lost to fencer #2
@@ -787,7 +793,7 @@ If SALIM (row 1) has "V5" in column 4, that means:
   - SALIM scored 5 touches (score_for = 5)
   - To find fencer #4's score, look at row 4, column 1 (e.g., "D3" means they scored 3, so score_against = 3)
 
-The right side of the grid shows summary stats:
+The right side of the grid shows summary stats (only present when pool is complete):
   - V = total victories
   - V/M = win rate (victories / matches)
   - TS = total touches scored
@@ -799,23 +805,24 @@ Extract the following in JSON format:
 {
   "pool_number": <number from "POOL #X">,
   "strip_number": <number from "ON STRIP X" or null>,
+  "pool_status": "empty" | "partial" | "complete",
   "fencer_name": "<SALIM Ethan or first fencer's full name>",
   "fencer_club": "<club abbreviation / region>",
-  "position_in_pool": <their ranking in the pool based on V column, 1=best>,
-  "victories": <V value from right side>,
-  "defeats": <number of bouts minus victories>,
-  "victory_rate": <V/M value>,
-  "touches_scored": <TS value>,
-  "touches_received": <TR value>,
-  "indicator": <Ind value>,
+  "position_in_pool": <their ranking in the pool based on V column, 1=best, or null if not yet determined>,
+  "victories": <V value from right side, or null if pool not complete>,
+  "defeats": <number of bouts minus victories, or null>,
+  "victory_rate": <V/M value, or null>,
+  "touches_scored": <TS value, or null>,
+  "touches_received": <TR value, or null>,
+  "indicator": <Ind value, or null>,
   "bouts": [
     {
       "bout_order": <sequence 1, 2, 3...>,
       "opponent_name": "<opponent's full name from their row label>",
       "opponent_club": "<club / region from their row label>",
-      "score_for": <our fencer's touches in this bout>,
-      "score_against": <opponent's touches in this bout>,
-      "result": "won" or "lost"
+      "score_for": <our fencer's touches in this bout, or null if not yet fenced>,
+      "score_against": <opponent's touches in this bout, or null if not yet fenced>,
+      "result": "won" | "lost" | null
     }
   ]
 }
@@ -826,6 +833,8 @@ CRITICAL RULES:
 - For D4: score_for=4, score_against=5, result="lost"
 - For V5 against opponent who has D3 in our column: score_for=5, score_against=3, result="won"
 - bout_order should match the column order (column 2=bout 1, column 3=bout 2, etc., skipping our own column)
+- For bouts NOT YET FENCED (empty cells): set score_for=null, score_against=null, result=null — but STILL include the bout entry with the opponent's name
+- ALWAYS include ALL opponents in the bouts array, even if no scores exist yet
 - Return null for any field that's unclear or unreadable"""
                 }
             ],

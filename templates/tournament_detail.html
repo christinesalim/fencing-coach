@@ -936,6 +936,14 @@
             </div>
             {% endfor %}
 
+
+            <button class="regenerate-link" onclick="showPoolReupload()">Update pool results with new photo</button>
+            <div id="poolReuploadSection" style="display:none;text-align:center;margin-top:12px;">
+                <p style="color:#777;margin-bottom:16px;font-size:14px;">Upload a new pool sheet photo to update results.</p>
+                <input type="file" id="poolPhoto" accept="image/*">
+                <label for="poolPhoto" class="upload-btn">Upload Pool Sheet Photo</label>
+            </div>
+
             {% else %}
             <!-- Upload section -->
             <div style="text-align:center;">
@@ -1329,6 +1337,11 @@
         const tournamentId = {{ tournament.id }};
         let extractedData = null;
         let deExtractedData = null;
+
+        function showPoolReupload() {
+            const section = document.getElementById('poolReuploadSection');
+            section.style.display = section.style.display === 'none' ? 'block' : 'none';
+        }
 
         // Pool photo upload
         const poolPhotoInput = document.getElementById('poolPhoto');
