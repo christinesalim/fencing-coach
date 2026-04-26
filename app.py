@@ -5,7 +5,7 @@ import os
 import json
 import uuid
 import base64
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import wraps
 from pathlib import Path
 from flask import Flask, request, render_template, jsonify, Response, session, redirect, url_for
@@ -76,6 +76,7 @@ load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-change-in-production')
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=30)
 app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # 500MB max file size (for videos)
 app.config['UPLOAD_FOLDER'] = Path(__file__).parent / 'uploads'
 app.config['UPLOAD_FOLDER'].mkdir(exist_ok=True)
@@ -301,6 +302,7 @@ def login():
     if request.method == 'POST':
         password = request.form.get('password', '')
         if password == os.environ.get('APP_PASSWORD', ''):
+            session.permanent = True
             session['logged_in'] = True
             next_page = request.args.get('next', '/')
             return redirect(next_page)
