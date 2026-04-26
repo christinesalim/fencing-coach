@@ -17,6 +17,114 @@ def get_claude_client():
     return _claude_client
 
 
+# Mapping between round names and the number of fencers in that round.
+# "Table of N" rounds map to N. Semi-Finals = 4 fencers, Finals = 2.
+_ROUND_TO_SIZE = {
+    'finals': 2, 'final': 2, 'table of 2': 2,
+    'semi-finals': 4, 'semifinals': 4, 'semis': 4, 'table of 4': 4,
+    'quarterfinals': 8, 'quarter-finals': 8, 'quarters': 8, 'table of 8': 8,
+    'table of 16': 16,
+    'table of 32': 32,
+    'table of 64': 64,
+    'table of 128': 128,
+    'table of 256': 256,
+}
+
+# Canonical round name for each round size — used after normalization
+_SIZE_TO_ROUND = {
+    2: 'Finals',
+    4: 'Semi-Finals',
+    8: 'Table of 8',
+    16: 'Table of 16',
+    32: 'Table of 32',
+    64: 'Table of 64',
+    128: 'Table of 128',
+    256: 'Table of 256',
+}
+
+
+def _round_size(round_name):
+    """Return the number of fencers in a round, or None if unknown."""
+    if not round_name:
+        return None
+    return _ROUND_TO_SIZE.get(str(round_name).strip().lower())
+
+
+def _canonical_round_name(round_name):
+    """Normalize aliases (e.g., 'Table of 4' → 'Semi-Finals')."""
+    size = _round_size(round_name)
+    return _SIZE_TO_ROUND.get(size, round_name)
+
+
+def _placement_for_eliminated_in(round_size):
+    """Final placement label for a fencer eliminated in a given round."""
+    if round_size is None:
+        return 'Unknown'
+    return {2: '2nd', 4: '3T'}.get(round_size, f'Top {round_size}')
+
+
+def _derive_final_placement(path, bracket_size):
+    """Compute the final_placement_range from the fencer's path.
+
+    Lost in semi → '3T'. Lost in finals → '2nd'. Won finals → '1st'.
+    Lost in earlier round → 'Top N' where N is the size of that round.
+    """
+    if not path:
+        return 'Unknown' if not bracket_size else f'Top {bracket_size}'
+    last = path[-1]
+    last_round_size = _round_size(last.get('round_name'))
+    result = (last.get('result') or '').lower()
+    if last_round_size == 2:  # Finals
+        return '1st' if result == 'won' else '2nd'
+    if result == 'lost':
+        return _placement_for_eliminated_in(last_round_size)
+    # Won the last bout shown but didn't reach finals — they advanced past it
+    if last_round_size and last_round_size > 2:
+        return _placement_for_eliminated_in(last_round_size // 2)
+    return 'Unknown'
+
+
+def _maybe_prepend_bye_rounds(path, bracket_size, seed):
+    """If bracket_size implies earlier rounds and the fencer's first listed round
+    is later, prepend BYE rows. Only safe for top-half seeds (≤ bracket_size/2)
+    where a BYE is the standard tableau pairing.
+    """
+    if not bracket_size or not path:
+        return path
+    first_round_size = _round_size(path[0].get('round_name'))
+    if not first_round_size or first_round_size >= bracket_size:
+        return path
+    if seed is None or seed > bracket_size // 2:
+        # Without a top-half seed we can't safely assume earlier byes.
+        return path
+    extras = []
+    size = bracket_size
+    while size > first_round_size:
+        extras.append({
+            'round_name': _SIZE_TO_ROUND.get(size, f'Table of {size}'),
+            'opponent_name': 'BYE',
+            'opponent_seed': None,
+            'opponent_club': None,
+            'score_for': None,
+            'score_against': None,
+            'result': 'won',
+        })
+        size //= 2
+    return extras + list(path)
+
+
+def _normalize_path(path):
+    """Apply round-name canonicalization to every bout in a path list."""
+    if not path:
+        return path
+    out = []
+    for bout in path:
+        b = dict(bout)
+        b['round_name'] = _canonical_round_name(b.get('round_name'))
+        out.append(b)
+    return out
+
+
 def _parse_json_response(text):
     """Parse JSON from Claude response, handling markdown code blocks."""
     try:
@@ -70,30 +178,45 @@ def extract_de_bracket_from_photo(image_path, our_fencer_name="SALIM Ethan"):
 YOUR TASK: Find "{our_fencer_name}" in the bracket and trace ONLY their path through the rounds. Do NOT extract every bout — just this fencer's bouts.
 
 HOW TO READ THE BRACKET:
-- The bracket flows LEFT to RIGHT. Each column is a round: Table of 64 → Table of 32 → Table of 16 → etc.
+- The bracket flows LEFT to RIGHT. Each column has a HEADER (e.g., "Table of 16", "Table of 8", "Semi-Finals", "Finals").
 - Each bout is a PAIR of two fencers stacked vertically, connected by bracket lines.
 - The WINNER advances RIGHT to the next column, where they are paired with a NEW opponent.
 - Numbers in parentheses like (4) or (36) are SEEDS from pool ranking.
 - Scores appear as "15-7" etc. DE bouts go to 15 touches.
 - "BYE" means automatic advance, no bout fenced.
 
+BRACKET SIZE — IMPORTANT
+- The bracket size is the size of the LEFTMOST column visible. Read its header text literally.
+  - "Table of 16" → bracket_size = 16
+  - "Table of 8"  → bracket_size = 8
+  - "Semi-Finals" (with no earlier column) → bracket_size = 4 (the visible mini-bracket only)
+  - "Finals"     → bracket_size = 2
+- Common values: 4, 8, 16, 32, 64, 128, 256. Whatever the header says.
+- DO NOT round up or guess — if the leftmost column says "Table of 16", return 16, not 32.
+
 STEP BY STEP:
-1. Find "{our_fencer_name}" in the leftmost column (first round).
-2. Identify who they are paired with (the other name in their bracket pair). That is their Round 1 opponent.
+1. Find "{our_fencer_name}" in the leftmost column (first round shown).
+2. Identify who they are paired with. That is their first opponent in this view.
 3. Read the score. Did our fencer win or lose?
-4. If they WON, follow the bracket line RIGHT to the next column. Find who they are now paired with — that is a DIFFERENT person, their Round 2 opponent.
-5. Repeat until they lose or the bracket ends.
+4. If they WON, follow the bracket line RIGHT to the next column. Find who they are now paired with — that is a DIFFERENT person, their next opponent.
+5. Repeat until they lose, the bracket ends, or no more rounds are visible.
+
+ROUND NAMES — return them exactly as they appear in the column header:
+- "Table of 16", "Table of 8", "Semi-Finals", "Finals" (preserve the literal header text).
+- If a column shows only the round structure (e.g., a 4-fencer mini-bracket) without a "Table of N" label, use "Semi-Finals" / "Finals" as appropriate.
 
 CRITICAL VALIDATION:
 - Each round MUST have a DIFFERENT opponent. If you wrote the same opponent name twice, you misread the bracket — go back and re-trace the lines.
-- The opponent in Round 2 is the WINNER of a different Round 1 bout, NOT the same person from Round 1.
+- The opponent in the next round is the WINNER of a different earlier bout, NOT the same person from the previous round.
+- If you see "BYE" as the opponent in any round, record it as `"opponent_name": "BYE"` with null scores and `result: "won"`.
 
 Return JSON:
 {{
   "bracket_metadata": {{
-    "estimated_bracket_size": <64 | 32 | 128>,
+    "leftmost_column_header": "<exact header text from the leftmost column>",
+    "bracket_size": <integer — same number as in the leftmost header>,
     "software_detected": "FencingTimeLive" | "unknown",
-    "visible_rounds": ["Table of 64", "Table of 32", ...]
+    "visible_rounds": ["<header text>", ...]
   }},
   "our_fencer": {{
     "name": "<exact name as shown>",
@@ -102,16 +225,16 @@ Return JSON:
   }},
   "bouts": [
     {{
-      "round_name": "Table of 64",
-      "opponent_name": "<LAST First>",
+      "round_name": "<exact column header>",
+      "opponent_name": "<LAST First or BYE>",
       "opponent_club": "<club or null>",
       "opponent_seed": <number or null>,
-      "score_for": <our fencer's score>,
-      "score_against": <opponent's score>,
+      "score_for": <our fencer's score or null>,
+      "score_against": <opponent's score or null>,
       "result": "won" | "lost"
     }}
   ],
-  "final_placement_range": "Top 64" | "Top 32" | "Top 16" | "Top 8" | "Top 4" | "2nd" | "1st",
+  "final_placement_range": "<e.g., Top 16, Top 8, Top 4, 3T, 2nd, 1st, or Unknown>",
   "other_visible_bouts": <count of other bouts visible but not extracted>
 }}
 
@@ -143,132 +266,138 @@ def _dedup_fencer_path(bouts):
     return deduped
 
 
+def _bout_has_score(bout):
+    return bout.get('score_for') is not None and bout.get('score_against') is not None
+
+
+def _better_bout(existing, candidate):
+    """Pick the better of two bouts for the same round. Prefer non-null scores
+    and longer (more complete) opponent club strings."""
+    if existing is None:
+        return candidate
+    # Prefer the entry with scores filled in
+    if _bout_has_score(candidate) and not _bout_has_score(existing):
+        return candidate
+    if _bout_has_score(existing) and not _bout_has_score(candidate):
+        return existing
+    # Both filled or both null — prefer the longer opponent_club (more complete affiliation)
+    e_club = (existing.get('opponent_club') or '')
+    c_club = (candidate.get('opponent_club') or '')
+    if len(c_club) > len(e_club):
+        merged = dict(existing)
+        merged['opponent_club'] = c_club
+        return merged
+    return existing
+
+
 def merge_de_bracket_extractions(extractions, our_fencer_name):
-    """Merge multiple per-image extractions into a single fencer path."""
-    # Filter out extractions where fencer wasn't found
+    """Deterministic Python merge of per-image extractions into one fencer path.
+
+    Combines bouts across photos by canonical round name, takes the max
+    bracket_size as authoritative, normalizes round-name aliases (Table of 4 →
+    Semi-Finals), prepends BYE rows for top-half seeds when an earlier round is
+    implied by bracket_size, and derives final_placement_range from the path.
+    """
     valid = [e for e in extractions if e.get('our_fencer')]
+    warnings = []
     if not valid:
         return {
             "tournament_bracket": {"bracket_size": 0, "total_bouts_extracted": 0, "completeness": 0, "rounds": {}},
             "our_fencer": {"name": our_fencer_name, "seed": None, "path": [], "final_placement_range": "Unknown"},
             "warnings": ["Fencer not found in any screenshot"],
-            "duplicate_bouts_removed": 0
+            "duplicate_bouts_removed": 0,
         }
 
-    # For a single extraction, just reformat and dedup
-    if len(valid) == 1:
-        ext = valid[0]
-        bouts = _dedup_fencer_path(ext.get('bouts', []))
-        return {
-            "tournament_bracket": {
-                "bracket_size": ext.get('bracket_metadata', {}).get('estimated_bracket_size', 0),
-                "total_bouts_extracted": len(bouts),
-                "completeness": 0,
-                "rounds": {}
-            },
-            "our_fencer": {
-                "name": ext.get('our_fencer', {}).get('name', our_fencer_name),
-                "seed": ext.get('our_fencer', {}).get('seed'),
-                "path": bouts,
-                "final_placement_range": ext.get('final_placement_range', 'Unknown')
-            },
-            "warnings": [],
-            "duplicate_bouts_removed": len(ext.get('bouts', [])) - len(bouts)
-        }
+    # Canonical bracket size = max across all photos. Each photo reports the
+    # size of its leftmost column; the largest of those is the true bracket
+    # size (later photos can't shrink it).
+    sizes = []
+    for ext in valid:
+        meta = ext.get('bracket_metadata') or {}
+        size = meta.get('bracket_size') or meta.get('estimated_bracket_size')
+        if size:
+            sizes.append(int(size))
+        else:
+            # Fall back to inferring from the visible round names
+            for rn in (meta.get('visible_rounds') or []):
+                rs = _round_size(rn)
+                if rs:
+                    sizes.append(rs)
+    bracket_size = max(sizes) if sizes else 0
 
-    # Multiple extractions: merge via Claude (text-only, cheap)
-    extraction_parts = []
-    for i, ext in enumerate(valid):
-        extraction_parts.append(f"Screenshot {i + 1}: {json.dumps(ext)}")
+    if len(set(sizes)) > 1:
+        warnings.append(
+            f"Photos disagree on bracket size ({sorted(set(sizes))}); using {bracket_size} (largest)"
+        )
 
-    extractions_text = "\n\n".join(extraction_parts)
+    # Canonical fencer info — prefer entries with seed and club populated
+    fencer_name = our_fencer_name
+    fencer_seed = None
+    fencer_club = None
+    for ext in valid:
+        f = ext.get('our_fencer') or {}
+        if f.get('name'):
+            fencer_name = f['name']
+        if f.get('seed') is not None and fencer_seed is None:
+            fencer_seed = f['seed']
+        c = (f.get('club') or '')
+        if c and len(c) > len(fencer_club or ''):
+            fencer_club = c
 
-    prompt = f"""You are merging DE bracket paths for "{our_fencer_name}" extracted from multiple
-progressive screenshots of the same tournament bracket. Later screenshots show more
-completed rounds.
+    # Combine bouts per canonical round, picking the most complete entry for each
+    by_round = {}
+    total_input_bouts = 0
+    for ext in valid:
+        for bout in (ext.get('bouts') or []):
+            total_input_bouts += 1
+            cname = _canonical_round_name(bout.get('round_name'))
+            if not cname:
+                continue
+            normalized = dict(bout)
+            normalized['round_name'] = cname
+            by_round[cname] = _better_bout(by_round.get(cname), normalized)
 
-{extractions_text}
+    # Order rounds by descending size (Table of 64 → ... → Finals)
+    ordered = sorted(by_round.values(), key=lambda b: -(_round_size(b.get('round_name')) or 0))
 
-Merge into a single path for {our_fencer_name}. Rules:
-1. Each round should appear ONCE with the best available data (prefer non-null scores)
-2. Later screenshots take priority for scores and results
-3. Each bout MUST have a DIFFERENT opponent — if the same opponent appears in two
-   rounds, keep only the first occurrence (the later one is an extraction error)
-4. Order bouts chronologically: Table of 64 → Table of 32 → Table of 16 → etc.
+    # Drop accidental duplicate opponents in consecutive rounds (vision misreads)
+    deduped = _dedup_fencer_path(ordered)
+    duplicates_removed = len(ordered) - len(deduped)
 
-Return JSON:
-{{
-  "tournament_bracket": {{
-    "bracket_size": <64 | 32 | 128>,
-    "total_bouts_extracted": <number>,
-    "completeness": 0,
-    "rounds": {{}}
-  }},
-  "our_fencer": {{
-    "name": "<exact name>",
-    "seed": <number or null>,
-    "path": [
-      {{
-        "round_name": "Table of 64",
-        "opponent_name": "<LAST First>",
-        "opponent_seed": <number or null>,
-        "opponent_club": "<club or null>",
-        "score_for": <number or null>,
-        "score_against": <number or null>,
-        "result": "won" | "lost"
-      }}
-    ],
-    "final_placement_range": "<placement>"
-  }},
-  "warnings": ["<any issues found>"],
-  "duplicate_bouts_removed": <count>
-}}"""
+    # If bracket_size implies earlier rounds and the fencer's first listed round
+    # is later, prepend BYEs (only when seed places them in the top half).
+    final_path = _maybe_prepend_bye_rounds(deduped, bracket_size, fencer_seed)
+    if len(final_path) > len(deduped):
+        warnings.append(
+            f"Inferred {len(final_path) - len(deduped)} BYE round(s) for top-seeded fencer"
+        )
 
-    message = get_claude_client().messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=4096,
-        messages=[{"role": "user", "content": prompt}]
-    )
+    final_placement = _derive_final_placement(final_path, bracket_size)
 
-    result = _parse_json_response(message.content[0].text)
-
-    # Safety net: dedup even after merge
-    if result.get('our_fencer', {}).get('path'):
-        original_len = len(result['our_fencer']['path'])
-        result['our_fencer']['path'] = _dedup_fencer_path(result['our_fencer']['path'])
-        removed = original_len - len(result['our_fencer']['path'])
-        result['duplicate_bouts_removed'] = result.get('duplicate_bouts_removed', 0) + removed
-
-    return result
+    return {
+        "tournament_bracket": {
+            "bracket_size": bracket_size,
+            "total_bouts_extracted": len(final_path),
+            "completeness": 0,
+            "rounds": {},
+        },
+        "our_fencer": {
+            "name": fencer_name,
+            "seed": fencer_seed,
+            "club": fencer_club,
+            "path": final_path,
+            "final_placement_range": final_placement,
+        },
+        "warnings": warnings,
+        "duplicate_bouts_removed": duplicates_removed,
+    }
 
 
 def extract_full_de_bracket(image_paths, our_fencer_name, tournament_id):
-    """Orchestrate full DE bracket extraction from multiple images.
+    """Orchestrate full DE bracket extraction from any number of images.
 
-    1. Extract each image individually
-    2. If single image, do a simplified merge to get our_fencer path
-    3. If multiple images, merge all extractions
+    Calls Vision once per image, then merges deterministically in Python.
+    No second Claude call — merge is fast and reproducible.
     """
-    extractions = []
-    for path in image_paths:
-        extraction = extract_de_bracket_from_photo(path, our_fencer_name)
-        extractions.append(extraction)
-
-    # For large brackets with 6+ images, merge in two phases
-    if len(extractions) > 5:
-        # Phase 1: merge in groups of 3
-        merged_groups = []
-        for i in range(0, len(extractions), 3):
-            group = extractions[i:i + 3]
-            if len(group) == 1:
-                merged_groups.append(group[0])
-            else:
-                merged = merge_de_bracket_extractions(group, our_fencer_name)
-                merged_groups.append(merged)
-        # Phase 2: final merge of groups
-        # Convert merged results back to extraction format for re-merging
-        result = merge_de_bracket_extractions(merged_groups, our_fencer_name)
-    else:
-        result = merge_de_bracket_extractions(extractions, our_fencer_name)
-
-    return result
+    extractions = [extract_de_bracket_from_photo(p, our_fencer_name) for p in image_paths]
+    return merge_de_bracket_extractions(extractions, our_fencer_name)

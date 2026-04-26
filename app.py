@@ -1198,8 +1198,6 @@ def upload_de_bracket():
     if not files or files[0].filename == '':
         return jsonify({'error': 'No files selected'}), 400
 
-    if len(files) > 8:
-        return jsonify({'error': 'Maximum 8 photos allowed'}), 400
 
     saved_paths = []
     try:
@@ -1395,8 +1393,6 @@ def upload_final_results():
     if not files or files[0].filename == '':
         return jsonify({'error': 'No files selected'}), 400
 
-    if len(files) > 8:
-        return jsonify({'error': 'Maximum 8 photos allowed'}), 400
 
     our_fencer_name = (
         request.form.get('fencer_name')
