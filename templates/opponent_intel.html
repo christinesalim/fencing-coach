@@ -203,6 +203,71 @@
             text-decoration: none;
         }
 
+        /* Scouting Videos collapsible */
+        .scout-section {
+            background: white;
+            border-radius: 14px;
+            padding: 14px 18px;
+            margin-bottom: 16px;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+        }
+        .scout-section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 700;
+            color: #1a1a2e;
+            user-select: none;
+        }
+        .scout-section-body {
+            display: none;
+            margin-top: 12px;
+        }
+        .scout-section.open .scout-section-body { display: block; }
+        .scout-section-arrow {
+            font-size: 12px;
+            color: #888;
+            transition: transform 0.15s;
+        }
+        .scout-section.open .scout-section-arrow { transform: rotate(180deg); }
+        .scout-bout-row {
+            border-top: 1px solid #f0f0f0;
+            padding: 10px 0;
+            font-size: 13px;
+            line-height: 1.45;
+        }
+        .scout-bout-row:first-child { border-top: none; }
+        .scout-bout-row .scout-bout-line { color: #1a1a2e; font-weight: 600; }
+        .scout-bout-row .scout-bout-meta {
+            font-size: 11px;
+            color: #666;
+            margin-top: 2px;
+        }
+        .scout-bout-row .scout-bout-actions {
+            margin-top: 6px;
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+        .scout-bout-row .scout-bout-actions a,
+        .scout-bout-row .scout-bout-actions button {
+            display: inline-block;
+            background: #f0f2f7;
+            color: #2c3e6b;
+            border: none;
+            border-radius: 8px;
+            padding: 4px 10px;
+            font-size: 11px;
+            font-weight: 600;
+            text-decoration: none;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        .scout-bout-row .scout-bout-actions a:active,
+        .scout-bout-row .scout-bout-actions button:active { opacity: 0.7; }
+
         @media (max-width: 480px) {
             body { padding: 14px; padding-bottom: 60px; }
             .card { padding: 20px; }
@@ -341,6 +406,79 @@
         <!-- Physical summary -->
         {% if physical_summary %}
         <div class="physical-card">{{ physical_summary }}</div>
+        {% endif %}
+
+        <!-- Scouting Videos (collapsible, default-collapsed) -->
+        {% set scout_count = (scout_bouts or []) | length %}
+        {% if scout_count > 0 %}
+        <div class="scout-section" id="scoutSection">
+            <div class="scout-section-header" onclick="toggleScoutSection()">
+                <span>Scouting Videos ({{ scout_count }})</span>
+                <span class="scout-section-arrow">&#9660;</span>
+            </div>
+            <div class="scout-section-body">
+                {% for bout in scout_bouts %}
+                    {% set other_name = (bout.fencer_b_name if bout.fencer_a_id == opponent.id else bout.fencer_a_name) %}
+                    {% set other_id = (bout.fencer_b_id if bout.fencer_a_id == opponent.id else bout.fencer_a_id) %}
+                    <div class="scout-bout-row">
+                        <div class="scout-bout-line">
+                            vs {{ other_name }}
+                            {% if bout.round_name %} — {{ bout.round_name }}{% endif %}
+                            {% if bout.tournament_name %} — {{ bout.tournament_name }}{% endif %}
+                        </div>
+                        <div class="scout-bout-meta">
+                            {{ bout.videos | length }} clip{{ '' if bout.videos | length == 1 else 's' }}
+                            {% if other_id %}
+                                &middot; <a href="/opponents/{{ other_id }}/intel" style="color:#2c3e6b; text-decoration:none; font-weight:600;">View {{ other_name }}'s intel</a>
+                            {% endif %}
+                        </div>
+                        <div class="scout-bout-actions">
+                            {% if bout.videos %}
+                            <button type="button" onclick="openScoutClip({{ bout.videos[0].id }})">▶ Watch first clip</button>
+                            {% endif %}
+                            <a href="/bout-library?opponent_id={{ opponent.id }}">Open in library</a>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Video modal for scouting clips -->
+        <div id="scoutVideoModal" style="position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.92); z-index:1100; display:none; align-items:center; justify-content:center; padding:16px;">
+            <button onclick="closeScoutClip()" style="position:absolute; top:20px; right:20px; background:rgba(0,0,0,0.6); color:white; border:1px solid rgba(255,255,255,0.3); border-radius:50%; width:40px; height:40px; font-size:22px; cursor:pointer; line-height:1;">&times;</button>
+            <video id="scoutVideoPlayer" controls playsinline style="max-width:100%; max-height:90vh; border-radius:12px; background:black;"></video>
+        </div>
+
+        <script>
+            function toggleScoutSection() {
+                var s = document.getElementById('scoutSection');
+                if (s) s.classList.toggle('open');
+            }
+            async function openScoutClip(videoId) {
+                try {
+                    const resp = await fetch('/api/scout-videos/' + videoId + '/playback');
+                    const data = await resp.json();
+                    if (!resp.ok || data.error) throw new Error(data.error || ('HTTP ' + resp.status));
+                    const modal = document.getElementById('scoutVideoModal');
+                    const video = document.getElementById('scoutVideoPlayer');
+                    if (!modal || !video) return;
+                    video.src = data.url;
+                    modal.style.display = 'flex';
+                    try { video.play(); } catch (e) {}
+                } catch (e) {
+                    alert('Error loading video: ' + e.message);
+                }
+            }
+            function closeScoutClip() {
+                const modal = document.getElementById('scoutVideoModal');
+                const video = document.getElementById('scoutVideoPlayer');
+                if (!modal || !video) return;
+                video.pause();
+                video.removeAttribute('src');
+                video.load();
+                modal.style.display = 'none';
+            }
+        </script>
         {% endif %}
 
         <!-- Edit link -->

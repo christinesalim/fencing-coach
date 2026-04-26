@@ -71,6 +71,16 @@ from database import (
     increment_note_invalidated,
     lookup_opponents_by_names,
     sync_bout_to_opponent,
+    create_scout_bout,
+    get_scout_bout,
+    get_scout_bouts,
+    get_scout_bouts_for_opponent,
+    update_scout_bout,
+    delete_scout_bout,
+    add_scout_video,
+    get_scout_video,
+    delete_scout_video,
+    update_scout_video,
 )
 from de_extraction import extract_full_de_bracket
 from final_results_extraction import extract_final_results
@@ -1776,10 +1786,16 @@ def opponent_profile_page(opponent_id):
     if not opponent:
         return 'Opponent not found', 404
     head_to_head = get_head_to_head(opponent_id)
+    try:
+        scout_bouts = get_scout_bouts_for_opponent(opponent_id)
+    except Exception as e:
+        print(f"[opponent-profile] scout bout lookup failed for {opponent_id}: {e}")
+        scout_bouts = []
     return render_template(
         'opponent_profile.html',
         opponent=opponent,
         head_to_head=head_to_head,
+        scout_bouts=scout_bouts,
     )
 
 
@@ -2084,12 +2100,19 @@ def _build_opponent_intel(opponent_id):
             'score_against': top.get('score_against'),
         }
 
+    try:
+        scout_bouts = get_scout_bouts_for_opponent(opponent_id)
+    except Exception as e:
+        print(f"[opponent-intel] scout bout lookup failed for {opponent_id}: {e}")
+        scout_bouts = []
+
     return {
         'opponent': opponent,
         'head_to_head': head_to_head,
         'notes_by_section': notes_by_section,
         'physical_summary': physical_summary,
         'last_encounter': last_encounter,
+        'scout_bouts': scout_bouts,
     }
 
 
@@ -2111,6 +2134,237 @@ def api_opponent_intel(opponent_id):
     if not intel:
         return jsonify({'error': 'Opponent not found'}), 404
     return jsonify(intel)
+
+
+# --- Bout Library / Scout Videos ---------------------------------------
+
+def _scout_filters_from_request():
+    """Pull bout-library filter params off the current request's query string."""
+    filters = {}
+    tid = request.args.get('tournament_id', '').strip()
+    if tid:
+        try:
+            filters['tournament_id'] = int(tid)
+        except ValueError:
+            pass
+    oid = request.args.get('opponent_id', '').strip()
+    if oid:
+        try:
+            filters['opponent_id'] = int(oid)
+        except ValueError:
+            pass
+    tag = request.args.get('tag', '').strip()
+    if tag:
+        filters['tag'] = tag
+    return filters
+
+
+@app.route('/bout-library')
+@login_required
+def bout_library_page():
+    """Render the Bout Library page."""
+    filters = _scout_filters_from_request()
+    return render_template(
+        'bout_library.html',
+        bouts=get_scout_bouts(filters),
+        tournaments=get_tournaments(),
+        opponents=get_all_opponents(),
+        filters=filters,
+    )
+
+
+@app.route('/api/scout-bouts', methods=['POST'])
+@login_required
+def api_create_scout_bout():
+    data = request.get_json(silent=True) or {}
+    fencer_a = (data.get('fencer_a_name') or '').strip()
+    fencer_b = (data.get('fencer_b_name') or '').strip()
+    if not fencer_a or not fencer_b:
+        return jsonify({'error': 'fencer_a_name and fencer_b_name are required'}), 400
+    payload = {
+        'tournament_id': data.get('tournament_id'),
+        'tournament_name': (data.get('tournament_name') or '').strip() or None,
+        'round_name': (data.get('round_name') or '').strip() or None,
+        'fencer_a_name': fencer_a,
+        'fencer_b_name': fencer_b,
+        'score': (data.get('score') or '').strip() or None,
+        'notes': data.get('notes') or None,
+        'tags': data.get('tags') or [],
+        # Optional matcher hints (not persisted)
+        'fencer_a_club': (data.get('fencer_a_club') or '').strip() or None,
+        'fencer_b_club': (data.get('fencer_b_club') or '').strip() or None,
+    }
+    try:
+        bout = create_scout_bout(payload)
+        return jsonify({'success': True, 'bout': bout})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/scout-bouts', methods=['GET'])
+@login_required
+def api_list_scout_bouts():
+    filters = _scout_filters_from_request()
+    return jsonify({'bouts': get_scout_bouts(filters)})
+
+
+@app.route('/api/scout-bouts/<int:bout_id>', methods=['GET'])
+@login_required
+def api_get_scout_bout(bout_id):
+    bout = get_scout_bout(bout_id)
+    if not bout:
+        return jsonify({'error': 'Scout bout not found'}), 404
+    return jsonify({'bout': bout})
+
+
+@app.route('/api/scout-bouts/<int:bout_id>', methods=['POST'])
+@login_required
+def api_update_scout_bout(bout_id):
+    data = request.get_json(silent=True) or {}
+    try:
+        bout = update_scout_bout(bout_id, data)
+        if not bout:
+            return jsonify({'error': 'Scout bout not found'}), 404
+        return jsonify({'success': True, 'bout': bout})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/scout-bouts/<int:bout_id>/delete', methods=['POST'])
+@login_required
+def api_delete_scout_bout(bout_id):
+    try:
+        r2_keys = delete_scout_bout(bout_id)
+        if r2_keys is None:
+            return jsonify({'error': 'Scout bout not found'}), 404
+        # Best-effort R2 cleanup; never fail the response if a single delete errors.
+        if r2_keys:
+            bucket = os.environ.get('R2_BUCKET_NAME', 'fencing-lessons')
+            try:
+                client = get_r2_client()
+            except Exception as e:
+                print(f"[scout-bout] R2 client unavailable during cascade delete: {e}")
+                client = None
+            if client is not None:
+                for key in r2_keys:
+                    try:
+                        client.delete_object(Bucket=bucket, Key=key)
+                    except Exception as e:
+                        print(f"[scout-bout] failed to purge R2 key {key}: {e}")
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/scout-bouts/<int:bout_id>/videos', methods=['POST'])
+@login_required
+def api_upload_scout_videos(bout_id):
+    """Upload one or more clips to a scout bout. Multipart, `files` repeated."""
+    if not get_scout_bout(bout_id):
+        return jsonify({'error': 'Scout bout not found'}), 404
+
+    files = request.files.getlist('files')
+    if not files:
+        # Fall back to a single 'file' or 'video' field for convenience.
+        single = request.files.get('file') or request.files.get('video')
+        if single:
+            files = [single]
+
+    files = [f for f in files if f and f.filename]
+    if not files:
+        return jsonify({'error': 'No video files uploaded'}), 400
+
+    bucket = os.environ.get('R2_BUCKET_NAME', 'fencing-lessons')
+    saved_clips = []
+    temp_paths = []
+    last_error = None
+    try:
+        for file in files:
+            original_filename = secure_filename(file.filename)
+            file_ext = Path(original_filename).suffix.lower() or '.mp4'
+            temp_filename = f"scout_{uuid.uuid4()}{file_ext}"
+            filepath = app.config['UPLOAD_FOLDER'] / temp_filename
+            file.save(filepath)
+            temp_paths.append(filepath)
+            try:
+                r2_key = f"scout/{bout_id}_{uuid.uuid4()}{file_ext}"
+                content_type = BOUT_VIDEO_MIME_MAP.get(file_ext, 'video/mp4')
+                get_r2_client().upload_file(
+                    str(filepath), bucket, r2_key,
+                    ExtraArgs={'ContentType': content_type}
+                )
+                clip = add_scout_video(
+                    bout_id, r2_key, original_filename=original_filename
+                )
+                saved_clips.append(clip)
+            except Exception as e:
+                last_error = str(e)
+                # Continue trying other files; report the last error if needed.
+                print(f"[scout-bout] upload failed for {original_filename}: {e}")
+
+        if not saved_clips and last_error:
+            return jsonify({'error': last_error}), 500
+        response = {'success': True, 'videos': saved_clips}
+        if last_error:
+            response['error'] = last_error
+        return jsonify(response)
+    finally:
+        for p in temp_paths:
+            try:
+                if p.exists():
+                    p.unlink()
+            except Exception:
+                pass
+
+
+@app.route('/api/scout-videos/<int:video_id>/playback', methods=['GET'])
+@login_required
+def api_get_scout_video_playback(video_id):
+    v = get_scout_video(video_id)
+    if not v:
+        return jsonify({'error': 'Scout video not found'}), 404
+    try:
+        url = get_r2_client().generate_presigned_url(
+            'get_object',
+            Params={
+                'Bucket': os.environ.get('R2_BUCKET_NAME', 'fencing-lessons'),
+                'Key': v['r2_key'],
+            },
+            ExpiresIn=3600,
+        )
+        return jsonify({'url': url, 'expires_in': 3600})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/scout-videos/<int:video_id>', methods=['POST'])
+@login_required
+def api_update_scout_video(video_id):
+    data = request.get_json(silent=True) or {}
+    try:
+        clip = update_scout_video(video_id, data)
+        if not clip:
+            return jsonify({'error': 'Scout video not found'}), 404
+        return jsonify({'success': True, 'video': clip})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/scout-videos/<int:video_id>/delete', methods=['POST'])
+@login_required
+def api_delete_scout_video(video_id):
+    try:
+        r2_key = delete_scout_video(video_id)
+        if r2_key is None:
+            return jsonify({'error': 'Scout video not found'}), 404
+        try:
+            bucket = os.environ.get('R2_BUCKET_NAME', 'fencing-lessons')
+            get_r2_client().delete_object(Bucket=bucket, Key=r2_key)
+        except Exception as e:
+            print(f"[scout-bout] failed to purge R2 key {r2_key}: {e}")
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 if __name__ == '__main__':

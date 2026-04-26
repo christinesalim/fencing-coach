@@ -1,0 +1,1100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Bout Library</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #4a7fd4 0%, #1e3a7a 50%, #0f1f4a 100%);
+            min-height: 100vh;
+            padding: 20px;
+            padding-bottom: 110px;
+            color: #333;
+        }
+
+        .container { max-width: 700px; margin: 0 auto; }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 20px;
+            position: relative;
+        }
+        .header h1 { font-size: 2em; margin-bottom: 8px; }
+        .header p { opacity: 0.9; font-size: 1em; }
+        .sign-out {
+            position: absolute;
+            top: 0; right: 0;
+            color: rgba(255,255,255,0.7);
+            font-size: 13px;
+            text-decoration: none;
+        }
+
+        .back-btn {
+            display: inline-block;
+            background: white;
+            color: #2c3e6b;
+            padding: 10px 20px;
+            border-radius: 50px;
+            text-decoration: none;
+            font-weight: 600;
+            margin-bottom: 16px;
+            font-size: 14px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 20px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            max-width: 100%;
+            overflow-wrap: break-word;
+            word-wrap: break-word;
+        }
+        .card h2 { font-size: 1.2em; margin-bottom: 12px; color: #1a1a2e; }
+        .card .card-desc { font-size: 14px; color: #666; line-height: 1.5; }
+
+        .form-group { margin-bottom: 14px; }
+
+        label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: #555;
+            margin-bottom: 5px;
+        }
+
+        input[type="text"], input[type="number"], select, textarea {
+            width: 100%;
+            max-width: 100%;
+            padding: 12px 14px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            font-size: 15px;
+            font-family: inherit;
+            outline: none;
+            transition: border-color 0.2s;
+            background: white;
+            -webkit-appearance: none;
+            appearance: none;
+            box-sizing: border-box;
+        }
+
+        input:focus, select:focus, textarea:focus { border-color: #2c3e6b; }
+
+        .form-row { display: flex; gap: 12px; }
+        .form-row .form-group { flex: 1; min-width: 0; }
+        @media (max-width: 480px) {
+            .form-row { flex-direction: column; gap: 0; }
+        }
+
+        /* Filter row */
+        .filter-card { padding: 16px; }
+        .filter-search input { font-size: 14px; padding: 10px 12px; }
+        .filter-row {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+            flex-wrap: wrap;
+        }
+        .filter-row select {
+            font-size: 13px;
+            padding: 8px 10px;
+            flex: 1;
+            min-width: 120px;
+        }
+        .tag-filter-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 10px;
+        }
+        .tag-pill {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 14px;
+            border: 1px solid #c8d3e6;
+            background: #f0f4fb;
+            color: #1a3a7a;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            user-select: none;
+        }
+        .tag-pill.active { background: #2c3e6b; color: white; border-color: #2c3e6b; }
+
+        /* Bout cards */
+        .bout-card { padding: 18px 20px; }
+        .bout-header {
+            font-size: 15px;
+            font-weight: 700;
+            color: #1a1a2e;
+            line-height: 1.35;
+            margin-bottom: 4px;
+            word-wrap: break-word;
+        }
+        .bout-sub {
+            font-size: 12px;
+            color: #777;
+            margin-bottom: 8px;
+        }
+
+        .opponent-badge {
+            display: inline-block;
+            margin-right: 6px;
+            margin-top: 4px;
+            padding: 3px 9px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: 600;
+            text-decoration: none;
+            line-height: 1.4;
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #b6e0c2;
+        }
+        .opponent-badge:active { opacity: 0.7; }
+
+        .bout-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-top: 8px;
+        }
+        .bout-tag-pill {
+            background: #e8f0fe;
+            color: #1a3a7a;
+            padding: 2px 8px;
+            border-radius: 8px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .teaching-notes {
+            font-size: 13px;
+            color: #444;
+            line-height: 1.5;
+            margin-top: 10px;
+            background: #f9fafb;
+            border-radius: 10px;
+            padding: 10px 12px;
+            white-space: pre-wrap;
+        }
+        .teaching-notes.collapsed {
+            max-height: 4.5em;
+            overflow: hidden;
+            position: relative;
+        }
+        .teaching-notes.collapsed::after {
+            content: '';
+            position: absolute;
+            bottom: 0; left: 0; right: 0;
+            height: 1.5em;
+            background: linear-gradient(to bottom, rgba(249,250,251,0), rgba(249,250,251,1));
+        }
+        .show-more-link {
+            display: inline-block;
+            color: #2c3e6b;
+            font-size: 12px;
+            font-weight: 600;
+            background: none;
+            border: none;
+            padding: 4px 0;
+            cursor: pointer;
+            margin-top: 4px;
+        }
+
+        /* Clip stack */
+        .clip-stack {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-top: 12px;
+        }
+        .clip-row {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .clip-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: #f5f7fa;
+            border: 1px solid #d0d7de;
+            border-radius: 14px;
+            padding: 3px 4px 3px 10px;
+            font-size: 12px;
+            color: #2c3e6b;
+            align-self: flex-start;
+        }
+        .clip-chip-label { font-weight: 600; }
+        .clip-btn {
+            background: white;
+            border: 1px solid #d0d7de;
+            border-radius: 12px;
+            padding: 4px 10px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            color: #2c3e6b;
+            font-family: inherit;
+            min-height: 32px;
+        }
+        .clip-btn.watch { background: #2c3e6b; color: white; border-color: #2c3e6b; }
+        .clip-btn.delete {
+            color: #e74c3c;
+            border-color: #f3c7c2;
+            font-size: 14px;
+            min-width: 32px;
+        }
+        .clip-btn:active { opacity: 0.7; }
+        .clip-note {
+            font-size: 11px;
+            color: #777;
+            font-style: italic;
+            padding-left: 12px;
+        }
+        .clip-status {
+            font-size: 11px;
+            color: #4a7fd4;
+        }
+        .clip-status.error { color: #e74c3c; }
+        .add-clip-row {
+            margin-top: 4px;
+        }
+        .clip-input { display: none; }
+        .clip-input-label {
+            display: inline-block;
+            background: white;
+            border: 1px dashed #a8b4c8;
+            border-radius: 14px;
+            padding: 5px 12px;
+            font-size: 12px;
+            font-weight: 600;
+            color: #2c3e6b;
+            cursor: pointer;
+            min-height: 32px;
+            line-height: 22px;
+        }
+        .clip-input-label:active { opacity: 0.7; }
+
+        /* Bout actions */
+        .bout-actions {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 14px;
+            font-size: 12px;
+        }
+        .bout-actions button {
+            background: none;
+            border: none;
+            font-size: 13px;
+            cursor: pointer;
+            font-family: inherit;
+            color: #2c3e6b;
+            font-weight: 600;
+            padding: 6px 0;
+        }
+        .bout-actions .btn-delete-link { color: #c0392b; }
+
+        .empty-state {
+            text-align: center;
+            color: rgba(255,255,255,0.85);
+            padding: 30px 16px;
+            font-size: 15px;
+            line-height: 1.55;
+        }
+
+        /* FAB */
+        .fab {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: linear-gradient(135deg, #4a7fd4 0%, #1e3a7a 50%, #0f1f4a 100%);
+            color: white;
+            border: none;
+            border-radius: 28px;
+            padding: 14px 22px;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.35);
+            z-index: 50;
+            font-family: inherit;
+        }
+        .fab:active { opacity: 0.9; }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            display: none;
+            align-items: flex-end;
+            justify-content: center;
+        }
+        .modal-overlay.show { display: flex; }
+        .modal-content {
+            background: white;
+            border-radius: 20px 20px 0 0;
+            width: 100%;
+            max-width: 700px;
+            max-height: 92vh;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            animation: slideUp 0.3s ease-out;
+        }
+        @keyframes slideUp {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 20px;
+            border-bottom: 1px solid #eee;
+            position: sticky;
+            top: 0;
+            background: white;
+            border-radius: 20px 20px 0 0;
+            z-index: 10;
+        }
+        .modal-header h3 { font-size: 1.1em; color: #1a1a2e; }
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 28px;
+            cursor: pointer;
+            color: #999;
+            padding: 0 4px;
+            line-height: 1;
+            min-width: 32px;
+            min-height: 32px;
+        }
+        .modal-body { padding: 20px; }
+
+        .btn-primary {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #4a7fd4 0%, #1e3a7a 50%, #0f1f4a 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        .btn-primary:active { opacity: 0.9; }
+
+        .file-pick-row {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .file-pick-label {
+            display: inline-block;
+            background: white;
+            border: 2px dashed #a8b4c8;
+            border-radius: 12px;
+            padding: 14px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #2c3e6b;
+            cursor: pointer;
+            text-align: center;
+        }
+        .file-pick-label:active { opacity: 0.7; }
+        .file-pick-input { display: none; }
+        .file-pick-summary {
+            font-size: 12px;
+            color: #555;
+        }
+
+        .modal-status {
+            margin-top: 10px;
+            padding: 10px 12px;
+            border-radius: 10px;
+            font-size: 13px;
+            display: none;
+        }
+        .modal-status.show { display: block; }
+        .modal-status.info { background: #e8f0fe; color: #1a3a7a; }
+        .modal-status.error { background: #f8d7da; color: #721c24; }
+        .modal-status.success { background: #d4edda; color: #155724; }
+
+        /* Tag pills inside modal: same style as filter tags */
+        .modal-tag-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        /* Video modal */
+        .video-modal {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.92);
+            z-index: 1100;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+        }
+        .video-modal.open { display: flex; }
+        .video-modal video {
+            max-width: 100%;
+            max-height: 90vh;
+            border-radius: 12px;
+            background: black;
+        }
+        .video-modal-close {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.6);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            font-size: 22px;
+            cursor: pointer;
+            line-height: 1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Bout Library</h1>
+            <p>Scout other fencers' bouts</p>
+            <a href="/logout" class="sign-out">Sign out</a>
+        </div>
+
+        <a href="/" class="back-btn">&larr; Home</a>
+
+        <div class="card filter-card">
+            <h2>Filters</h2>
+            <div class="filter-search">
+                <input type="text" id="searchInput" placeholder="Search fencer name..." oninput="applyFilters()">
+            </div>
+            <div class="filter-row">
+                <select id="tournamentFilter" onchange="applyFilters()">
+                    <option value="">All tournaments</option>
+                    {% for t in tournaments %}
+                    <option value="{{ t.id }}" {% if filters.tournament_id == t.id %}selected{% endif %}>{{ t.name }}</option>
+                    {% endfor %}
+                </select>
+                <select id="opponentFilter" onchange="applyFilters()">
+                    <option value="">All opponents</option>
+                    {% for o in opponents %}
+                    <option value="{{ o.id }}" {% if filters.opponent_id == o.id %}selected{% endif %}>{{ o.canonical_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% set tag_options = ['height_mismatch', 'lefty_vs_righty', 'aggressive_vs_defensive', 'distance_fighter', 'counter_attacker', 'close_in_fighting'] %}
+            <div class="tag-filter-row" id="tagFilterRow">
+                {% for t in tag_options %}
+                <span class="tag-pill {% if filters.tag == t %}active{% endif %}" data-tag="{{ t }}" onclick="toggleTagFilter('{{ t }}')">{{ t.replace('_', ' ') }}</span>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div id="boutsContainer">
+        {% if not bouts %}
+            <div class="empty-state">
+                No scouted bouts yet. Tap "+ New Bout" to add one.
+            </div>
+        {% else %}
+            {% for bout in bouts %}
+            <div class="card bout-card" data-bout-id="{{ bout.id }}"
+                 data-fencer-a="{{ (bout.fencer_a_name or '') | lower }}"
+                 data-fencer-b="{{ (bout.fencer_b_name or '') | lower }}"
+                 data-tournament-id="{{ bout.tournament_id or '' }}"
+                 data-opponent-a-id="{{ bout.fencer_a_id or '' }}"
+                 data-opponent-b-id="{{ bout.fencer_b_id or '' }}"
+                 data-tags="{{ (bout.tags or []) | tojson }}">
+                <div class="bout-header">
+                    {{ bout.fencer_a_name }} vs {{ bout.fencer_b_name }}{% if bout.round_name %} — {{ bout.round_name }}{% endif %}{% if bout.score %} — {{ bout.score }}{% endif %}
+                </div>
+                <div class="bout-sub">
+                    {% if bout.tournament_name %}{{ bout.tournament_name }}{% else %}<span style="color:#aaa;">Tournament not tracked</span>{% endif %}
+                    {% if bout.created_at %} &middot; {{ bout.created_at }}{% endif %}
+                </div>
+                <div>
+                    {% if bout.fencer_a_id %}
+                    <a class="opponent-badge" href="/opponents/{{ bout.fencer_a_id }}/intel">✓ {{ bout.fencer_a_name }}</a>
+                    {% endif %}
+                    {% if bout.fencer_b_id %}
+                    <a class="opponent-badge" href="/opponents/{{ bout.fencer_b_id }}/intel">✓ {{ bout.fencer_b_name }}</a>
+                    {% endif %}
+                </div>
+                {% if bout.tags %}
+                <div class="bout-tags">
+                    {% for t in bout.tags %}
+                    <span class="bout-tag-pill">{{ t.replace('_', ' ') }}</span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                {% if bout.notes %}
+                <div class="teaching-notes" id="notes_{{ bout.id }}">{{ bout.notes }}</div>
+                <button class="show-more-link" id="moreLink_{{ bout.id }}" onclick="toggleNotes({{ bout.id }})" style="display:none;">Show more</button>
+                {% endif %}
+
+                <div class="clip-stack" id="clipStack_{{ bout.id }}">
+                    {% for v in bout.videos %}
+                    <div class="clip-row" data-video-id="{{ v.id }}">
+                        <span class="clip-chip">
+                            <span class="clip-chip-label">Clip {{ loop.index }}</span>
+                            <button type="button" class="clip-btn watch" onclick="watchScoutClip({{ v.id }})">Watch</button>
+                            <button type="button" class="clip-btn delete" onclick="deleteScoutClip({{ v.id }})" aria-label="Delete clip">🗑</button>
+                        </span>
+                        {% if v.clip_notes %}
+                        <span class="clip-note">{{ v.clip_notes }}</span>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                    <div class="add-clip-row">
+                        <input type="file" id="addClipInput_{{ bout.id }}" class="clip-input" accept="video/*" multiple onchange="uploadAdditionalClips({{ bout.id }}, this)">
+                        <label for="addClipInput_{{ bout.id }}" class="clip-input-label">+ Add Clip</label>
+                        <span class="clip-status" id="clipStatus_{{ bout.id }}"></span>
+                    </div>
+                </div>
+
+                <div class="bout-actions">
+                    <button onclick='openEditModal({{ bout | tojson }})'>✎ Edit</button>
+                    <button class="btn-delete-link" onclick="deleteBout({{ bout.id }})">Delete bout</button>
+                </div>
+            </div>
+            {% endfor %}
+        {% endif %}
+        </div>
+    </div>
+
+    <button class="fab" onclick="openNewBoutModal()" aria-label="New bout">+ New Bout</button>
+
+    <!-- Bout modal (used for new and edit) -->
+    <div class="modal-overlay" id="boutModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="boutModalTitle">New Bout</h3>
+                <button class="modal-close" onclick="closeBoutModal()" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="editBoutId" value="">
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="fencerAName">Fencer A</label>
+                        <input type="text" id="fencerAName" list="opponentNames" placeholder="LASTNAME Firstname">
+                    </div>
+                    <div class="form-group">
+                        <label for="fencerBName">Fencer B</label>
+                        <input type="text" id="fencerBName" list="opponentNames" placeholder="LASTNAME Firstname">
+                    </div>
+                </div>
+                <datalist id="opponentNames">
+                    {% for o in opponents %}
+                    <option value="{{ o.canonical_name }}"></option>
+                    {% endfor %}
+                </datalist>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="tournamentSelect">Tournament</label>
+                        <select id="tournamentSelect" onchange="onTournamentSelectChange()">
+                            <option value="">— Other / not tracked —</option>
+                            {% for t in tournaments %}
+                            <option value="{{ t.id }}">{{ t.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group" id="tournamentNameGroup">
+                        <label for="tournamentName">Tournament name (free text)</label>
+                        <input type="text" id="tournamentName" placeholder="e.g. Beta Fencing GP">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="roundSelect">Round</label>
+                        <select id="roundSelect">
+                            <option value="">—</option>
+                            <option value="Pool">Pool</option>
+                            <option value="Table of 64">Table of 64</option>
+                            <option value="Table of 32">Table of 32</option>
+                            <option value="Table of 16">Table of 16</option>
+                            <option value="Quarter-Finals">Quarter-Finals</option>
+                            <option value="Semi-Finals">Semi-Finals</option>
+                            <option value="Finals">Finals</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="boutScore">Score</label>
+                        <input type="text" id="boutScore" placeholder="e.g. 15-7">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="boutNotes">Teaching notes</label>
+                    <textarea id="boutNotes" rows="3" placeholder="What should Ethan notice?"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>Tags</label>
+                    <div class="modal-tag-row" id="modalTagRow">
+                        {% for t in tag_options %}
+                        <span class="tag-pill" data-tag="{{ t }}" onclick="toggleModalTag(this)">{{ t.replace('_', ' ') }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="form-group" id="filePickGroup">
+                    <label>Video clips</label>
+                    <div class="file-pick-row">
+                        <input type="file" id="newBoutFiles" class="file-pick-input" accept="video/*" multiple onchange="onFilesPicked()">
+                        <label for="newBoutFiles" class="file-pick-label" id="newBoutFilesLabel">Tap to choose video files</label>
+                        <span class="file-pick-summary" id="filePickSummary"></span>
+                    </div>
+                </div>
+
+                <button class="btn-primary" id="modalSubmitBtn" onclick="submitBoutModal()">Create &amp; Upload</button>
+                <div class="modal-status" id="modalStatus"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Video modal -->
+    <div class="video-modal" id="videoModal" onclick="closeVideoModal(event)">
+        <button class="video-modal-close" onclick="closeVideoModal()" aria-label="Close">&times;</button>
+        <video id="videoModalPlayer" controls playsinline></video>
+    </div>
+
+    <script>
+        function escapeHtml(s) {
+            if (s == null) return '';
+            return String(s).replace(/[&<>"']/g, c => ({
+                '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+            })[c]);
+        }
+
+        // ── Filters ────────────────────────────────────────────────────
+        let activeTagFilter = {{ (filters.tag or '') | tojson }};
+
+        function toggleTagFilter(tag) {
+            if (activeTagFilter === tag) {
+                activeTagFilter = '';
+            } else {
+                activeTagFilter = tag;
+            }
+            document.querySelectorAll('#tagFilterRow .tag-pill').forEach(function(p) {
+                if (p.dataset.tag === activeTagFilter) p.classList.add('active');
+                else p.classList.remove('active');
+            });
+            applyFilters();
+        }
+
+        function applyFilters() {
+            const search = (document.getElementById('searchInput').value || '').toLowerCase().trim();
+            const tournamentId = document.getElementById('tournamentFilter').value;
+            const opponentId = document.getElementById('opponentFilter').value;
+            const cards = document.querySelectorAll('.bout-card');
+            cards.forEach(function(card) {
+                const a = card.dataset.fencerA || '';
+                const b = card.dataset.fencerB || '';
+                const tags = JSON.parse(card.dataset.tags || '[]');
+                const tid = card.dataset.tournamentId || '';
+                const oa = card.dataset.opponentAId || '';
+                const ob = card.dataset.opponentBId || '';
+
+                let show = true;
+                if (search && !(a.indexOf(search) !== -1 || b.indexOf(search) !== -1)) {
+                    show = false;
+                }
+                if (show && tournamentId && tid !== tournamentId) show = false;
+                if (show && opponentId && oa !== opponentId && ob !== opponentId) show = false;
+                if (show && activeTagFilter && tags.indexOf(activeTagFilter) === -1) show = false;
+
+                card.style.display = show ? '' : 'none';
+            });
+        }
+
+        // ── Notes truncate ─────────────────────────────────────────────
+        function setupNotesTruncation() {
+            document.querySelectorAll('.teaching-notes').forEach(function(el) {
+                if (el.scrollHeight > el.clientHeight + 4) {
+                    el.classList.add('collapsed');
+                    const link = document.getElementById('moreLink_' + el.id.replace('notes_', ''));
+                    if (link) link.style.display = 'inline-block';
+                }
+            });
+        }
+
+        function toggleNotes(boutId) {
+            const el = document.getElementById('notes_' + boutId);
+            const link = document.getElementById('moreLink_' + boutId);
+            if (!el) return;
+            if (el.classList.contains('collapsed')) {
+                el.classList.remove('collapsed');
+                if (link) link.textContent = 'Show less';
+            } else {
+                el.classList.add('collapsed');
+                if (link) link.textContent = 'Show more';
+            }
+        }
+
+        // ── Wake lock for uploads (mirrors tournament_detail.html) ────
+        let scoutUploadsInFlight = 0;
+        let scoutUploadWakeLock = null;
+
+        async function acquireBoutUploadWakeLock() {
+            if (!('wakeLock' in navigator)) return;
+            try {
+                scoutUploadWakeLock = await navigator.wakeLock.request('screen');
+                scoutUploadWakeLock.addEventListener('release', function() { scoutUploadWakeLock = null; });
+            } catch (e) { /* denied/unsupported */ }
+        }
+        function releaseBoutUploadWakeLock() {
+            if (scoutUploadWakeLock) {
+                scoutUploadWakeLock.release().catch(function() {});
+                scoutUploadWakeLock = null;
+            }
+        }
+        document.addEventListener('visibilitychange', function() {
+            if (document.visibilityState === 'visible' && scoutUploadsInFlight > 0 && !scoutUploadWakeLock) {
+                acquireBoutUploadWakeLock();
+            }
+        });
+
+        // ── Modal handling ─────────────────────────────────────────────
+        const TAG_OPTIONS = {{ tag_options | tojson }};
+        let modalSelectedTags = [];
+        let pickedFiles = [];
+
+        function openNewBoutModal() {
+            document.getElementById('boutModalTitle').textContent = 'New Bout';
+            document.getElementById('editBoutId').value = '';
+            document.getElementById('fencerAName').value = '';
+            document.getElementById('fencerBName').value = '';
+            document.getElementById('tournamentSelect').value = '';
+            document.getElementById('tournamentName').value = '';
+            document.getElementById('roundSelect').value = '';
+            document.getElementById('boutScore').value = '';
+            document.getElementById('boutNotes').value = '';
+            modalSelectedTags = [];
+            updateModalTagPills();
+            pickedFiles = [];
+            document.getElementById('newBoutFiles').value = '';
+            document.getElementById('filePickSummary').textContent = '';
+            document.getElementById('modalSubmitBtn').textContent = 'Create & Upload';
+            document.getElementById('filePickGroup').style.display = '';
+            setModalStatus('', '');
+            onTournamentSelectChange();
+            document.getElementById('boutModal').classList.add('show');
+        }
+
+        function openEditModal(bout) {
+            document.getElementById('boutModalTitle').textContent = 'Edit Bout';
+            document.getElementById('editBoutId').value = bout.id;
+            document.getElementById('fencerAName').value = bout.fencer_a_name || '';
+            document.getElementById('fencerBName').value = bout.fencer_b_name || '';
+            document.getElementById('tournamentSelect').value = bout.tournament_id || '';
+            document.getElementById('tournamentName').value = bout.tournament_name || '';
+            document.getElementById('roundSelect').value = bout.round_name || '';
+            document.getElementById('boutScore').value = bout.score || '';
+            document.getElementById('boutNotes').value = bout.notes || '';
+            modalSelectedTags = (bout.tags || []).slice();
+            updateModalTagPills();
+            // Hide file picker for edit; user uses "+ Add Clip" on the card.
+            pickedFiles = [];
+            document.getElementById('newBoutFiles').value = '';
+            document.getElementById('filePickGroup').style.display = 'none';
+            document.getElementById('modalSubmitBtn').textContent = 'Save Changes';
+            setModalStatus('', '');
+            onTournamentSelectChange();
+            document.getElementById('boutModal').classList.add('show');
+        }
+
+        function closeBoutModal() {
+            document.getElementById('boutModal').classList.remove('show');
+        }
+
+        function onTournamentSelectChange() {
+            // If a known tournament is selected, hide the free-text field.
+            const tid = document.getElementById('tournamentSelect').value;
+            const grp = document.getElementById('tournamentNameGroup');
+            grp.style.display = tid ? 'none' : '';
+        }
+
+        function toggleModalTag(el) {
+            const tag = el.dataset.tag;
+            const idx = modalSelectedTags.indexOf(tag);
+            if (idx === -1) modalSelectedTags.push(tag);
+            else modalSelectedTags.splice(idx, 1);
+            updateModalTagPills();
+        }
+
+        function updateModalTagPills() {
+            document.querySelectorAll('#modalTagRow .tag-pill').forEach(function(p) {
+                if (modalSelectedTags.indexOf(p.dataset.tag) !== -1) p.classList.add('active');
+                else p.classList.remove('active');
+            });
+        }
+
+        function onFilesPicked() {
+            const inp = document.getElementById('newBoutFiles');
+            pickedFiles = Array.from(inp.files || []);
+            const summary = document.getElementById('filePickSummary');
+            const label = document.getElementById('newBoutFilesLabel');
+            if (pickedFiles.length === 0) {
+                summary.textContent = '';
+                label.textContent = 'Tap to choose video files';
+            } else {
+                summary.textContent = pickedFiles.length + ' file' + (pickedFiles.length === 1 ? '' : 's') + ' selected';
+                label.textContent = 'Change selection';
+            }
+        }
+
+        function setModalStatus(text, kind) {
+            const el = document.getElementById('modalStatus');
+            el.textContent = text || '';
+            el.className = 'modal-status' + (text ? ' show ' + (kind || 'info') : '');
+        }
+
+        async function submitBoutModal() {
+            const editId = document.getElementById('editBoutId').value;
+            const fencerA = document.getElementById('fencerAName').value.trim();
+            const fencerB = document.getElementById('fencerBName').value.trim();
+            if (!fencerA || !fencerB) {
+                setModalStatus('Both fencer names are required.', 'error');
+                return;
+            }
+            const tournamentSelectVal = document.getElementById('tournamentSelect').value;
+            const tournamentNameVal = document.getElementById('tournamentName').value.trim();
+            let tournamentId = null;
+            let tournamentName = null;
+            if (tournamentSelectVal) {
+                tournamentId = parseInt(tournamentSelectVal, 10);
+                // Use the dropdown's display label as the denormalized name.
+                tournamentName = document.getElementById('tournamentSelect').selectedOptions[0].text;
+            } else if (tournamentNameVal) {
+                tournamentName = tournamentNameVal;
+            }
+
+            const payload = {
+                fencer_a_name: fencerA,
+                fencer_b_name: fencerB,
+                tournament_id: tournamentId,
+                tournament_name: tournamentName,
+                round_name: document.getElementById('roundSelect').value || null,
+                score: document.getElementById('boutScore').value.trim() || null,
+                notes: document.getElementById('boutNotes').value || null,
+                tags: modalSelectedTags.slice(),
+            };
+
+            try {
+                let bout;
+                if (editId) {
+                    setModalStatus('Saving…', 'info');
+                    const resp = await fetch('/api/scout-bouts/' + editId, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload),
+                    });
+                    const data = await resp.json();
+                    if (!resp.ok || data.error) throw new Error(data.error || ('HTTP ' + resp.status));
+                    bout = data.bout;
+                } else {
+                    setModalStatus('Creating bout…', 'info');
+                    const resp = await fetch('/api/scout-bouts', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload),
+                    });
+                    const data = await resp.json();
+                    if (!resp.ok || data.error) throw new Error(data.error || ('HTTP ' + resp.status));
+                    bout = data.bout;
+
+                    // Upload files serially.
+                    if (pickedFiles.length > 0) {
+                        scoutUploadsInFlight += pickedFiles.length;
+                        if (scoutUploadsInFlight === pickedFiles.length) acquireBoutUploadWakeLock();
+                        for (let i = 0; i < pickedFiles.length; i++) {
+                            const f = pickedFiles[i];
+                            setModalStatus('Uploading ' + (i + 1) + ' of ' + pickedFiles.length + '…', 'info');
+                            const fd = new FormData();
+                            fd.append('files', f);
+                            try {
+                                const r = await fetch('/api/scout-bouts/' + bout.id + '/videos', {
+                                    method: 'POST',
+                                    body: fd,
+                                });
+                                const d = await r.json();
+                                if (!r.ok || d.error) throw new Error(d.error || ('HTTP ' + r.status));
+                            } catch (uerr) {
+                                setModalStatus('Upload error on ' + f.name + ': ' + uerr.message + '. Bout was created — you can add more clips from the card.', 'error');
+                                scoutUploadsInFlight -= (pickedFiles.length - i);
+                                if (scoutUploadsInFlight <= 0) {
+                                    scoutUploadsInFlight = 0;
+                                    releaseBoutUploadWakeLock();
+                                }
+                                return;
+                            }
+                            scoutUploadsInFlight--;
+                        }
+                        if (scoutUploadsInFlight <= 0) {
+                            scoutUploadsInFlight = 0;
+                            releaseBoutUploadWakeLock();
+                        }
+                    }
+                }
+                setModalStatus('Saved. Reloading…', 'success');
+                setTimeout(function() { window.location.reload(); }, 400);
+            } catch (e) {
+                setModalStatus('Error: ' + e.message, 'error');
+            }
+        }
+
+        // ── + Add Clip on existing bout cards ──────────────────────────
+        async function uploadAdditionalClips(boutId, input) {
+            const files = Array.from(input.files || []);
+            if (!files.length) return;
+            input.value = '';
+            const status = document.getElementById('clipStatus_' + boutId);
+            scoutUploadsInFlight += files.length;
+            if (scoutUploadsInFlight === files.length) acquireBoutUploadWakeLock();
+
+            for (let i = 0; i < files.length; i++) {
+                const f = files[i];
+                if (status) {
+                    status.className = 'clip-status';
+                    status.textContent = 'Uploading ' + (i + 1) + ' of ' + files.length + '…';
+                }
+                const fd = new FormData();
+                fd.append('files', f);
+                try {
+                    const r = await fetch('/api/scout-bouts/' + boutId + '/videos', {
+                        method: 'POST',
+                        body: fd,
+                    });
+                    const d = await r.json();
+                    if (!r.ok || d.error) throw new Error(d.error || ('HTTP ' + r.status));
+                    if (d.videos && d.videos.length) {
+                        d.videos.forEach(function(v) { addClipRow(boutId, v); });
+                    }
+                } catch (e) {
+                    if (status) {
+                        status.className = 'clip-status error';
+                        status.textContent = 'Error on ' + f.name + ': ' + e.message;
+                    }
+                }
+                scoutUploadsInFlight--;
+            }
+            if (scoutUploadsInFlight <= 0) {
+                scoutUploadsInFlight = 0;
+                releaseBoutUploadWakeLock();
+            }
+            if (status && !status.classList.contains('error')) {
+                status.textContent = '';
+            }
+        }
+
+        function addClipRow(boutId, video) {
+            const stack = document.getElementById('clipStack_' + boutId);
+            if (!stack) return;
+            const row = document.createElement('div');
+            row.className = 'clip-row';
+            row.dataset.videoId = video.id;
+            row.innerHTML = '<span class="clip-chip">'
+                + '<span class="clip-chip-label">Clip</span>'
+                + ' <button type="button" class="clip-btn watch" onclick="watchScoutClip(' + video.id + ')">Watch</button>'
+                + ' <button type="button" class="clip-btn delete" onclick="deleteScoutClip(' + video.id + ')" aria-label="Delete clip">🗑</button>'
+                + '</span>';
+            const addRow = stack.querySelector('.add-clip-row');
+            stack.insertBefore(row, addRow);
+            renumberClips(stack);
+        }
+
+        function renumberClips(stack) {
+            stack.querySelectorAll('.clip-row').forEach(function(row, i) {
+                const label = row.querySelector('.clip-chip-label');
+                if (label) label.textContent = 'Clip ' + (i + 1);
+            });
+        }
+
+        async function watchScoutClip(videoId) {
+            try {
+                const resp = await fetch('/api/scout-videos/' + videoId + '/playback');
+                const data = await resp.json();
+                if (!resp.ok || data.error) throw new Error(data.error || ('HTTP ' + resp.status));
+                openVideoModal(data.url);
+            } catch (e) {
+                alert('Error loading video: ' + e.message);
+            }
+        }
+
+        async function deleteScoutClip(videoId) {
+            if (!confirm('Delete this video clip?')) return;
+            try {
+                const resp = await fetch('/api/scout-videos/' + videoId + '/delete', { method: 'POST' });
+                const data = await resp.json();
+                if (!resp.ok || data.error) throw new Error(data.error || ('HTTP ' + resp.status));
+                const row = document.querySelector('.clip-row[data-video-id="' + videoId + '"]');
+                if (row) {
+                    const stack = row.parentElement;
+                    row.remove();
+                    if (stack) renumberClips(stack);
+                }
+            } catch (e) {
+                alert('Error deleting clip: ' + e.message);
+            }
+        }
+
+        async function deleteBout(boutId) {
+            if (!confirm('Delete this bout and all its clips?')) return;
+            try {
+                const resp = await fetch('/api/scout-bouts/' + boutId + '/delete', { method: 'POST' });
+                const data = await resp.json();
+                if (!resp.ok || data.error) throw new Error(data.error || ('HTTP ' + resp.status));
+                const card = document.querySelector('.bout-card[data-bout-id="' + boutId + '"]');
+                if (card) card.remove();
+            } catch (e) {
+                alert('Error: ' + e.message);
+            }
+        }
+
+        function openVideoModal(url) {
+            const modal = document.getElementById('videoModal');
+            const video = document.getElementById('videoModalPlayer');
+            video.src = url;
+            modal.classList.add('open');
+            try { video.play(); } catch (e) { /* autoplay blocked */ }
+        }
+
+        function closeVideoModal(e) {
+            if (e && e.target.tagName === 'VIDEO') return;
+            const modal = document.getElementById('videoModal');
+            const video = document.getElementById('videoModalPlayer');
+            video.pause();
+            video.removeAttribute('src');
+            video.load();
+            modal.classList.remove('open');
+        }
+
+        // Initial setup
+        setupNotesTruncation();
+    </script>
+</body>
+</html>

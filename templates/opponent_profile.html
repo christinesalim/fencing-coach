@@ -489,6 +489,42 @@
             <button class="btn-secondary" onclick="openBoutModal()" style="margin-top: 6px;">+ Add Historical Bout</button>
         </div>
 
+        <!-- Scouting Videos card -->
+        {% if scout_bouts %}
+        <div class="card">
+            <h2>Scouting Videos ({{ scout_bouts | length }})</h2>
+            {% for bout in scout_bouts %}
+                {% set other_name = (bout.fencer_b_name if bout.fencer_a_id == opponent.id else bout.fencer_a_name) %}
+                {% set other_id = (bout.fencer_b_id if bout.fencer_a_id == opponent.id else bout.fencer_a_id) %}
+                <div style="border-bottom: 1px solid #f0f0f0; padding: 10px 0;">
+                    <div style="font-size: 14px; color: #1a1a2e; font-weight: 600;">
+                        vs {{ other_name }}
+                        {% if bout.round_name %} — {{ bout.round_name }}{% endif %}
+                        {% if bout.tournament_name %} — {{ bout.tournament_name }}{% endif %}
+                    </div>
+                    <div style="font-size: 12px; color: #666; margin-top: 4px;">
+                        {{ bout.videos | length }} clip{{ '' if bout.videos | length == 1 else 's' }}
+                        {% if other_id %}
+                            &middot; <a href="/opponents/{{ other_id }}/intel" style="color:#2c3e6b; text-decoration:none; font-weight:600;">View {{ other_name }}'s intel</a>
+                        {% endif %}
+                    </div>
+                    <div style="margin-top: 8px; display:flex; gap:8px; flex-wrap:wrap;">
+                        {% if bout.videos %}
+                        <button type="button" class="small-btn" onclick="openScoutClip({{ bout.videos[0].id }})">▶ Watch first clip</button>
+                        {% endif %}
+                        <a class="small-btn" href="/bout-library?opponent_id={{ opponent.id }}" style="text-decoration:none; display:inline-block;">Open in library</a>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+
+        <!-- Video modal for scouting clips -->
+        <div id="scoutVideoModal" style="position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.92); z-index:1100; display:none; align-items:center; justify-content:center; padding:16px;">
+            <button onclick="closeScoutClip()" style="position:absolute; top:20px; right:20px; background:rgba(0,0,0,0.6); color:white; border:1px solid rgba(255,255,255,0.3); border-radius:50%; width:40px; height:40px; font-size:22px; cursor:pointer; line-height:1;">&times;</button>
+            <video id="scoutVideoPlayer" controls playsinline style="max-width:100%; max-height:90vh; border-radius:12px; background:black;"></video>
+        </div>
+        {% endif %}
+
         <!-- Tactical notes card -->
         <div class="card">
             <h2>Tactical Notes</h2>
@@ -896,6 +932,32 @@
                 if (data.error) throw new Error(data.error);
                 await refreshNotes();
             } catch (e) { alert('Error: ' + e.message); }
+        }
+
+        // ── Scout video clips ─────────────────────────────────────────
+        async function openScoutClip(videoId) {
+            try {
+                const resp = await fetch('/api/scout-videos/' + videoId + '/playback');
+                const data = await resp.json();
+                if (!resp.ok || data.error) throw new Error(data.error || ('HTTP ' + resp.status));
+                const modal = document.getElementById('scoutVideoModal');
+                const video = document.getElementById('scoutVideoPlayer');
+                if (!modal || !video) return;
+                video.src = data.url;
+                modal.style.display = 'flex';
+                try { video.play(); } catch (e) {}
+            } catch (e) {
+                alert('Error loading video: ' + e.message);
+            }
+        }
+        function closeScoutClip() {
+            const modal = document.getElementById('scoutVideoModal');
+            const video = document.getElementById('scoutVideoPlayer');
+            if (!modal || !video) return;
+            video.pause();
+            video.removeAttribute('src');
+            video.load();
+            modal.style.display = 'none';
         }
 
         // Initial render
