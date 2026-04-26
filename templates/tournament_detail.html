@@ -1354,7 +1354,7 @@
             {% endif %}
 
             <div style="text-align:center;margin-top:12px;">
-                <input type="file" id="tournamentPhoto" accept="image/*">
+                <input type="file" id="tournamentPhoto" accept="image/*" multiple>
                 <label for="tournamentPhoto" class="upload-btn">Add Photo</label>
                 <input type="text" id="photoCaption" placeholder="Caption (optional)" style="margin-top:8px;width:100%;max-width:300px;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;">
             </div>
@@ -2241,26 +2241,31 @@
         const photoInput = document.getElementById('tournamentPhoto');
         if (photoInput) {
             photoInput.addEventListener('change', async (e) => {
-                const file = e.target.files[0];
-                if (!file) return;
+                const files = Array.from(e.target.files);
+                if (!files.length) return;
 
                 const status = document.getElementById('photoUploadStatus');
                 status.className = 'status processing';
                 status.style.display = 'block';
-                status.textContent = 'Uploading photo...';
 
                 const caption = document.getElementById('photoCaption').value.trim();
-                const formData = new FormData();
-                formData.append('photo', file);
-                if (caption) formData.append('caption', caption);
+                let uploaded = 0;
 
                 try {
-                    const response = await fetch('/api/tournaments/' + tournamentId + '/photos', {
-                        method: 'POST',
-                        body: formData
-                    });
-                    const data = await response.json();
-                    if (data.error) throw new Error(data.error);
+                    for (const file of files) {
+                        status.textContent = 'Uploading photo ' + (uploaded + 1) + ' of ' + files.length + '...';
+                        const formData = new FormData();
+                        formData.append('photo', file);
+                        if (caption) formData.append('caption', caption);
+
+                        const response = await fetch('/api/tournaments/' + tournamentId + '/photos', {
+                            method: 'POST',
+                            body: formData
+                        });
+                        const data = await response.json();
+                        if (data.error) throw new Error(data.error);
+                        uploaded++;
+                    }
 
                     status.style.display = 'none';
                     document.getElementById('photoCaption').value = '';
@@ -2268,8 +2273,7 @@
                     location.reload();
                 } catch (error) {
                     status.className = 'status error';
-                    status.textContent = 'Error: ' + error.message;
-                }
+                    status.textContent = 'Error on photo ' + (uploaded + 1) + ': ' + error.message;
             });
         }
 
