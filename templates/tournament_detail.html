@@ -1387,7 +1387,8 @@
         function renderIntelBadge(intel) {
             if (!intel) return '';
             const name = (intel.opponent_name || '').trim();
-            if (!name) return '';
+            if (!name || name.toUpperCase() === 'BYE') return '';
+            if (intel.action === 'skipped') return '';
             if (intel.action === 'auto_link' && intel.opponent_id) {
                 return '<a href="/opponents/' + intel.opponent_id + '/intel" class="intel-badge known">✓ Known — view intel</a>';
             }

@@ -1223,11 +1223,10 @@ def upload_de_bracket():
         )
 
         our_fencer = (bracket_data or {}).get('our_fencer') or {}
-        path_bouts = [
-            b for b in (our_fencer.get('path') or [])
-            if (b.get('opponent_name') or '').upper() != 'BYE'
-        ]
-        opponent_intel = _build_preview_opponent_intel(path_bouts)
+        # Pass the full path (including BYE rows) so opponent_intel stays
+        # index-aligned with the bracket-review timeline rendered client-side.
+        # BYE rows return a 'skipped' intel entry inside the helper.
+        opponent_intel = _build_preview_opponent_intel(our_fencer.get('path') or [])
 
         return jsonify({
             'success': True,
@@ -1649,7 +1648,8 @@ def _build_preview_opponent_intel(bouts):
         opp = match.get('opponent') or {}
         opponent_name = bout.get('opponent_name')
         opponent_club = bout.get('opponent_club')
-        if not opponent_name or not str(opponent_name).strip():
+        opponent_name_clean = str(opponent_name or '').strip()
+        if not opponent_name_clean or opponent_name_clean.upper() == 'BYE':
             intel.append({
                 'opponent_name': opponent_name,
                 'opponent_club': opponent_club,

@@ -68,6 +68,8 @@ def _derive_final_placement(path, bracket_size):
 
     Lost in semi → '3T'. Lost in finals → '2nd'. Won finals → '1st'.
     Lost in earlier round → 'Top N' where N is the size of that round.
+    Won their last bout but no later round was extracted → 'Top N' for the next
+    round (we know they advanced but not the result there).
     """
     if not path:
         return 'Unknown' if not bracket_size else f'Top {bracket_size}'
@@ -78,9 +80,10 @@ def _derive_final_placement(path, bracket_size):
         return '1st' if result == 'won' else '2nd'
     if result == 'lost':
         return _placement_for_eliminated_in(last_round_size)
-    # Won the last bout shown but didn't reach finals — they advanced past it
-    if last_round_size and last_round_size > 2:
-        return _placement_for_eliminated_in(last_round_size // 2)
+    if result == 'won' and last_round_size and last_round_size > 2:
+        # They advanced to the next round but the result there isn't extracted.
+        # Don't claim "2nd" — they may have lost or won the Finals.
+        return f'Top {last_round_size // 2}'
     return 'Unknown'
 
 
@@ -194,12 +197,25 @@ BRACKET SIZE — IMPORTANT
 - Common values: 4, 8, 16, 32, 64, 128, 256. Whatever the header says.
 - DO NOT round up or guess — if the leftmost column says "Table of 16", return 16, not 32.
 
+HOW SCORES AND RESULTS ARE DISPLAYED — CRITICAL:
+- A bout fenced in column N has its SCORE shown in column N+1, NEXT TO THE WINNER'S NAME.
+- So a number like "15-6" appearing next to a name in column N+1 is the score of their column-N bout — the one that advanced them. It is NOT the score of any bout in column N+1.
+- The fencer whose name appears in column N+1 is the WINNER of the corresponding column-N bout.
+- The fencer whose name appears in column N but does NOT appear in column N+1 is the LOSER of that bout.
+
+DO NOT EXTRACT BOUTS FROM THE RIGHTMOST VISIBLE COLUMN:
+- If the rightmost visible column is, e.g., "Semi-Finals", you can see WHO is in the semi-finals (the names listed there), but you CANNOT see the semi-finals result — that result lives in the next column over (Finals), which is not visible in this screenshot.
+- If "{our_fencer_name}" appears in the rightmost visible column with a score next to them, that score is from their previous round (the column to the left), not this column. Record the previous round's bout, NOT a phantom rightmost-column bout.
+- The only exception is when the rightmost column shows a single "Champion" callout — then you can read the final winner. Otherwise, stop one column short.
+
 STEP BY STEP:
-1. Find "{our_fencer_name}" in the leftmost column (first round shown).
-2. Identify who they are paired with. That is their first opponent in this view.
-3. Read the score. Did our fencer win or lose?
-4. If they WON, follow the bracket line RIGHT to the next column. Find who they are now paired with — that is a DIFFERENT person, their next opponent.
-5. Repeat until they lose, the bracket ends, or no more rounds are visible.
+1. Find "{our_fencer_name}" in the leftmost column they appear in.
+2. For each column N (left to right) where they appear:
+   - Identify their bracket pair partner in column N.
+   - Look at column N+1: if our fencer's name appears there, they WON the column-N bout. The score next to them in column N+1 is the score of that bout.
+   - If the partner appears in column N+1 instead, our fencer LOST the column-N bout. The score next to the partner in column N+1 is the score of that bout (flip it: their score / our score).
+3. STOP at the rightmost visible column — do not invent a bout for that column.
+4. If our fencer's pair partner is "BYE", record `opponent_name: "BYE"`, scores null, result "won".
 
 ROUND NAMES — return them exactly as they appear in the column header:
 - "Table of 16", "Table of 8", "Semi-Finals", "Finals" (preserve the literal header text).
@@ -271,9 +287,20 @@ def _bout_has_score(bout):
 
 
 def _better_bout(existing, candidate):
-    """Pick the better of two bouts for the same round. Prefer non-null scores
-    and longer (more complete) opponent club strings."""
+    """Pick the better of two bouts for the same round.
+
+    Photo order matters: users typically upload the primary tableau first and the
+    semis/finals view second. The later photo is more authoritative for later
+    rounds (the earlier photo can confuse the column-N+1 advance score with a
+    column-N+1 result). So when two photos report different opponents for the
+    same round, the candidate (later photo) wins.
+    """
     if existing is None:
+        return candidate
+    e_name = (existing.get('opponent_name') or '').strip().upper()
+    c_name = (candidate.get('opponent_name') or '').strip().upper()
+    # Disagreement on who the opponent was → trust the later photo.
+    if e_name and c_name and e_name != c_name:
         return candidate
     # Prefer the entry with scores filled in
     if _bout_has_score(candidate) and not _bout_has_score(existing):
