@@ -801,6 +801,10 @@
             document.getElementById('modalSubmitBtn').textContent = 'Create & Upload';
             document.getElementById('filePickGroup').style.display = '';
             setModalStatus('', '');
+            const _btn = document.getElementById('modalSubmitBtn');
+            _btn.disabled = false;
+            _btn.style.opacity = '';
+            _btn.style.cursor = '';
             onTournamentSelectChange();
             document.getElementById('boutModal').classList.add('show');
         }
@@ -823,6 +827,10 @@
             document.getElementById('filePickGroup').style.display = 'none';
             document.getElementById('modalSubmitBtn').textContent = 'Save Changes';
             setModalStatus('', '');
+            const _btn = document.getElementById('modalSubmitBtn');
+            _btn.disabled = false;
+            _btn.style.opacity = '';
+            _btn.style.cursor = '';
             onTournamentSelectChange();
             document.getElementById('boutModal').classList.add('show');
         }
@@ -874,6 +882,9 @@
         }
 
         async function submitBoutModal() {
+            const submitBtn = document.getElementById('modalSubmitBtn');
+            if (submitBtn.disabled) return;  // guard against rapid double-taps
+
             const editId = document.getElementById('editBoutId').value;
             const fencerA = document.getElementById('fencerAName').value.trim();
             const fencerB = document.getElementById('fencerBName').value.trim();
@@ -881,6 +892,9 @@
                 setModalStatus('Both fencer names are required.', 'error');
                 return;
             }
+            submitBtn.disabled = true;
+            submitBtn.style.opacity = '0.6';
+            submitBtn.style.cursor = 'not-allowed';
             const tournamentSelectVal = document.getElementById('tournamentSelect').value;
             const tournamentNameVal = document.getElementById('tournamentName').value.trim();
             let tournamentId = null;
@@ -950,6 +964,9 @@
                                     scoutUploadsInFlight = 0;
                                     releaseBoutUploadWakeLock();
                                 }
+                                submitBtn.disabled = false;
+                                submitBtn.style.opacity = '';
+                                submitBtn.style.cursor = '';
                                 return;
                             }
                             scoutUploadsInFlight--;
@@ -964,6 +981,9 @@
                 setTimeout(function() { window.location.reload(); }, 400);
             } catch (e) {
                 setModalStatus('Error: ' + e.message, 'error');
+                submitBtn.disabled = false;
+                submitBtn.style.opacity = '';
+                submitBtn.style.cursor = '';
             }
         }
 
