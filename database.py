@@ -272,6 +272,39 @@ class BoutRecord(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class ScoutBout(Base):
+    """A scouted bout between other fencers (or one with Ethan) that we want
+    to study video of. Logical bout-level container for one or more clips."""
+    __tablename__ = 'scout_bouts'
+
+    id = Column(Integer, primary_key=True)
+    tournament_id = Column(Integer, index=True)        # nullable
+    tournament_name = Column(String(255))               # denormalized for display
+    round_name = Column(String(100))                    # "Finals", "Pool", etc.
+    fencer_a_name = Column(String(255), nullable=False)
+    fencer_a_id = Column(Integer, index=True)           # nullable FK to Opponent
+    fencer_b_name = Column(String(255), nullable=False)
+    fencer_b_id = Column(Integer, index=True)           # nullable FK to Opponent
+    score = Column(String(20))                          # e.g. "15-7" or null
+    notes = Column(Text)                                # bout-level teaching notes
+    tags = Column(Text)                                 # JSON array
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class ScoutVideo(Base):
+    """A single video clip attached to a ScoutBout."""
+    __tablename__ = 'scout_videos'
+
+    id = Column(Integer, primary_key=True)
+    scout_bout_id = Column(Integer, nullable=False, index=True)
+    r2_key = Column(String(500), nullable=False)
+    original_filename = Column(String(255))
+    clip_notes = Column(Text)                           # optional per-clip note
+    sort_order = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 # Database setup
 def get_database_url():
     """Get database URL from environment or use SQLite for local dev."""
@@ -2463,5 +2496,334 @@ def _touch_opponent_encounter(opponent_id, encounter_date):
     except Exception as e:
         db.rollback()
         print(f"[opponent-sync] touch_encounter failed for opponent {opponent_id}: {e}")
+    finally:
+        db.close()
+
+
+# ── Bout Library: ScoutBout / ScoutVideo helpers ───────────────────────
+
+def _scout_bout_to_dict(bout):
+    """Serialize a ScoutBout ORM row to a plain dict."""
+    return {
+        'id': bout.id,
+        'tournament_id': bout.tournament_id,
+        'tournament_name': bout.tournament_name,
+        'round_name': bout.round_name,
+        'fencer_a_name': bout.fencer_a_name,
+        'fencer_a_id': bout.fencer_a_id,
+        'fencer_b_name': bout.fencer_b_name,
+        'fencer_b_id': bout.fencer_b_id,
+        'score': bout.score,
+        'notes': bout.notes,
+        'tags': _parse_json_list(bout.tags),
+        'created_at': bout.created_at.strftime('%Y-%m-%d %H:%M') if bout.created_at else None,
+        'updated_at': bout.updated_at.strftime('%Y-%m-%d %H:%M') if bout.updated_at else None,
+    }
+
+
+def _scout_video_to_dict(video):
+    """Serialize a ScoutVideo ORM row to a plain dict."""
+    return {
+        'id': video.id,
+        'scout_bout_id': video.scout_bout_id,
+        'r2_key': video.r2_key,
+        'original_filename': video.original_filename,
+        'clip_notes': video.clip_notes,
+        'sort_order': video.sort_order if video.sort_order is not None else 0,
+        'created_at': video.created_at.strftime('%Y-%m-%d %H:%M') if video.created_at else None,
+    }
+
+
+def _auto_link_scout_bout_opponents(bout, opponents,
+                                    fencer_a_club=None, fencer_b_club=None):
+    """Run match_opponent on fencer_a_name and fencer_b_name; set _id only on
+    Tier 1/2 matches. Mutates the bout ORM row in place. Caller must commit.
+
+    Optional ``fencer_a_club`` / ``fencer_b_club`` strings act as match hints
+    (not persisted on the bout — the model has no club column).
+    """
+    # Fencer A
+    if bout.fencer_a_name and not bout.fencer_a_id:
+        try:
+            match = _match_opponent(bout.fencer_a_name, fencer_a_club, opponents)
+            tier = match.get('tier') if match else None
+            if tier in (1, 2) and (match.get('opponent') or None):
+                bout.fencer_a_id = match['opponent']['id']
+        except Exception as e:
+            print(f"[scout-bout] auto-link fencer_a failed: {e}")
+    # Fencer B
+    if bout.fencer_b_name and not bout.fencer_b_id:
+        try:
+            match = _match_opponent(bout.fencer_b_name, fencer_b_club, opponents)
+            tier = match.get('tier') if match else None
+            if tier in (1, 2) and (match.get('opponent') or None):
+                bout.fencer_b_id = match['opponent']['id']
+        except Exception as e:
+            print(f"[scout-bout] auto-link fencer_b failed: {e}")
+
+
+def create_scout_bout(data):
+    """Create a ScoutBout row, auto-link Tier 1/2 opponents, return dict.
+
+    Optional ``fencer_a_club`` / ``fencer_b_club`` keys in ``data`` act as
+    club hints for the matcher (they are not persisted on the bout).
+    """
+    db = get_db()
+    try:
+        opponents = [_opponent_to_dict(o) for o in db.query(Opponent).all()]
+
+        # Optional override: callers may pass fencer_a_id / fencer_b_id directly.
+        bout = ScoutBout(
+            tournament_id=data.get('tournament_id'),
+            tournament_name=data.get('tournament_name'),
+            round_name=data.get('round_name'),
+            fencer_a_name=data.get('fencer_a_name', ''),
+            fencer_a_id=data.get('fencer_a_id'),
+            fencer_b_name=data.get('fencer_b_name', ''),
+            fencer_b_id=data.get('fencer_b_id'),
+            score=data.get('score'),
+            notes=data.get('notes'),
+            tags=_serialize_json_list(data.get('tags')),
+        )
+
+        _auto_link_scout_bout_opponents(
+            bout, opponents,
+            fencer_a_club=data.get('fencer_a_club'),
+            fencer_b_club=data.get('fencer_b_club'),
+        )
+
+        db.add(bout)
+        db.commit()
+        return _scout_bout_to_dict(bout)
+    except Exception as e:
+        db.rollback()
+        raise e
+    finally:
+        db.close()
+
+
+def get_scout_bout(bout_id):
+    """Return the bout dict + ordered videos list, or None."""
+    db = get_db()
+    try:
+        bout = db.query(ScoutBout).filter_by(id=bout_id).first()
+        if not bout:
+            return None
+        videos = db.query(ScoutVideo).filter_by(
+            scout_bout_id=bout.id
+        ).order_by(ScoutVideo.sort_order, ScoutVideo.created_at).all()
+        result = _scout_bout_to_dict(bout)
+        result['videos'] = [_scout_video_to_dict(v) for v in videos]
+        return result
+    finally:
+        db.close()
+
+
+def get_scout_bouts(filters=None):
+    """List bouts (newest first), with optional filters dict.
+
+    Supports:
+      tournament_id : int
+      opponent_id   : int (matches fencer_a_id OR fencer_b_id)
+      tag           : str (substring match in JSON tags column)
+    """
+    filters = filters or {}
+    db = get_db()
+    try:
+        query = db.query(ScoutBout)
+        if filters.get('tournament_id') is not None:
+            try:
+                query = query.filter(ScoutBout.tournament_id == int(filters['tournament_id']))
+            except (TypeError, ValueError):
+                pass
+        if filters.get('opponent_id') is not None:
+            try:
+                opp_id = int(filters['opponent_id'])
+                query = query.filter(
+                    (ScoutBout.fencer_a_id == opp_id) | (ScoutBout.fencer_b_id == opp_id)
+                )
+            except (TypeError, ValueError):
+                pass
+        tag = filters.get('tag')
+        if tag:
+            # Substring match on the JSON tags column.
+            query = query.filter(ScoutBout.tags.like(f'%{tag}%'))
+
+        rows = query.order_by(ScoutBout.created_at.desc()).all()
+
+        # Attach videos for each bout (ordered).
+        results = []
+        for bout in rows:
+            d = _scout_bout_to_dict(bout)
+            videos = db.query(ScoutVideo).filter_by(
+                scout_bout_id=bout.id
+            ).order_by(ScoutVideo.sort_order, ScoutVideo.created_at).all()
+            d['videos'] = [_scout_video_to_dict(v) for v in videos]
+            results.append(d)
+        return results
+    finally:
+        db.close()
+
+
+def get_scout_bouts_for_opponent(opponent_id):
+    """Convenience: bouts where fencer_a_id or fencer_b_id matches."""
+    return get_scout_bouts({'opponent_id': opponent_id})
+
+
+def update_scout_bout(bout_id, data):
+    """Update any subset of bout fields; re-run auto-link if names changed."""
+    db = get_db()
+    try:
+        bout = db.query(ScoutBout).filter_by(id=bout_id).first()
+        if not bout:
+            return None
+
+        names_changed = False
+
+        if 'tournament_id' in data:
+            bout.tournament_id = data['tournament_id']
+        if 'tournament_name' in data:
+            bout.tournament_name = data['tournament_name']
+        if 'round_name' in data:
+            bout.round_name = data['round_name']
+        if 'fencer_a_name' in data:
+            new_name = data['fencer_a_name']
+            if new_name != bout.fencer_a_name:
+                names_changed = True
+                bout.fencer_a_name = new_name
+                bout.fencer_a_id = data.get('fencer_a_id')  # caller may override
+        elif 'fencer_a_id' in data:
+            bout.fencer_a_id = data['fencer_a_id']
+        if 'fencer_b_name' in data:
+            new_name = data['fencer_b_name']
+            if new_name != bout.fencer_b_name:
+                names_changed = True
+                bout.fencer_b_name = new_name
+                bout.fencer_b_id = data.get('fencer_b_id')
+        elif 'fencer_b_id' in data:
+            bout.fencer_b_id = data['fencer_b_id']
+        if 'score' in data:
+            bout.score = data['score']
+        if 'notes' in data:
+            bout.notes = data['notes']
+        if 'tags' in data:
+            bout.tags = _serialize_json_list(data['tags'])
+
+        if names_changed:
+            opponents = [_opponent_to_dict(o) for o in db.query(Opponent).all()]
+            _auto_link_scout_bout_opponents(
+                bout, opponents,
+                fencer_a_club=data.get('fencer_a_club'),
+                fencer_b_club=data.get('fencer_b_club'),
+            )
+
+        db.commit()
+        return _scout_bout_to_dict(bout)
+    except Exception as e:
+        db.rollback()
+        raise e
+    finally:
+        db.close()
+
+
+def delete_scout_bout(bout_id):
+    """Delete a scout bout AND its videos. Returns list of r2_keys (or None
+    if the bout did not exist)."""
+    db = get_db()
+    try:
+        bout = db.query(ScoutBout).filter_by(id=bout_id).first()
+        if not bout:
+            return None
+        videos = db.query(ScoutVideo).filter_by(scout_bout_id=bout.id).all()
+        r2_keys = [v.r2_key for v in videos]
+        for v in videos:
+            db.delete(v)
+        db.delete(bout)
+        db.commit()
+        return r2_keys
+    except Exception as e:
+        db.rollback()
+        raise e
+    finally:
+        db.close()
+
+
+def add_scout_video(scout_bout_id, r2_key, original_filename=None,
+                    clip_notes=None, sort_order=None):
+    """Append a clip to a scout bout. Returns the clip dict."""
+    db = get_db()
+    try:
+        if sort_order is None:
+            existing = db.query(ScoutVideo).filter_by(
+                scout_bout_id=scout_bout_id
+            ).all()
+            if existing:
+                sort_order = max((v.sort_order or 0) for v in existing) + 1
+            else:
+                sort_order = 0
+
+        video = ScoutVideo(
+            scout_bout_id=scout_bout_id,
+            r2_key=r2_key,
+            original_filename=original_filename,
+            clip_notes=clip_notes,
+            sort_order=sort_order,
+        )
+        db.add(video)
+        db.commit()
+        return _scout_video_to_dict(video)
+    except Exception as e:
+        db.rollback()
+        raise e
+    finally:
+        db.close()
+
+
+def get_scout_video(video_id):
+    """Return the clip dict, or None."""
+    db = get_db()
+    try:
+        v = db.query(ScoutVideo).filter_by(id=video_id).first()
+        if not v:
+            return None
+        return _scout_video_to_dict(v)
+    finally:
+        db.close()
+
+
+def delete_scout_video(video_id):
+    """Delete the clip; return its r2_key (or None if missing)."""
+    db = get_db()
+    try:
+        v = db.query(ScoutVideo).filter_by(id=video_id).first()
+        if not v:
+            return None
+        r2_key = v.r2_key
+        db.delete(v)
+        db.commit()
+        return r2_key
+    except Exception as e:
+        db.rollback()
+        raise e
+    finally:
+        db.close()
+
+
+def update_scout_video(video_id, data):
+    """Update clip_notes or sort_order on a clip. Returns dict or None."""
+    db = get_db()
+    try:
+        v = db.query(ScoutVideo).filter_by(id=video_id).first()
+        if not v:
+            return None
+        if 'clip_notes' in data:
+            v.clip_notes = data['clip_notes']
+        if 'sort_order' in data:
+            v.sort_order = data['sort_order']
+        db.commit()
+        return _scout_video_to_dict(v)
+    except Exception as e:
+        db.rollback()
+        raise e
     finally:
         db.close()
