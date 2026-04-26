@@ -1347,7 +1347,7 @@
                     {% if photo.caption %}
                     <div class="photo-caption">{{ photo.caption }}</div>
                     {% endif %}
-                    <button class="photo-delete" onclick="if(confirm('Delete this photo?')) deletePhoto({{ photo.id }})" aria-label="Delete photo">&times;</button>
+                    <button class="photo-delete" onclick="deletePhoto({{ photo.id }})" aria-label="Delete photo">&times;</button>
                 </div>
                 {% endfor %}
             </div>
@@ -2296,14 +2296,18 @@
         }
 
         function deletePhoto(photoId) {
+            if (!confirm('Delete this photo?')) return;
             fetch('/api/tournament-photos/' + photoId + '/delete', { method: 'POST' })
                 .then(r => r.json())
                 .then(data => {
                     if (data.success) {
                         const item = document.getElementById('photoItem' + photoId);
                         if (item) item.remove();
+                    } else {
+                        alert('Error: ' + (data.error || 'Could not delete'));
                     }
-                });
+                })
+                .catch(err => alert('Error: ' + err.message));
         }
     </script>
 
