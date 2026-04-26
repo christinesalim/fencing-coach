@@ -497,6 +497,53 @@
             margin-top: 8px;
         }
 
+        /* Tournament Photos */
+        .photo-gallery {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .photo-item {
+            position: relative;
+            border-radius: 10px;
+            overflow: hidden;
+            background: #f5f7fa;
+        }
+
+        .photo-thumb {
+            width: 100%;
+            aspect-ratio: 1;
+            object-fit: cover;
+            cursor: pointer;
+            display: block;
+        }
+
+        .photo-caption {
+            font-size: 11px;
+            color: #555;
+            padding: 4px 8px 6px;
+            text-align: center;
+        }
+
+        .photo-delete {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            background: rgba(0,0,0,0.5);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            font-size: 16px;
+            line-height: 24px;
+            text-align: center;
+            cursor: pointer;
+            padding: 0;
+        }
+
         /* DE Performance Summary */
         .summary-section {
             margin-bottom: 16px;
@@ -1286,6 +1333,32 @@
                 <button class="btn-secondary" onclick="cancelFinalResultsPreview()">Cancel</button>
                 <div class="status" id="finalResultsConfirmStatus"></div>
             </div>
+        </div>
+
+        <!-- Photos Section -->
+        <div class="card">
+            <h2>Photos</h2>
+
+            {% if photos %}
+            <div class="photo-gallery" id="photoGallery">
+                {% for photo in photos %}
+                <div class="photo-item" id="photoItem{{ photo.id }}">
+                    <img class="photo-thumb" id="photoImg{{ photo.id }}" alt="{{ photo.caption or 'Tournament photo' }}" onclick="viewPhoto({{ photo.id }})">
+                    {% if photo.caption %}
+                    <div class="photo-caption">{{ photo.caption }}</div>
+                    {% endif %}
+                    <button class="photo-delete" onclick="if(confirm('Delete this photo?')) deletePhoto({{ photo.id }})" aria-label="Delete photo">&times;</button>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <div style="text-align:center;margin-top:12px;">
+                <input type="file" id="tournamentPhoto" accept="image/*">
+                <label for="tournamentPhoto" class="upload-btn">Add Photo</label>
+                <input type="text" id="photoCaption" placeholder="Caption (optional)" style="margin-top:8px;width:100%;max-width:300px;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:14px;box-sizing:border-box;">
+            </div>
+            <div class="status" id="photoUploadStatus"></div>
         </div>
 
         <!-- Tournament Info (editable) -->
@@ -2148,6 +2221,75 @@
                 if (footer) footer.innerHTML = prevText;
                 alert('Error regenerating summary: ' + error.message);
             }
+        }
+
+        // --- Tournament Photos ---
+
+        // Load photo thumbnails via presigned URLs
+        {% if photos %}
+        (function() {
+            {% for photo in photos %}
+            fetch('/api/tournament-photos/{{ photo.id }}/playback')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.url) document.getElementById('photoImg{{ photo.id }}').src = data.url;
+                });
+            {% endfor %}
+        })();
+        {% endif %}
+
+        const photoInput = document.getElementById('tournamentPhoto');
+        if (photoInput) {
+            photoInput.addEventListener('change', async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const status = document.getElementById('photoUploadStatus');
+                status.className = 'status processing';
+                status.style.display = 'block';
+                status.textContent = 'Uploading photo...';
+
+                const caption = document.getElementById('photoCaption').value.trim();
+                const formData = new FormData();
+                formData.append('photo', file);
+                if (caption) formData.append('caption', caption);
+
+                try {
+                    const response = await fetch('/api/tournaments/' + tournamentId + '/photos', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const data = await response.json();
+                    if (data.error) throw new Error(data.error);
+
+                    status.style.display = 'none';
+                    document.getElementById('photoCaption').value = '';
+                    photoInput.value = '';
+                    location.reload();
+                } catch (error) {
+                    status.className = 'status error';
+                    status.textContent = 'Error: ' + error.message;
+                }
+            });
+        }
+
+        function viewPhoto(photoId) {
+            fetch('/api/tournament-photos/' + photoId + '/playback')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.url) window.open(data.url, '_blank');
+                });
+        }
+
+        function deletePhoto(photoId) {
+            fetch('/api/tournament-photos/' + photoId + '/delete', { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        const item = document.getElementById('photoItem' + photoId);
+                        if (item) item.remove();
+                    }
+                });
         }
     </script>
 

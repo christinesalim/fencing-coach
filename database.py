@@ -201,6 +201,17 @@ class BoutVideo(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class TournamentPhoto(Base):
+    """Photo attached to a tournament (podium, venue, etc.)."""
+    __tablename__ = 'tournament_photos'
+
+    id = Column(Integer, primary_key=True)
+    tournament_id = Column(Integer, nullable=False, index=True)
+    r2_key = Column(String(500), nullable=False)
+    caption = Column(String(255))
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class Opponent(Base):
     """Represents a known fencing opponent with traits and encounter history."""
     __tablename__ = 'opponents'
@@ -810,6 +821,12 @@ def delete_tournament(tournament_id):
 
         # Phase 5: wipe any tournament-wide narrative summary too.
         db.query(TournamentSummary).filter_by(tournament_id=tournament_id).delete()
+
+        # Delete tournament photos
+        photos = db.query(TournamentPhoto).filter_by(tournament_id=tournament_id).all()
+        r2_keys_to_delete.extend(p.r2_key for p in photos)
+        for p in photos:
+            db.delete(p)
 
         t = db.query(Tournament).filter_by(id=tournament_id).first()
         if t:
@@ -1671,6 +1688,55 @@ def delete_bout_video(video_id):
             return None
         r2_key = v.r2_key
         db.delete(v)
+        db.commit()
+        return r2_key
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
+# ── Tournament Photo helper functions ────────────────────────────────
+
+def save_tournament_photo(tournament_id, r2_key, caption=None):
+    db = get_db()
+    try:
+        photo = TournamentPhoto(
+            tournament_id=tournament_id,
+            r2_key=r2_key,
+            caption=caption
+        )
+        db.add(photo)
+        db.commit()
+        return {'id': photo.id, 'r2_key': r2_key, 'caption': caption}
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
+def get_tournament_photos(tournament_id):
+    db = get_db()
+    try:
+        photos = db.query(TournamentPhoto).filter_by(
+            tournament_id=tournament_id
+        ).order_by(TournamentPhoto.created_at).all()
+        return [{'id': p.id, 'r2_key': p.r2_key, 'caption': p.caption} for p in photos]
+    finally:
+        db.close()
+
+
+def delete_tournament_photo(photo_id):
+    """Delete photo row; return r2_key for R2 cleanup, or None."""
+    db = get_db()
+    try:
+        p = db.query(TournamentPhoto).filter_by(id=photo_id).first()
+        if not p:
+            return None
+        r2_key = p.r2_key
+        db.delete(p)
         db.commit()
         return r2_key
     except Exception:

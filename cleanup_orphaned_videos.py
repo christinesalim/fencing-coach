@@ -8,7 +8,7 @@ Run on Render shell:
 import os
 import sys
 import boto3
-from database import get_db, BoutVideo, Lesson
+from database import get_db, BoutVideo, Lesson, TournamentPhoto
 
 def main():
     delete = '--delete' in sys.argv
@@ -35,11 +35,12 @@ def main():
     try:
         bout_video_keys = {v.r2_key for v in db.query(BoutVideo).all()}
         lesson_keys = {l.r2_object_key for l in db.query(Lesson).all() if l.r2_object_key}
+        photo_keys = {p.r2_key for p in db.query(TournamentPhoto).all()}
     finally:
         db.close()
 
-    db_keys = bout_video_keys | lesson_keys
-    print(f"DB references: {len(bout_video_keys)} bout videos + {len(lesson_keys)} lessons = {len(db_keys)} total")
+    db_keys = bout_video_keys | lesson_keys | photo_keys
+    print(f"DB references: {len(bout_video_keys)} bout videos + {len(lesson_keys)} lessons + {len(photo_keys)} photos = {len(db_keys)} total")
 
     # Find orphans
     orphans = r2_keys - db_keys

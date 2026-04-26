@@ -51,6 +51,9 @@ from database import (
     add_bout_video,
     get_bout_video,
     delete_bout_video,
+    save_tournament_photo,
+    get_tournament_photos,
+    delete_tournament_photo,
     create_opponent,
     get_opponent,
     update_opponent,
@@ -876,7 +879,8 @@ def tournament_detail_page(tournament_id):
     de_tips = get_de_prep_tips(tournament_id)
     de_results = get_de_results(tournament_id)
     de_summary = get_de_summary(tournament_id)
-    return render_template('tournament_detail.html', tournament=tournament, pool_data=pool_data, de_tips=de_tips, de_results=de_results, de_summary=de_summary)
+    photos = get_tournament_photos(tournament_id)
+    return render_template('tournament_detail.html', tournament=tournament, pool_data=pool_data, de_tips=de_tips, de_results=de_results, de_summary=de_summary, photos=photos)
 
 
 @app.route('/api/tournaments', methods=['POST'])
@@ -922,6 +926,75 @@ def api_update_tournament(tournament_id):
         return jsonify({'success': True, 'tournament': tournament})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/tournaments/<int:tournament_id>/photos', methods=['POST'])
+@login_required
+def api_upload_tournament_photo(tournament_id):
+    """Upload a photo to a tournament."""
+    if 'photo' not in request.files:
+        return jsonify({'error': 'No photo uploaded'}), 400
+
+    file = request.files['photo']
+    if file.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
+
+    caption = request.form.get('caption', '').strip() or None
+    filename = secure_filename(file.filename)
+    filepath = app.config['UPLOAD_FOLDER'] / f"photo_{uuid.uuid4().hex[:8]}_{filename}"
+    file.save(filepath)
+
+    try:
+        file_ext = Path(filename).suffix.lower()
+        r2_key = f"tournament-photos/{tournament_id}/{uuid.uuid4()}{file_ext}"
+        bucket = os.environ.get('R2_BUCKET_NAME', 'fencing-lessons')
+        get_r2_client().upload_file(str(filepath), bucket, r2_key)
+
+        result = save_tournament_photo(tournament_id, r2_key, caption)
+        return jsonify({'success': True, 'photo': result})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if filepath.exists():
+            filepath.unlink()
+
+
+@app.route('/api/tournament-photos/<int:photo_id>/playback', methods=['GET'])
+@login_required
+def api_get_tournament_photo_url(photo_id):
+    """Get presigned R2 URL for a tournament photo."""
+    from database import get_db, TournamentPhoto
+    db = get_db()
+    try:
+        photo = db.query(TournamentPhoto).filter_by(id=photo_id).first()
+        if not photo:
+            return jsonify({'error': 'Photo not found'}), 404
+        url = get_r2_client().generate_presigned_url(
+            'get_object',
+            Params={
+                'Bucket': os.environ.get('R2_BUCKET_NAME', 'fencing-lessons'),
+                'Key': photo.r2_key,
+            },
+            ExpiresIn=3600
+        )
+        return jsonify({'url': url})
+    finally:
+        db.close()
+
+
+@app.route('/api/tournament-photos/<int:photo_id>/delete', methods=['POST'])
+@login_required
+def api_delete_tournament_photo(photo_id):
+    """Delete a tournament photo from DB and R2."""
+    r2_key = delete_tournament_photo(photo_id)
+    if r2_key is None:
+        return jsonify({'error': 'Photo not found'}), 404
+    try:
+        bucket = os.environ.get('R2_BUCKET_NAME', 'fencing-lessons')
+        get_r2_client().delete_object(Bucket=bucket, Key=r2_key)
+    except Exception:
+        pass
+    return jsonify({'success': True})
 
 
 @app.route('/api/tournaments/<int:tournament_id>/delete', methods=['POST'])
