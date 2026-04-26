@@ -2297,19 +2297,19 @@
                 });
         }
 
-        function deletePhoto(photoId) {
-            if (!confirm('Delete this photo?')) return;
-            fetch('/api/tournament-photos/' + photoId + '/delete', { method: 'POST' })
-                .then(r => r.json())
-                .then(data => {
-                    if (data.success) {
-                        const item = document.getElementById('photoItem' + photoId);
-                        if (item) item.remove();
-                    } else {
-                        alert('Error: ' + (data.error || 'Could not delete'));
-                    }
-                })
-                .catch(err => alert('Error: ' + err.message));
+        async function deletePhoto(photoId) {
+            try {
+                const resp = await fetch('/api/tournament-photos/' + photoId + '/delete', { method: 'POST' });
+                const data = await resp.json();
+                if (data.success) {
+                    const item = document.getElementById('photoItem' + photoId);
+                    if (item) item.remove();
+                } else {
+                    alert('Delete failed: ' + (data.error || 'unknown error'));
+                }
+            } catch (err) {
+                alert('Delete failed: ' + err.message);
+            }
         }
     </script>
 
