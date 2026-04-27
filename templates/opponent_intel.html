@@ -459,7 +459,7 @@
         <script>
             async function playBoutVideo(videoId) {
                 try {
-                    const resp = await fetch('/api/bout-videos/' + videoId + '/playback');
+                    const resp = await fetch('/api/bout-videos/' + videoId + '');
                     const data = await resp.json();
                     if (!resp.ok || data.error) throw new Error(data.error || ('HTTP ' + resp.status));
                     const modal = document.getElementById('scoutVideoModal');
