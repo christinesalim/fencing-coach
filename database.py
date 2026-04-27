@@ -993,16 +993,22 @@ def save_pool_results_to_db(tournament_id, pool_data):
     # runs outside the main transaction so sync failures can't roll back the
     # bout data that's already safely persisted.
     tournament_context = _build_tournament_context(tournament_id)
+    confirm_decisions = pool_data.get('_confirm_decisions') or {}
     opponent_intel = []
     for bout, pool_bout_id in saved_bouts:
+        opponent_name = bout.get('opponent_name') or ''
+        # Check if user confirmed/rejected a Tier 3/4 match
+        decision = confirm_decisions.get(opponent_name.strip())
         sync_data = {
-            'opponent_name': bout.get('opponent_name'),
+            'opponent_name': opponent_name,
             'opponent_club': bout.get('opponent_club'),
             'score_for': bout.get('score_for'),
             'score_against': bout.get('score_against'),
             'result': bout.get('result'),
             'pool_bout_id': pool_bout_id,
         }
+        if decision and decision.get('action') == 'link' and decision.get('opponent_id'):
+            sync_data['force_opponent_id'] = decision['opponent_id']
         summary = sync_bout_to_opponent('pool', sync_data, tournament_context)
         opponent_intel.append(_sync_summary_to_intel(bout, summary))
 
@@ -1399,16 +1405,21 @@ def save_de_results_to_db(tournament_id, bracket_data):
 
     # After the elimination rounds are committed, sync each to an Opponent.
     tournament_context = _build_tournament_context(tournament_id)
+    confirm_decisions = bracket_data.get('_confirm_decisions') or {}
     opponent_intel = []
     for bout, elim_id in saved_rounds:
+        opponent_name = bout.get('opponent_name') or ''
+        decision = confirm_decisions.get(opponent_name.strip())
         sync_data = {
-            'opponent_name': bout.get('opponent_name'),
+            'opponent_name': opponent_name,
             'opponent_club': bout.get('opponent_club'),
             'score_for': bout.get('score_for'),
             'score_against': bout.get('score_against'),
             'result': bout.get('result'),
             'elimination_round_id': elim_id,
         }
+        if decision and decision.get('action') == 'link' and decision.get('opponent_id'):
+            sync_data['force_opponent_id'] = decision['opponent_id']
         summary = sync_bout_to_opponent('elim', sync_data, tournament_context)
         opponent_intel.append(_sync_summary_to_intel(bout, summary))
 
@@ -2528,14 +2539,19 @@ def sync_bout_to_opponent(bout_kind, bout_data, tournament_context):
         opponent_id = None
         action = None
 
-        if tier in (1, 2) and match.get('opponent'):
+        # If the user confirmed a Tier 3/4 match, use that directly
+        force_id = (bout_data or {}).get('force_opponent_id')
+        if force_id:
+            opponent_id = int(force_id)
+            _touch_opponent_encounter(opponent_id, parsed_date)
+            action = 'auto_link'
+        elif tier in (1, 2) and match.get('opponent'):
             # Auto-link to the matched opponent; bump encounter dates.
             opponent_id = match['opponent']['id']
             _touch_opponent_encounter(opponent_id, parsed_date)
             action = 'auto_link'
         else:
-            # Tier 3, 4, or None — create a silent stub. A later phase will
-            # add a "confirm fuzzy match" UI for Tier 3/4.
+            # No match or unconfirmed Tier 3/4 — create a stub.
             stub = create_opponent({
                 'canonical_name': opponent_name,
                 'club': opponent_club or None,

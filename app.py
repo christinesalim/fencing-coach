@@ -1088,9 +1088,14 @@ def confirm_pool_results():
     data = request.get_json()
     tournament_id = data.get('tournament_id')
     pool_data = data.get('pool_data')
+    confirm_decisions = data.get('confirm_decisions') or {}
 
     if not all([tournament_id, pool_data]):
         return jsonify({'error': 'Missing required fields'}), 400
+
+    # Attach user's confirm/reject decisions to pool_data so sync can use them
+    if confirm_decisions:
+        pool_data['_confirm_decisions'] = confirm_decisions
 
     try:
         result = save_pool_results_to_db(tournament_id, pool_data)
@@ -1348,9 +1353,13 @@ def confirm_de_results():
     data = request.get_json()
     tournament_id = data.get('tournament_id')
     bracket_data = data.get('bracket_data')
+    confirm_decisions = data.get('confirm_decisions') or {}
 
     if not all([tournament_id, bracket_data]):
         return jsonify({'error': 'Missing required fields'}), 400
+
+    if confirm_decisions:
+        bracket_data['_confirm_decisions'] = confirm_decisions
 
     try:
         result = save_de_results_to_db(tournament_id, bracket_data) or {}
@@ -1771,16 +1780,29 @@ def _build_preview_opponent_intel(bouts):
                 'name_score': int(match.get('name_score') or 0),
                 'club_score': int(match.get('club_score') or 0),
             })
+        elif tier in (3, 4) and opp.get('id'):
+            intel.append({
+                'opponent_name': opponent_name,
+                'opponent_club': opponent_club,
+                'action': 'confirm',
+                'tier': tier,
+                'opponent_id': opp.get('id'),
+                'matched_name': opp.get('canonical_name'),
+                'matched_club': opp.get('club'),
+                'known': False,
+                'name_score': int(match.get('name_score') or 0),
+                'club_score': int(match.get('club_score') or 0),
+            })
         else:
             intel.append({
                 'opponent_name': opponent_name,
                 'opponent_club': opponent_club,
                 'action': 'skipped',
                 'tier': tier,
-                'opponent_id': opp.get('id'),
+                'opponent_id': None,
                 'known': False,
-                'name_score': int(match.get('name_score') or 0),
-                'club_score': int(match.get('club_score') or 0),
+                'name_score': 0,
+                'club_score': 0,
             })
     return intel
 

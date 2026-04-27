@@ -273,6 +273,17 @@
         .intel-badge.new {
             background: #f1f3f5; color: #495057; border-color: #dee2e6;
         }
+        .confirm-btn {
+            border: none;
+            border-radius: 4px;
+            padding: 2px 8px;
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+            margin-left: 4px;
+        }
+        .confirm-btn.yes { background: #28a745; color: white; }
+        .confirm-btn.no { background: #dc3545; color: white; }
 
         .status {
             padding: 12px;
@@ -1461,22 +1472,64 @@
             });
         }
 
-        function renderIntelBadge(intel) {
+        function escapeHtml(s) {
+            const div = document.createElement('div');
+            div.textContent = s || '';
+            return div.innerHTML;
+        }
+
+        // Track user's confirm/reject decisions for Tier 3/4 matches
+        const confirmDecisions = {};  // opponent_name -> {action: 'link'|'new', opponent_id: N}
+
+        function renderIntelBadge(intel, boutIndex) {
             if (!intel) return '';
             const name = (intel.opponent_name || '').trim();
             if (!name || name.toUpperCase() === 'BYE') return '';
-            if (intel.action === 'skipped') return '';
+            if (intel.action === 'skipped') return '<span class="intel-badge new">+ New opponent</span>';
             if (intel.action === 'auto_link' && intel.opponent_id) {
                 return '<a href="/opponents/' + intel.opponent_id + '/intel" class="intel-badge known">✓ Known — view intel</a>';
             }
-            if ((intel.tier === 3 || intel.tier === 4) && intel.opponent_id) {
-                return '<a href="/opponents/' + intel.opponent_id + '/intel" class="intel-badge maybe">? Possibly known — check</a>';
+            if (intel.action === 'confirm' && intel.opponent_id) {
+                const decision = confirmDecisions[name];
+                if (decision) {
+                    if (decision.action === 'link') {
+                        return '<span class="intel-badge known">✓ Linked to ' + escapeHtml(intel.matched_name || '') + '</span>';
+                    } else {
+                        return '<span class="intel-badge new">+ New opponent</span>';
+                    }
+                }
+                const matchedLabel = escapeHtml((intel.matched_name || '') + (intel.matched_club ? ' (' + intel.matched_club + ')' : ''));
+                return '<span class="intel-badge maybe">Same as ' + matchedLabel + '? ' +
+                    '<button class="confirm-btn yes" onclick="confirmMatch(\'' + escapeHtml(name) + '\', ' + intel.opponent_id + ')">Yes</button> ' +
+                    '<button class="confirm-btn no" onclick="rejectMatch(\'' + escapeHtml(name) + '\')">No</button>' +
+                    '</span>';
             }
             return '<span class="intel-badge new">+ New opponent</span>';
         }
 
+        function confirmMatch(name, opponentId) {
+            confirmDecisions[name] = {action: 'link', opponent_id: opponentId};
+            refreshIntelBadges();
+        }
+
+        function rejectMatch(name) {
+            confirmDecisions[name] = {action: 'new', opponent_id: null};
+            refreshIntelBadges();
+        }
+
+        function refreshIntelBadges() {
+            document.querySelectorAll('[data-intel-index]').forEach(el => {
+                const idx = parseInt(el.dataset.intelIndex);
+                const intel = currentOpponentIntel[idx];
+                if (intel) el.innerHTML = renderIntelBadge(intel, idx);
+            });
+        }
+
+        let currentOpponentIntel = [];
+
         function populateExtractedResults(data, opponentIntel) {
             opponentIntel = opponentIntel || [];
+            currentOpponentIntel = opponentIntel;
             document.getElementById('poolNumber').value = data.pool_number || '';
             document.getElementById('positionInPool').value = data.position_in_pool || '';
             document.getElementById('victories').value = data.victories || '';
@@ -1491,7 +1544,7 @@
             (data.bouts || []).forEach((bout, i) => {
                 const div = document.createElement('div');
                 div.className = 'bout-card editable-bout ' + (bout.result || '');
-                const badge = renderIntelBadge(opponentIntel[i]);
+                const badge = renderIntelBadge(opponentIntel[i], i);
                 div.innerHTML = `
                     <div class="form-row">
                         <div class="form-group" style="flex:2">
@@ -1520,7 +1573,7 @@
                             <input type="number" class="bout-score-against" value="${bout.score_against != null ? bout.score_against : ''}">
                         </div>
                     </div>
-                    ${badge}
+                    <div data-intel-index="${i}">${badge}</div>
                 `;
                 boutsList.appendChild(div);
             });
@@ -1557,7 +1610,7 @@
                 const response = await fetch('/api/confirm-pool-results', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ tournament_id: tournamentId, pool_data: poolData })
+                    body: JSON.stringify({ tournament_id: tournamentId, pool_data: poolData, confirm_decisions: confirmDecisions })
                 });
                 const data = await response.json();
                 if (data.error) throw new Error(data.error);
@@ -1718,6 +1771,10 @@
 
         function populateDEReview(data, opponentIntel) {
             opponentIntel = opponentIntel || [];
+            // Merge into currentOpponentIntel (pool may have set some already)
+            opponentIntel.forEach((intel, i) => {
+                if (intel) currentOpponentIntel.push(intel);
+            });
             const timeline = document.getElementById('deReviewTimeline');
             timeline.innerHTML = '';
 
@@ -1748,14 +1805,15 @@
                 if (bout.result === 'won') resultVerb = 'Beat';
                 else if (bout.result === 'lost') resultVerb = 'Lost to';
 
-                const badge = renderIntelBadge(opponentIntel[i]);
+                const intelIdx = currentOpponentIntel.length - opponentIntel.length + i;
+                const badge = renderIntelBadge(opponentIntel[i], intelIdx);
 
                 div.innerHTML =
                     '<div class="de-round-label">' + (bout.round_name || '') + '</div>' +
                     '<div class="de-bout-opponent">' + resultVerb + ' ' + (bout.opponent_name || 'Unknown') + seedHtml + '</div>' +
                     scoreHtml +
                     clubHtml +
-                    (badge ? '<div>' + badge + '</div>' : '');
+                    (badge ? '<div data-intel-index="' + intelIdx + '">' + badge + '</div>' : '');
 
                 timeline.appendChild(div);
             });
@@ -1789,7 +1847,8 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         tournament_id: tournamentId,
-                        bracket_data: deExtractedData
+                        bracket_data: deExtractedData,
+                        confirm_decisions: confirmDecisions
                     })
                 });
                 const data = await response.json();
