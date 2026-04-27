@@ -248,6 +248,13 @@
                         <span>{{ t.weapon | default('Epee') }}</span>
                         <span>{{ t.age_category | default('Y12') }}</span>
                     </div>
+                    {% if t.final_rank %}
+                    <div>
+                        <span class="pool-badge positive" style="background:#e8eaf6;color:#283593;">
+                            Placed {{ t.final_rank }}{% if t.total_fencers %} of {{ t.total_fencers }}{% endif %}
+                        </span>
+                    </div>
+                    {% endif %}
                     {% if t.pool_summary %}
                     <div>
                         <span class="pool-badge {{ 'positive' if t.pool_summary.indicator and t.pool_summary.indicator > 0 else 'negative' if t.pool_summary.indicator and t.pool_summary.indicator < 0 else '' }}">

@@ -695,6 +695,8 @@ def get_tournaments():
                 'level': t.level,
                 'notes': t.notes,
                 'pool_summary': pool_summary,
+                'final_rank': t.final_rank,
+                'total_fencers': t.total_fencers,
                 'created_at': t.created_at.strftime('%B %d, %Y')
             })
         return result
