@@ -2537,31 +2537,56 @@ def _scout_video_to_dict(video):
 
 
 def _auto_link_scout_bout_opponents(bout, opponents,
-                                    fencer_a_club=None, fencer_b_club=None):
-    """Run match_opponent on fencer_a_name and fencer_b_name; set _id only on
-    Tier 1/2 matches. Mutates the bout ORM row in place. Caller must commit.
+                                    fencer_a_club=None, fencer_b_club=None,
+                                    db=None):
+    """Run match_opponent on fencer_a_name and fencer_b_name. Links on Tier 1/2
+    match; auto-creates a stub opponent if no match found (since filming a
+    fencer means they're worth tracking). Mutates the bout ORM row in place.
+    Caller must commit.
 
     Optional ``fencer_a_club`` / ``fencer_b_club`` strings act as match hints
     (not persisted on the bout — the model has no club column).
     """
+    def _link_or_create(name, club, opponents_list):
+        """Return opponent_id for a fencer name: match existing or create stub."""
+        if not name:
+            return None
+        # Skip if it's Ethan
+        if 'salim' in name.lower():
+            return None
+        try:
+            match = _match_opponent(name, club, opponents_list)
+            tier = match.get('tier') if match else None
+            if tier in (1, 2) and (match.get('opponent') or None):
+                return match['opponent']['id']
+            # No good match — create a stub opponent
+            if db:
+                parts = name.strip().split()
+                if len(parts) >= 2:
+                    last_name = parts[0]
+                    first_name = ' '.join(parts[1:])
+                else:
+                    last_name = name.strip()
+                    first_name = None
+                stub = Opponent(
+                    canonical_name=name.strip(),
+                    first_name=first_name,
+                    last_name=last_name,
+                    club=club,
+                )
+                db.add(stub)
+                db.flush()
+                return stub.id
+        except Exception as e:
+            print(f"[scout-bout] auto-link failed for '{name}': {e}")
+        return None
+
     # Fencer A
     if bout.fencer_a_name and not bout.fencer_a_id:
-        try:
-            match = _match_opponent(bout.fencer_a_name, fencer_a_club, opponents)
-            tier = match.get('tier') if match else None
-            if tier in (1, 2) and (match.get('opponent') or None):
-                bout.fencer_a_id = match['opponent']['id']
-        except Exception as e:
-            print(f"[scout-bout] auto-link fencer_a failed: {e}")
+        bout.fencer_a_id = _link_or_create(bout.fencer_a_name, fencer_a_club, opponents)
     # Fencer B
     if bout.fencer_b_name and not bout.fencer_b_id:
-        try:
-            match = _match_opponent(bout.fencer_b_name, fencer_b_club, opponents)
-            tier = match.get('tier') if match else None
-            if tier in (1, 2) and (match.get('opponent') or None):
-                bout.fencer_b_id = match['opponent']['id']
-        except Exception as e:
-            print(f"[scout-bout] auto-link fencer_b failed: {e}")
+        bout.fencer_b_id = _link_or_create(bout.fencer_b_name, fencer_b_club, opponents)
 
 
 def create_scout_bout(data):
@@ -2592,6 +2617,7 @@ def create_scout_bout(data):
             bout, opponents,
             fencer_a_club=data.get('fencer_a_club'),
             fencer_b_club=data.get('fencer_b_club'),
+            db=db,
         )
 
         db.add(bout)
@@ -2717,6 +2743,7 @@ def update_scout_bout(bout_id, data):
                 bout, opponents,
                 fencer_a_club=data.get('fencer_a_club'),
                 fencer_b_club=data.get('fencer_b_club'),
+                db=db,
             )
 
         db.commit()
