@@ -282,8 +282,10 @@ class ScoutBout(Base):
     tournament_name = Column(String(255))               # denormalized for display
     round_name = Column(String(100))                    # "Finals", "Pool", etc.
     fencer_a_name = Column(String(255), nullable=False)
+    fencer_a_club = Column(String(255))
     fencer_a_id = Column(Integer, index=True)           # nullable FK to Opponent
     fencer_b_name = Column(String(255), nullable=False)
+    fencer_b_club = Column(String(255))
     fencer_b_id = Column(Integer, index=True)           # nullable FK to Opponent
     score = Column(String(20))                          # e.g. "15-7" or null
     notes = Column(Text)                                # bout-level teaching notes
@@ -330,6 +332,9 @@ if 'postgresql' in get_database_url():
         with engine.connect() as conn:
             conn.execute(text("ALTER TABLE elimination_rounds ALTER COLUMN round_name TYPE VARCHAR(255)"))
             conn.execute(text("ALTER TABLE de_brackets ALTER COLUMN completeness TYPE VARCHAR(50)"))
+            # Add club columns to scout_bouts if missing
+            conn.execute(text("ALTER TABLE scout_bouts ADD COLUMN fencer_a_club VARCHAR(255)"))
+            conn.execute(text("ALTER TABLE scout_bouts ADD COLUMN fencer_b_club VARCHAR(255)"))
             conn.commit()
     except Exception:
         pass  # Already migrated or table doesn't exist yet
@@ -2512,8 +2517,10 @@ def _scout_bout_to_dict(bout):
         'tournament_name': bout.tournament_name,
         'round_name': bout.round_name,
         'fencer_a_name': bout.fencer_a_name,
+        'fencer_a_club': bout.fencer_a_club,
         'fencer_a_id': bout.fencer_a_id,
         'fencer_b_name': bout.fencer_b_name,
+        'fencer_b_club': bout.fencer_b_club,
         'fencer_b_id': bout.fencer_b_id,
         'score': bout.score,
         'notes': bout.notes,
@@ -2544,8 +2551,8 @@ def _auto_link_scout_bout_opponents(bout, opponents,
     fencer means they're worth tracking). Mutates the bout ORM row in place.
     Caller must commit.
 
-    Optional ``fencer_a_club`` / ``fencer_b_club`` strings act as match hints
-    (not persisted on the bout — the model has no club column).
+    Optional ``fencer_a_club`` / ``fencer_b_club`` strings act as fallback hints
+    if the bout model's club columns are empty.
     """
     def _link_or_create(name, club, opponents_list):
         """Return opponent_id for a fencer name: match existing or create stub."""
@@ -2581,12 +2588,14 @@ def _auto_link_scout_bout_opponents(bout, opponents,
             print(f"[scout-bout] auto-link failed for '{name}': {e}")
         return None
 
-    # Fencer A
+    # Fencer A — use club from bout model, fall back to caller hint
+    a_club = bout.fencer_a_club or fencer_a_club
     if bout.fencer_a_name and not bout.fencer_a_id:
-        bout.fencer_a_id = _link_or_create(bout.fencer_a_name, fencer_a_club, opponents)
+        bout.fencer_a_id = _link_or_create(bout.fencer_a_name, a_club, opponents)
     # Fencer B
+    b_club = bout.fencer_b_club or fencer_b_club
     if bout.fencer_b_name and not bout.fencer_b_id:
-        bout.fencer_b_id = _link_or_create(bout.fencer_b_name, fencer_b_club, opponents)
+        bout.fencer_b_id = _link_or_create(bout.fencer_b_name, b_club, opponents)
 
 
 def create_scout_bout(data):
@@ -2605,8 +2614,10 @@ def create_scout_bout(data):
             tournament_name=data.get('tournament_name'),
             round_name=data.get('round_name'),
             fencer_a_name=data.get('fencer_a_name', ''),
+            fencer_a_club=data.get('fencer_a_club'),
             fencer_a_id=data.get('fencer_a_id'),
             fencer_b_name=data.get('fencer_b_name', ''),
+            fencer_b_club=data.get('fencer_b_club'),
             fencer_b_id=data.get('fencer_b_id'),
             score=data.get('score'),
             notes=data.get('notes'),
@@ -2722,6 +2733,10 @@ def update_scout_bout(bout_id, data):
                 bout.fencer_a_id = data.get('fencer_a_id')  # caller may override
         elif 'fencer_a_id' in data:
             bout.fencer_a_id = data['fencer_a_id']
+        if 'fencer_a_club' in data:
+            if data['fencer_a_club'] != bout.fencer_a_club:
+                names_changed = True
+            bout.fencer_a_club = data['fencer_a_club']
         if 'fencer_b_name' in data:
             new_name = data['fencer_b_name']
             if new_name != bout.fencer_b_name:
@@ -2730,6 +2745,10 @@ def update_scout_bout(bout_id, data):
                 bout.fencer_b_id = data.get('fencer_b_id')
         elif 'fencer_b_id' in data:
             bout.fencer_b_id = data['fencer_b_id']
+        if 'fencer_b_club' in data:
+            if data['fencer_b_club'] != bout.fencer_b_club:
+                names_changed = True
+            bout.fencer_b_club = data['fencer_b_club']
         if 'score' in data:
             bout.score = data['score']
         if 'notes' in data:
