@@ -71,6 +71,7 @@ from database import (
     increment_note_invalidated,
     lookup_opponents_by_names,
     sync_bout_to_opponent,
+    merge_opponents,
     create_scout_bout,
     get_scout_bout,
     get_scout_bouts,
@@ -1871,6 +1872,19 @@ def api_delete_opponent(opponent_id):
         if not success:
             return jsonify({'error': 'Opponent not found'}), 404
         return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/opponents/<int:keep_id>/merge/<int:remove_id>', methods=['POST'])
+@login_required
+def api_merge_opponents(keep_id, remove_id):
+    """Merge remove_id into keep_id. Moves all bouts, notes, and scout videos."""
+    try:
+        result = merge_opponents(keep_id, remove_id)
+        return jsonify({'success': True, **result})
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

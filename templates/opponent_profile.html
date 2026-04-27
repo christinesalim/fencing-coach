@@ -472,6 +472,17 @@
             <div class="status" id="profileStatus"></div>
 
             <button class="btn-delete" onclick="deleteOpponent()">Delete Opponent</button>
+
+            <div style="margin-top:20px;padding-top:16px;border-top:1px solid #eee;">
+                <p style="font-size:13px;color:#777;margin-bottom:8px;">Merge a duplicate into this opponent (keeps this profile, moves all data from the other):</p>
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                    <select id="mergeTarget" style="flex:1;min-width:150px;padding:8px;border:1px solid #ddd;border-radius:8px;font-size:14px;">
+                        <option value="">Select duplicate...</option>
+                    </select>
+                    <button class="btn-secondary" onclick="mergeOpponent()">Merge</button>
+                </div>
+                <div class="status" id="mergeStatus"></div>
+            </div>
         </div>
 
         <!-- Head-to-head card -->
@@ -654,6 +665,53 @@
                 window.location.href = '/opponents';
             } catch (e) {
                 alert('Error: ' + e.message);
+            }
+        }
+
+        // --- Merge opponents ---
+        (async function loadMergeDropdown() {
+            try {
+                const resp = await fetch('/api/opponents');
+                const opponents = await resp.json();
+                const select = document.getElementById('mergeTarget');
+                opponents
+                    .filter(o => o.id !== OPPONENT_ID)
+                    .sort((a, b) => (a.canonical_name || '').localeCompare(b.canonical_name || ''))
+                    .forEach(o => {
+                        const opt = document.createElement('option');
+                        opt.value = o.id;
+                        opt.textContent = o.canonical_name + (o.club ? ' (' + o.club + ')' : '');
+                        select.appendChild(opt);
+                    });
+            } catch (e) {
+                console.error('Failed to load opponents for merge:', e);
+            }
+        })();
+
+        async function mergeOpponent() {
+            const removeId = document.getElementById('mergeTarget').value;
+            if (!removeId) { alert('Select a duplicate to merge'); return; }
+
+            const option = document.querySelector('#mergeTarget option[value="' + removeId + '"]');
+            const removeName = option ? option.textContent : removeId;
+
+            if (!confirm('Merge "' + removeName + '" into this opponent? All their bouts, notes, and scouting videos will be moved here, and the duplicate will be deleted.')) return;
+
+            const status = document.getElementById('mergeStatus');
+            status.className = 'status processing';
+            status.style.display = 'block';
+            status.textContent = 'Merging...';
+
+            try {
+                const resp = await fetch('/api/opponents/' + OPPONENT_ID + '/merge/' + removeId, { method: 'POST' });
+                const data = await resp.json();
+                if (data.error) throw new Error(data.error);
+                status.className = 'status success';
+                status.textContent = 'Merged! Moved ' + (data.moved_bouts || 0) + ' bouts, ' + (data.moved_notes || 0) + ' notes, ' + (data.moved_scout_bouts || 0) + ' scouting videos.';
+                setTimeout(() => location.reload(), 1500);
+            } catch (e) {
+                status.className = 'status error';
+                status.textContent = 'Error: ' + e.message;
             }
         }
 

@@ -1786,6 +1786,85 @@ def delete_tournament_photo(photo_id):
         db.close()
 
 
+# ── Merge opponents ──────────────────────────────────────────────────
+
+def merge_opponents(keep_id, remove_id):
+    """Merge two opponent records. Moves all data from remove_id to keep_id,
+    adds the removed opponent's name/club as aliases, then deletes the duplicate.
+
+    Returns a summary dict or raises on error.
+    """
+    if keep_id == remove_id:
+        raise ValueError("Cannot merge an opponent with itself")
+
+    db = get_db()
+    try:
+        keep = db.query(Opponent).filter_by(id=keep_id).first()
+        remove = db.query(Opponent).filter_by(id=remove_id).first()
+        if not keep:
+            raise ValueError(f"Opponent {keep_id} not found")
+        if not remove:
+            raise ValueError(f"Opponent {remove_id} not found")
+
+        # Move BoutRecords
+        moved_bouts = db.query(BoutRecord).filter_by(opponent_id=remove_id).update(
+            {'opponent_id': keep_id}, synchronize_session=False)
+
+        # Move TacticalNotes
+        moved_notes = db.query(OpponentTacticalNote).filter_by(opponent_id=remove_id).update(
+            {'opponent_id': keep_id}, synchronize_session=False)
+
+        # Move ScoutBout links (fencer_a_id and fencer_b_id)
+        moved_scout_a = db.query(ScoutBout).filter_by(fencer_a_id=remove_id).update(
+            {'fencer_a_id': keep_id}, synchronize_session=False)
+        moved_scout_b = db.query(ScoutBout).filter_by(fencer_b_id=remove_id).update(
+            {'fencer_b_id': keep_id}, synchronize_session=False)
+
+        # Add removed opponent's name as alias if different
+        name_aliases = _parse_json_list(keep.name_aliases)
+        if remove.canonical_name and remove.canonical_name != keep.canonical_name:
+            if remove.canonical_name not in name_aliases:
+                name_aliases.append(remove.canonical_name)
+        keep.name_aliases = json.dumps(name_aliases) if name_aliases else None
+
+        # Add removed opponent's club as alias if different
+        club_aliases = _parse_json_list(keep.club_aliases)
+        if remove.club and remove.club != keep.club:
+            if remove.club not in club_aliases:
+                club_aliases.append(remove.club)
+        keep.club_aliases = json.dumps(club_aliases) if club_aliases else None
+
+        # Preserve traits from the removed record if keep is missing them
+        for attr in ('division', 'handedness', 'height_category', 'build',
+                     'speed_rating', 'primary_style', 'secondary_style'):
+            if not getattr(keep, attr) and getattr(remove, attr):
+                setattr(keep, attr, getattr(remove, attr))
+
+        # Use earliest first_encountered and latest last_encountered
+        if remove.first_encountered:
+            if not keep.first_encountered or remove.first_encountered < keep.first_encountered:
+                keep.first_encountered = remove.first_encountered
+        if remove.last_encountered:
+            if not keep.last_encountered or remove.last_encountered > keep.last_encountered:
+                keep.last_encountered = remove.last_encountered
+
+        db.delete(remove)
+        db.commit()
+
+        return {
+            'kept_id': keep_id,
+            'removed_id': remove_id,
+            'moved_bouts': moved_bouts,
+            'moved_notes': moved_notes,
+            'moved_scout_bouts': moved_scout_a + moved_scout_b,
+        }
+    except Exception as e:
+        db.rollback()
+        raise e
+    finally:
+        db.close()
+
+
 # ── Opponent Intelligence helper functions ─────────────────────────────
 
 def _parse_json_list(value):
