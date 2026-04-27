@@ -218,7 +218,7 @@
         .bout-videos-row {
             grid-column: 1 / -1;
             display: flex;
-            gap: 6px;
+            gap: 4px;
             flex-wrap: wrap;
             margin-top: 4px;
         }
@@ -227,9 +227,9 @@
             background: #4a7fd4;
             color: white;
             border: none;
-            border-radius: 6px;
-            padding: 4px 10px;
-            font-size: 12px;
+            border-radius: 4px;
+            padding: 2px 6px;
+            font-size: 11px;
             font-weight: 600;
             cursor: pointer;
         }
@@ -795,9 +795,13 @@
                     const notes = b.notes ? ` — ${escapeHtml(b.notes)}` : '';
                     const videos = (b.videos || []);
                     const videoHtml = videos.length > 0
-                        ? '<div class="bout-videos-row">' + videos.map((v, i) =>
-                            `<button class="bout-video-watch-btn" onclick="watchBoutVideo(${v.id})">Watch Clip ${videos.length > 1 ? (i+1) : ''}</button>`
-                          ).join('') + '</div>'
+                        ? '<div class="bout-videos-row">' +
+                          (videos.length === 1
+                            ? `<button class="bout-video-watch-btn" onclick="watchBoutVideo(${videos[0].id})">▶ Watch</button>`
+                            : videos.map((v, i) =>
+                                `<button class="bout-video-watch-btn" onclick="watchBoutVideo(${v.id})">▶ ${i+1}</button>`
+                              ).join('')) +
+                          '</div>'
                         : '';
                     return `
                         <div class="bout-row">
