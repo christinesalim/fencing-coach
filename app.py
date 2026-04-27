@@ -1698,11 +1698,18 @@ def api_get_bout_video_playback(video_id):
     if not v:
         return jsonify({'error': 'Video not found'}), 404
     try:
+        ext = Path(v['r2_key']).suffix.lower()
+        content_type = {
+            '.mp4': 'video/mp4', '.mov': 'video/quicktime',
+            '.m4v': 'video/x-m4v', '.avi': 'video/x-msvideo',
+            '.mkv': 'video/x-matroska', '.webm': 'video/webm',
+        }.get(ext, 'video/mp4')
         url = get_r2_client().generate_presigned_url(
             'get_object',
             Params={
                 'Bucket': os.environ.get('R2_BUCKET_NAME', 'fencing-lessons'),
-                'Key': v['r2_key']
+                'Key': v['r2_key'],
+                'ResponseContentType': content_type,
             },
             ExpiresIn=3600
         )
@@ -2376,11 +2383,18 @@ def api_get_scout_video_playback(video_id):
     if not v:
         return jsonify({'error': 'Scout video not found'}), 404
     try:
+        ext = Path(v['r2_key']).suffix.lower()
+        content_type = {
+            '.mp4': 'video/mp4', '.mov': 'video/quicktime',
+            '.m4v': 'video/x-m4v', '.avi': 'video/x-msvideo',
+            '.mkv': 'video/x-matroska', '.webm': 'video/webm',
+        }.get(ext, 'video/mp4')
         url = get_r2_client().generate_presigned_url(
             'get_object',
             Params={
                 'Bucket': os.environ.get('R2_BUCKET_NAME', 'fencing-lessons'),
                 'Key': v['r2_key'],
+                'ResponseContentType': content_type,
             },
             ExpiresIn=3600,
         )
