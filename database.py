@@ -2368,12 +2368,38 @@ def get_head_to_head(opponent_id):
 
         sorted_bouts = sorted(bouts, key=sort_key)
 
+        # Collect video counts for each bout
+        pool_ids = [b.pool_bout_id for b in sorted_bouts if b.pool_bout_id]
+        elim_ids = [b.elimination_round_id for b in sorted_bouts if b.elimination_round_id]
+        videos_by_bout = {}  # (kind, bout_id) -> [video_ids]
+        if pool_ids:
+            for v in db.query(BoutVideo).filter(
+                BoutVideo.bout_kind == 'pool', BoutVideo.bout_id.in_(pool_ids)
+            ).all():
+                videos_by_bout.setdefault(('pool', v.bout_id), []).append(v.id)
+        if elim_ids:
+            for v in db.query(BoutVideo).filter(
+                BoutVideo.bout_kind == 'elim', BoutVideo.bout_id.in_(elim_ids)
+            ).all():
+                videos_by_bout.setdefault(('elim', v.bout_id), []).append(v.id)
+
+        bout_dicts = []
+        for b in sorted_bouts:
+            d = _bout_record_to_dict(b)
+            if b.pool_bout_id:
+                d['videos'] = [{'id': vid} for vid in videos_by_bout.get(('pool', b.pool_bout_id), [])]
+            elif b.elimination_round_id:
+                d['videos'] = [{'id': vid} for vid in videos_by_bout.get(('elim', b.elimination_round_id), [])]
+            else:
+                d['videos'] = []
+            bout_dicts.append(d)
+
         return {
             'wins': wins,
             'losses': losses,
             'touches_for': touches_for,
             'touches_against': touches_against,
-            'bouts': [_bout_record_to_dict(b) for b in sorted_bouts],
+            'bouts': bout_dicts,
         }
     finally:
         db.close()

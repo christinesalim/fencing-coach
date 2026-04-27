@@ -215,6 +215,27 @@
         .bout-row .bout-result.won { background: #d4edda; color: #155724; }
         .bout-row .bout-result.lost { background: #f8d7da; color: #721c24; }
 
+        .bout-videos-row {
+            grid-column: 1 / -1;
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-top: 4px;
+        }
+
+        .bout-video-watch-btn {
+            background: #4a7fd4;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 4px 10px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .bout-video-watch-btn:active { opacity: 0.7; }
+
         .note-group { margin-bottom: 16px; }
         .note-group-header {
             font-size: 14px;
@@ -772,11 +793,18 @@
                     const sf = b.score_for == null ? '—' : b.score_for;
                     const sa = b.score_against == null ? '—' : b.score_against;
                     const notes = b.notes ? ` — ${escapeHtml(b.notes)}` : '';
+                    const videos = (b.videos || []);
+                    const videoHtml = videos.length > 0
+                        ? '<div class="bout-videos-row">' + videos.map((v, i) =>
+                            `<button class="bout-video-watch-btn" onclick="watchBoutVideo(${v.id})">Watch Clip ${videos.length > 1 ? (i+1) : ''}</button>`
+                          ).join('') + '</div>'
+                        : '';
                     return `
                         <div class="bout-row">
                             <div class="bout-desc">${escapeHtml(label)}${notes}</div>
                             <div class="bout-score">${sf}-${sa}</div>
                             <div class="bout-result ${result}">${result ? result.toUpperCase() : '—'}</div>
+                            ${videoHtml}
                         </div>
                     `;
                 }).join('');
@@ -1016,6 +1044,23 @@
             video.removeAttribute('src');
             video.load();
             modal.style.display = 'none';
+        }
+
+        // ── Bout video clips (from Ethan's tournament bouts) ──────────
+        async function watchBoutVideo(videoId) {
+            try {
+                const resp = await fetch('/api/bout-videos/' + videoId + '/playback');
+                const data = await resp.json();
+                if (!resp.ok || data.error) throw new Error(data.error || ('HTTP ' + resp.status));
+                const modal = document.getElementById('scoutVideoModal');
+                const video = document.getElementById('scoutVideoPlayer');
+                if (!modal || !video) return;
+                video.src = data.url;
+                modal.style.display = 'flex';
+                try { video.play(); } catch (e) {}
+            } catch (e) {
+                alert('Error loading video: ' + e.message);
+            }
         }
 
         // Initial render

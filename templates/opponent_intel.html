@@ -343,6 +343,13 @@
                     {% endif %}
                 </span>
             {% endif %}
+            {% if last_encounter.videos %}
+            <div style="margin-top:8px;">
+                {% for v in last_encounter.videos %}
+                <button onclick="playBoutVideo({{ v.id }})" style="background:#4a7fd4;color:white;border:none;border-radius:6px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;margin-right:4px;">Watch Clip{% if last_encounter.videos | length > 1 %} {{ loop.index }}{% endif %}</button>
+                {% endfor %}
+            </div>
+            {% endif %}
         </div>
         {% endif %}
 
@@ -450,6 +457,22 @@
         </div>
 
         <script>
+            async function playBoutVideo(videoId) {
+                try {
+                    const resp = await fetch('/api/bout-videos/' + videoId + '/playback');
+                    const data = await resp.json();
+                    if (!resp.ok || data.error) throw new Error(data.error || ('HTTP ' + resp.status));
+                    const modal = document.getElementById('scoutVideoModal');
+                    const video = document.getElementById('scoutVideoPlayer');
+                    if (!modal || !video) return;
+                    video.src = data.url;
+                    modal.style.display = 'flex';
+                    try { video.play(); } catch (e) {}
+                } catch (e) {
+                    alert('Error loading video: ' + e.message);
+                }
+            }
+
             function toggleScoutSection() {
                 var s = document.getElementById('scoutSection');
                 if (s) s.classList.toggle('open');

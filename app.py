@@ -2127,6 +2127,7 @@ def _build_opponent_intel(opponent_id):
             'result': (top.get('result') or None),
             'score_for': top.get('score_for'),
             'score_against': top.get('score_against'),
+            'videos': top.get('videos', []),
         }
 
     try:
