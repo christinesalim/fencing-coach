@@ -79,6 +79,22 @@ def main():
                   f"score={p.score_for}-{p.score_against} result={p.result} "
                   f"{linked_to}")
 
+        # Check ScoutBout links
+        print(f"\n=== ScoutBout rows matching '{query}' ===")
+        from database import ScoutBout
+        scout_a = db.query(ScoutBout).filter(
+            ScoutBout.fencer_a_name.ilike(f'%{query}%')
+        ).all()
+        scout_b = db.query(ScoutBout).filter(
+            ScoutBout.fencer_b_name.ilike(f'%{query}%')
+        ).all()
+        all_scout = {s.id: s for s in scout_a + scout_b}.values()
+        print(f"  Found {len(list(all_scout))} scout bout(s)")
+        for s in all_scout:
+            print(f"    id={s.id} a_name={s.fencer_a_name!r} a_id={s.fencer_a_id} "
+                  f"b_name={s.fencer_b_name!r} b_id={s.fencer_b_id} "
+                  f"tournament={s.tournament_name!r} round={s.round_name!r}")
+
     finally:
         db.close()
 
