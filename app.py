@@ -128,6 +128,35 @@ def get_r2_client():
     return _r2_client
 
 
+def _probe_video_duration(video_path):
+    """Read duration (seconds, float) from a video container via ffprobe.
+    Returns None if the binary is missing or the probe fails. Avoids moviepy,
+    which decodes the entire video and OOMs the worker on iPhone HEVC files.
+    """
+    import subprocess
+    import shutil
+    ffprobe = shutil.which('ffprobe')
+    if not ffprobe:
+        try:
+            import imageio_ffmpeg
+            ffprobe = imageio_ffmpeg.get_ffmpeg_exe().replace('ffmpeg', 'ffprobe')
+        except Exception:
+            return None
+    try:
+        result = subprocess.run(
+            [ffprobe, '-v', 'error', '-show_entries', 'format=duration',
+             '-of', 'csv=p=0', str(video_path)],
+            capture_output=True, text=True, timeout=30
+        )
+        if result.returncode == 0:
+            value = (result.stdout or '').strip()
+            if value:
+                return float(value)
+    except Exception:
+        pass
+    return None
+
+
 def extract_audio_from_video(video_path):
     """Extract audio from video file and save as temporary audio file."""
     import subprocess
@@ -523,18 +552,11 @@ def api_upload_lesson():
     try:
         file_size = filepath.stat().st_size
 
-        # Extract duration via moviepy
-        duration = None
-        try:
-            try:
-                from moviepy.editor import VideoFileClip
-            except ImportError:
-                from moviepy import VideoFileClip
-            clip = VideoFileClip(str(filepath))
-            duration = clip.duration
-            clip.close()
-        except Exception:
-            pass
+        # Extract duration via ffprobe (cheap — reads container metadata only).
+        # We deliberately avoid moviepy here because it decodes the whole video
+        # to determine duration, which OOMs the worker on HEVC iPhone uploads
+        # over Render's 512MB cap.
+        duration = _probe_video_duration(filepath)
 
         # Determine mime type
         mime_map = {'.mp4': 'video/mp4', '.mov': 'video/quicktime', '.avi': 'video/x-msvideo',
