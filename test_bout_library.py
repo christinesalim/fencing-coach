@@ -27,6 +27,7 @@ from database import (
     delete_opponent,
     delete_scout_bout,
     get_db,
+    get_opponent,
     get_scout_bout,
     get_scout_bouts_for_opponent,
 )
@@ -173,6 +174,8 @@ def main():
     c = authed_client()
 
     # 3. Create scout bout with no matching opponents -------------------
+    # Bout-library auto-creates opponent stubs for unmatched fencer names
+    # (per commit 6cb884c) so the bout always lands with both fencer ids set.
     body = {
         "fencer_a_name": f"{PREFIX}NEWFENCER A",
         "fencer_b_name": f"{PREFIX}NEWFENCER B",
@@ -186,12 +189,19 @@ def main():
     bout_data = r.get_json() or {}
     bout = bout_data.get("bout") or {}
     bout_id = bout.get("id")
+    fa_id = bout.get("fencer_a_id")
+    fb_id = bout.get("fencer_b_id")
+    auto_a = get_opponent(fa_id) if fa_id else None
+    auto_b = get_opponent(fb_id) if fb_id else None
     record(
-        "create scout bout (unmatched)",
+        "create scout bout auto-creates opponent stubs for unmatched names",
         r.status_code == 200 and bout_id is not None
-        and bout.get("fencer_a_id") is None
-        and bout.get("fencer_b_id") is None,
-        f"status={r.status_code} fa_id={bout.get('fencer_a_id')} fb_id={bout.get('fencer_b_id')}",
+        and fa_id is not None and fb_id is not None
+        and auto_a and auto_a.get("canonical_name") == f"{PREFIX}NEWFENCER A"
+        and auto_b and auto_b.get("canonical_name") == f"{PREFIX}NEWFENCER B",
+        f"status={r.status_code} fa_id={fa_id} fb_id={fb_id} "
+        f"a_name={auto_a and auto_a.get('canonical_name')} "
+        f"b_name={auto_b and auto_b.get('canonical_name')}",
     )
 
     # 4. Auto-link Tier 1 (exact name + same club) -----------------------
@@ -299,16 +309,19 @@ def main():
     )
 
     # 11. /bout-library?opponent_id=<id> filtering -----------------------
+    # Substring-on-fencer-name is unreliable: every opponent's name also
+    # appears in the page's opponent-filter dropdown options, so an excluded
+    # bout's fencer can still appear in the page HTML. Check for the bout's
+    # distinctive notes text instead, which only appears inside the bout card.
     r9 = c.get(f"/bout-library?opponent_id={opp_id}")
     body9 = r9.get_data(as_text=True) if r9.status_code == 200 else ""
-    in_filtered = f"{PREFIX}OPP1 X" in body9
-    other_bout_excluded = (f"{PREFIX}NEWFENCER A" not in body9) or (
-        f"{PREFIX}NEWFENCER B" not in body9
-    )
+    linked_bout_included = "BL_TEST link check" in body9
+    unmatched_bout_excluded = "BL_TEST teaching note" not in body9
     record(
-        "GET /bout-library?opponent_id=<id>",
-        r9.status_code == 200 and in_filtered and other_bout_excluded,
-        f"status={r9.status_code} included={in_filtered} excluded_other={other_bout_excluded}",
+        "GET /bout-library?opponent_id=<id> filters by fencer link",
+        r9.status_code == 200 and linked_bout_included and unmatched_bout_excluded,
+        f"status={r9.status_code} linked_included={linked_bout_included} "
+        f"unmatched_excluded={unmatched_bout_excluded}",
     )
 
     # 12. opponent profile page contains scouting section ---------------
