@@ -2363,10 +2363,10 @@ def api_upload_scout_videos(bout_id):
 
         if not saved_clips and last_error:
             return jsonify({'error': last_error}), 500
-        response = {'success': True, 'videos': saved_clips}
-        if last_error:
-            response['error'] = last_error
-        return jsonify(response)
+        # Partial success: drop the error field so clients that check
+        # ``d.error`` don't reject responses where some clips uploaded fine.
+        # The per-file failure was already logged server-side above.
+        return jsonify({'success': True, 'videos': saved_clips})
     finally:
         for p in temp_paths:
             try:

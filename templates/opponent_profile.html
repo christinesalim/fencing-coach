@@ -522,9 +522,14 @@
         </div>
 
         <!-- Scouting Videos card -->
-        {% if scout_bouts %}
         <div class="card">
-            <h2>Scouting Videos ({{ scout_bouts | length }})</h2>
+            <h2>Scouting Videos ({{ (scout_bouts or []) | length }})</h2>
+            {% if not scout_bouts %}
+            <div class="empty-inline" style="padding: 8px 0;">
+                No scouting clips yet.
+                <a href="/bout-library" style="color:#2c3e6b; text-decoration:none; font-weight:600;">Add one in the Bout Library &rarr;</a>
+            </div>
+            {% endif %}
             {% for bout in scout_bouts %}
                 {% set other_name = (bout.fencer_b_name if bout.fencer_a_id == opponent.id else bout.fencer_a_name) %}
                 {% set other_id = (bout.fencer_b_id if bout.fencer_a_id == opponent.id else bout.fencer_a_id) %}
@@ -555,7 +560,6 @@
             <button onclick="closeScoutClip()" style="position:absolute; top:20px; right:20px; background:rgba(0,0,0,0.6); color:white; border:1px solid rgba(255,255,255,0.3); border-radius:50%; width:40px; height:40px; font-size:22px; cursor:pointer; line-height:1;">&times;</button>
             <video id="scoutVideoPlayer" controls playsinline style="max-width:100%; max-height:90vh; border-radius:12px; background:black;"></video>
         </div>
-        {% endif %}
 
         <!-- Tactical notes card -->
         <div class="card">

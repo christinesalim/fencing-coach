@@ -2806,8 +2806,10 @@ def get_scout_bouts(filters=None):
                 pass
         tag = filters.get('tag')
         if tag:
-            # Substring match on the JSON tags column.
-            query = query.filter(ScoutBout.tags.like(f'%{tag}%'))
+            # Anchor on JSON token quotes so e.g. "fight" doesn't match
+            # "close_in_fighting". The tags column is a JSON array of strings,
+            # so each token is wrapped in double quotes in the serialized form.
+            query = query.filter(ScoutBout.tags.like(f'%"{tag}"%'))
 
         rows = query.order_by(ScoutBout.created_at.desc()).all()
 
