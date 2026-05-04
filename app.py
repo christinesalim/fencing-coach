@@ -145,31 +145,46 @@ def extract_audio_from_video(video_path):
         except ImportError:
             pass
 
-    if ffmpeg_bin:
-        try:
-            result = subprocess.run(
-                [ffmpeg_bin, '-i', str(video_path), '-vn', '-acodec', 'libmp3lame',
-                 '-q:a', '4', '-y', str(audio_path)],
-                capture_output=True, text=True, timeout=120
-            )
-            if result.returncode == 0 and audio_path.exists():
-                return audio_path
-        except Exception:
-            pass
+    if not ffmpeg_bin:
+        # No ffmpeg binary available — bail without trying moviepy. moviepy
+        # decodes the entire video into memory and reliably OOMs the worker on
+        # 512MB plans, especially for HEVC iPhone videos with no audio track.
+        raise Exception("ffmpeg not available; cannot extract audio")
 
-    # Fall back to moviepy
+    # Detect whether the video has any audio stream before we try to encode.
+    # If it doesn't (common for silent demonstration clips), short-circuit so
+    # the lesson upload still succeeds with transcription_status='failed'
+    # instead of dying inside ffmpeg or the moviepy fallback.
     try:
-        try:
-            from moviepy.editor import VideoFileClip
-        except ImportError:
-            from moviepy import VideoFileClip
+        ffprobe_bin = shutil.which('ffprobe') or ffmpeg_bin.replace('ffmpeg', 'ffprobe')
+        probe = subprocess.run(
+            [ffprobe_bin, '-v', 'error', '-select_streams', 'a',
+             '-show_entries', 'stream=codec_type', '-of', 'csv=p=0',
+             str(video_path)],
+            capture_output=True, text=True, timeout=30
+        )
+        if probe.returncode == 0 and not (probe.stdout or '').strip():
+            raise Exception("video has no audio track")
+    except FileNotFoundError:
+        pass  # no ffprobe; just try ffmpeg below
 
-        video = VideoFileClip(str(video_path))
-        video.audio.write_audiofile(str(audio_path), verbose=False, logger=None)
-        video.close()
-        return audio_path
-    except Exception as e:
-        raise Exception(f"Failed to extract audio from video: {str(e)}")
+    try:
+        result = subprocess.run(
+            [ffmpeg_bin, '-i', str(video_path), '-vn', '-acodec', 'libmp3lame',
+             '-q:a', '4', '-y', str(audio_path)],
+            capture_output=True, text=True, timeout=120
+        )
+        if result.returncode == 0 and audio_path.exists():
+            return audio_path
+        # ffmpeg failed — surface the stderr tail in the exception so the
+        # caller's log line tells us what happened instead of the moviepy
+        # OOM-after-the-fact.
+        stderr_tail = (result.stderr or '').strip().splitlines()[-3:]
+        raise Exception(
+            "ffmpeg failed (rc={}): {}".format(result.returncode, ' | '.join(stderr_tail))
+        )
+    except subprocess.TimeoutExpired:
+        raise Exception("ffmpeg audio extraction timed out after 120s")
 
 
 def transcribe(file_path):
