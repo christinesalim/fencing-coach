@@ -978,14 +978,18 @@
                     }
                 } catch (e) {
                     status.textContent = 'Error';
-                    showUploadStatus('Error processing response.', 'error');
+                    const snippet = (xhr.responseText || '').slice(0, 240).replace(/<[^>]+>/g, ' ').trim();
+                    showUploadStatus(
+                        'HTTP ' + xhr.status + ' — non-JSON response: ' + (snippet || '(empty body)'),
+                        'error'
+                    );
                 }
             };
 
             xhr.onerror = function() {
                 btn.disabled = false;
                 status.textContent = 'Error';
-                showUploadStatus('Upload failed. Check your connection.', 'error');
+                showUploadStatus('Upload failed (network error). Status ' + xhr.status, 'error');
             };
 
             xhr.send(formData);
