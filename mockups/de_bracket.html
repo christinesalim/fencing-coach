@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>DE Bracket - Mockup</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #4a7fd4 0%, #1e3a7a 50%, #0f1f4a 100%);
+            min-height: 100vh;
+            padding: 20px;
+            padding-bottom: 80px;
+            color: #333;
+        }
+
+        .container { max-width: 700px; margin: 0 auto; }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+            position: relative;
+        }
+
+        .header h1 { font-size: 2em; margin-bottom: 10px; }
+        .header p { opacity: 0.9; font-size: 1.1em; }
+
+        .sign-out {
+            position: absolute;
+            top: 0; right: 0;
+            color: rgba(255,255,255,0.7);
+            font-size: 13px;
+            text-decoration: none;
+        }
+
+        .back-btn {
+            display: inline-block;
+            background: white;
+            color: #2c3e6b;
+            padding: 10px 20px;
+            border-radius: 50px;
+            text-decoration: none;
+            font-weight: 600;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 20px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        .card h2 { font-size: 1.2em; margin-bottom: 16px; color: #1a1a2e; }
+
+        .form-group { margin-bottom: 14px; }
+
+        label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: #555;
+            margin-bottom: 5px;
+        }
+
+        select, input[type="text"] {
+            width: 100%;
+            padding: 12px 14px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            font-size: 15px;
+            font-family: inherit;
+            outline: none;
+            background: white;
+        }
+
+        .btn-primary {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #4a7fd4 0%, #1e3a7a 50%, #0f1f4a 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 4px;
+        }
+
+        .btn-secondary {
+            width: 100%;
+            padding: 14px;
+            background: white;
+            color: #2c3e6b;
+            border: 2px solid #2c3e6b;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 8px;
+        }
+
+        /* Upload area */
+        .upload-area {
+            border: 3px dashed #c0c8e0;
+            border-radius: 16px;
+            padding: 30px;
+            text-align: center;
+            margin-bottom: 16px;
+            cursor: pointer;
+            transition: border-color 0.2s, background 0.2s;
+        }
+
+        .upload-area:hover { border-color: #4a7fd4; background: #f0f4ff; }
+        .upload-area .icon { font-size: 36px; margin-bottom: 8px; }
+        .upload-area .label { font-size: 15px; color: #666; font-weight: 500; }
+        .upload-area .hint { font-size: 12px; color: #999; margin-top: 4px; }
+
+        /* Thumbnail strip */
+        .thumbs {
+            display: flex;
+            gap: 10px;
+            overflow-x: auto;
+            padding: 8px 0;
+            margin-bottom: 12px;
+        }
+
+        .thumb {
+            position: relative;
+            flex-shrink: 0;
+            width: 80px;
+            height: 80px;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 2px solid #e0e0e0;
+        }
+
+        .thumb img { width: 100%; height: 100%; object-fit: cover; }
+
+        .thumb .remove {
+            position: absolute;
+            top: 2px; right: 2px;
+            background: rgba(0,0,0,0.6);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 20px; height: 20px;
+            font-size: 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .thumb-count {
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 12px;
+            font-weight: 600;
+        }
+
+        /* Processing status */
+        .processing {
+            background: #eef3ff;
+            border-radius: 12px;
+            padding: 16px;
+            text-align: center;
+            margin-bottom: 16px;
+        }
+
+        .processing .spinner {
+            display: inline-block;
+            width: 20px; height: 20px;
+            border: 3px solid #c0c8e0;
+            border-top-color: #4a7fd4;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .processing .text { font-size: 14px; color: #2c3e6b; font-weight: 500; }
+
+        /* Completeness bar */
+        .completeness {
+            margin-bottom: 16px;
+        }
+
+        .completeness-label {
+            font-size: 13px;
+            color: #666;
+            font-weight: 600;
+            margin-bottom: 6px;
+        }
+
+        .completeness-bar {
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .completeness-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4a7fd4, #27ae60);
+            border-radius: 4px;
+            transition: width 0.3s;
+        }
+
+        /* Our fencer's path */
+        .bout-card {
+            border: 2px solid #e0e0e0;
+            border-radius: 14px;
+            padding: 16px;
+            margin-bottom: 12px;
+            position: relative;
+        }
+
+        .bout-card.win { border-left: 5px solid #27ae60; }
+        .bout-card.loss { border-left: 5px solid #e74c3c; }
+
+        .bout-round {
+            font-size: 11px;
+            font-weight: 700;
+            color: #999;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+
+        .bout-matchup {
+            font-size: 15px;
+            font-weight: 600;
+            color: #1a1a2e;
+            margin-bottom: 4px;
+        }
+
+        .bout-matchup .seed { color: #999; font-weight: 400; }
+
+        .bout-score {
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .bout-score .score-num { font-weight: 700; font-size: 18px; }
+        .bout-score.win .score-num { color: #27ae60; }
+        .bout-score.loss .score-num { color: #e74c3c; }
+
+        .bout-result-badge {
+            font-size: 11px;
+            font-weight: 700;
+            padding: 3px 10px;
+            border-radius: 20px;
+            text-transform: uppercase;
+        }
+
+        .bout-result-badge.win { background: #d4edda; color: #155724; }
+        .bout-result-badge.loss { background: #f8d7da; color: #721c24; }
+
+        .bout-edit {
+            position: absolute;
+            top: 12px; right: 12px;
+            background: none;
+            border: none;
+            font-size: 16px;
+            cursor: pointer;
+            color: #999;
+        }
+
+        /* Final placement */
+        .placement {
+            text-align: center;
+            padding: 20px;
+            background: linear-gradient(135deg, #f0f4ff, #e8ecf8);
+            border-radius: 14px;
+            margin-bottom: 16px;
+        }
+
+        .placement-label { font-size: 12px; color: #666; font-weight: 600; text-transform: uppercase; }
+        .placement-value { font-size: 28px; font-weight: 800; color: #1e3a7a; margin-top: 4px; }
+
+        /* Full bracket toggle */
+        .bracket-toggle {
+            width: 100%;
+            padding: 12px;
+            background: #f5f7fa;
+            border: none;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #2c3e6b;
+            cursor: pointer;
+            margin-bottom: 12px;
+        }
+
+        .bracket-round { margin-bottom: 14px; }
+        .bracket-round-title {
+            font-size: 12px;
+            font-weight: 700;
+            color: #999;
+            text-transform: uppercase;
+            margin-bottom: 6px;
+        }
+        .bracket-bout-row {
+            font-size: 13px;
+            color: #555;
+            padding: 4px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .bracket-bout-row .winner { font-weight: 600; color: #1a1a2e; }
+
+        /* Warning */
+        .warning {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 12px;
+            padding: 14px;
+            font-size: 13px;
+            color: #856404;
+            margin-bottom: 16px;
+        }
+
+        .warning strong { display: block; margin-bottom: 4px; }
+
+        /* Opponent intel badges */
+        .intel-badge {
+            display: inline-block;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 3px 10px;
+            border-radius: 20px;
+            margin-top: 6px;
+        }
+
+        .intel-badge.known { background: #d4edda; color: #155724; }
+        .intel-badge.new { background: #e0e0e0; color: #666; }
+
+        /* Section divider */
+        .section-label {
+            color: white;
+            font-size: 13px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin: 24px 0 12px;
+            opacity: 0.8;
+        }
+
+        /* View states */
+        .view { display: none; }
+        .view.active { display: block; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>DE Bracket</h1>
+            <p>Upload bracket screenshots</p>
+            <a href="#" class="sign-out">Sign out</a>
+        </div>
+
+        <a href="#" class="back-btn">&#8592; Back</a>
+
+        <!-- VIEW 1: Upload -->
+        <div class="view active" id="uploadView">
+            <div class="card">
+                <h2>Upload Bracket Screenshots</h2>
+
+                <div class="form-group">
+                    <label>Tournament</label>
+                    <select>
+                        <option>South Point Y12 Epee - March 8, 2026</option>
+                        <option>NAC Chicago Y12 Epee - Feb 15, 2026</option>
+                        <option>+ New Tournament</option>
+                    </select>
+                </div>
+
+                <!-- New tournament inline form (shown when "+ New Tournament" selected) -->
+                <div id="newTournamentForm" style="display:none; border:2px solid #e0e0e0; border-radius:14px; padding:16px; margin-bottom:14px;">
+                    <div class="form-group">
+                        <label>Tournament Name</label>
+                        <input type="text" placeholder="e.g. South Point Y12 Epee">
+                    </div>
+                    <div style="display:flex; gap:10px;">
+                        <div class="form-group" style="flex:1;">
+                            <label>Date</label>
+                            <input type="text" value="2026-04-11" style="font-size:14px;">
+                        </div>
+                        <div class="form-group" style="flex:1;">
+                            <label>Location</label>
+                            <input type="text" placeholder="City, State">
+                        </div>
+                    </div>
+                    <div style="display:flex; gap:10px;">
+                        <div class="form-group" style="flex:1;">
+                            <label>Weapon</label>
+                            <select><option selected>Epee</option><option>Foil</option><option>Sabre</option></select>
+                        </div>
+                        <div class="form-group" style="flex:1;">
+                            <label>Age Category</label>
+                            <select><option selected>Y12</option><option>Y10</option><option>Y14</option><option>Cadet</option><option>Junior</option></select>
+                        </div>
+                        <div class="form-group" style="flex:1;">
+                            <label>Level</label>
+                            <select><option>Regional</option><option>National</option><option>Local</option></select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="upload-area" onclick="document.getElementById('fileInput').click()">
+                    <div class="icon">&#128247;</div>
+                    <div class="label">Tap to add bracket screenshots</div>
+                    <div class="hint">Select multiple images at once</div>
+                </div>
+                <input type="file" id="fileInput" accept="image/*" multiple style="display:none">
+
+                <div class="thumb-count">4 screenshots selected</div>
+                <div class="thumbs">
+                    <div class="thumb">
+                        <div style="width:100%;height:100%;background:#dde3f0;display:flex;align-items:center;justify-content:center;font-size:11px;color:#666;">T64 top</div>
+                        <button class="remove">&#10005;</button>
+                    </div>
+                    <div class="thumb">
+                        <div style="width:100%;height:100%;background:#d5dce8;display:flex;align-items:center;justify-content:center;font-size:11px;color:#666;">T64 bot</div>
+                        <button class="remove">&#10005;</button>
+                    </div>
+                    <div class="thumb">
+                        <div style="width:100%;height:100%;background:#cdd6e6;display:flex;align-items:center;justify-content:center;font-size:11px;color:#666;">T32</div>
+                        <button class="remove">&#10005;</button>
+                    </div>
+                    <div class="thumb">
+                        <div style="width:100%;height:100%;background:#c5cfe0;display:flex;align-items:center;justify-content:center;font-size:11px;color:#666;">T16+</div>
+                        <button class="remove">&#10005;</button>
+                    </div>
+                </div>
+
+                <button class="btn-primary" onclick="showProcessing()">Extract Bracket</button>
+            </div>
+        </div>
+
+        <!-- VIEW 2: Processing -->
+        <div class="view" id="processingView">
+            <div class="card">
+                <h2>Extracting Bracket Data</h2>
+                <div class="processing">
+                    <span class="spinner"></span>
+                    <span class="text">Analyzing image 2 of 4...</span>
+                </div>
+                <div style="font-size:12px;color:#999;text-align:center;margin-top:8px;">
+                    This may take 30-60 seconds
+                </div>
+            </div>
+        </div>
+
+        <!-- VIEW 3: Results -->
+        <div class="view" id="resultsView">
+
+            <!-- Completeness -->
+            <div class="card">
+                <div class="completeness">
+                    <div class="completeness-label">Bracket completeness: 85% (54 of 63 bouts captured)</div>
+                    <div class="completeness-bar">
+                        <div class="completeness-fill" style="width: 85%"></div>
+                    </div>
+                </div>
+
+                <div class="placement">
+                    <div class="placement-label">Final Placement</div>
+                    <div class="placement-value">Top 32</div>
+                </div>
+            </div>
+
+            <div class="section-label">Ethan's DE Path</div>
+
+            <!-- Bout 1: Win -->
+            <div class="card" style="padding: 0; overflow: hidden;">
+                <div class="bout-card win">
+                    <button class="bout-edit">&#9998;</button>
+                    <div class="bout-round">Table of 64</div>
+                    <div class="bout-matchup">
+                        SALIM Ethan <span class="seed">(36)</span> vs LUCAS Aiden <span class="seed">(29)</span>
+                    </div>
+                    <div style="font-size:12px;color:#999;margin-bottom:8px;">LAIFC / Southern California</div>
+                    <div class="bout-score win">
+                        <span class="score-num">15 - 7</span>
+                        <span class="bout-result-badge win">Win</span>
+                    </div>
+                    <span class="intel-badge new">New opponent</span>
+                </div>
+            </div>
+
+            <!-- Bout 2: Loss -->
+            <div class="card" style="padding: 0; overflow: hidden;">
+                <div class="bout-card loss">
+                    <button class="bout-edit">&#9998;</button>
+                    <div class="bout-round">Table of 32</div>
+                    <div class="bout-matchup">
+                        SALIM Ethan <span class="seed">(36)</span> vs YI Alexander <span class="seed">(4)</span>
+                    </div>
+                    <div style="font-size:12px;color:#999;margin-bottom:8px;">BFC / Northern California</div>
+                    <div class="bout-score loss">
+                        <span class="score-num">7 - 15</span>
+                        <span class="bout-result-badge loss">Loss</span>
+                    </div>
+                    <span class="intel-badge known">2 past bouts -- View intel</span>
+                </div>
+            </div>
+
+            <!-- Warning -->
+            <div class="warning">
+                <strong>&#9888; 1 warning</strong>
+                Could not read score for Table of 64, bout #12 (blurry region). You can edit this in the full bracket view.
+            </div>
+
+            <!-- Full bracket toggle -->
+            <div class="card">
+                <button class="bracket-toggle" onclick="toggleBracket()">&#9660; View Full Bracket (63 bouts)</button>
+                <div id="fullBracket" style="display:none;">
+                    <div class="bracket-round">
+                        <div class="bracket-round-title">Table of 64 (32 bouts, 28 extracted)</div>
+                        <div class="bracket-bout-row"><span class="winner">CHAN Nathan (1)</span> vs BYE</div>
+                        <div class="bracket-bout-row"><span class="winner">PARK James (17)</span> vs WONG David (48) &mdash; 15-8</div>
+                        <div class="bracket-bout-row"><span class="winner">KIM Lucas (9)</span> vs CHEN Max (56) &mdash; 15-4</div>
+                        <div class="bracket-bout-row"><span class="winner">SALIM Ethan (36)</span> vs LUCAS Aiden (29) &mdash; 15-7</div>
+                        <div class="bracket-bout-row" style="color:#ccc;">Bout #12 &mdash; score unreadable</div>
+                        <div style="font-size:12px;color:#999;padding:6px 0;">... 23 more bouts</div>
+                    </div>
+                    <div class="bracket-round">
+                        <div class="bracket-round-title">Table of 32 (16 bouts, 16 extracted)</div>
+                        <div class="bracket-bout-row"><span class="winner">CHAN Nathan (1)</span> vs PARK James (17) &mdash; 15-11</div>
+                        <div class="bracket-bout-row"><span class="winner">YI Alexander (4)</span> vs SALIM Ethan (36) &mdash; 15-7</div>
+                        <div style="font-size:12px;color:#999;padding:6px 0;">... 14 more bouts</div>
+                    </div>
+                    <div class="bracket-round">
+                        <div class="bracket-round-title">Table of 16 (8 bouts, 8 extracted)</div>
+                        <div class="bracket-bout-row"><span class="winner">CHAN Nathan (1)</span> vs YI Alexander (4) &mdash; 15-12</div>
+                        <div style="font-size:12px;color:#999;padding:6px 0;">... 7 more bouts</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action buttons -->
+            <button class="btn-primary" style="margin-bottom:8px;">Confirm &amp; Save</button>
+            <button class="btn-secondary" onclick="showUpload()">Upload More Screenshots</button>
+            <button class="btn-secondary" style="border-color:#e74c3c;color:#e74c3c;margin-top:8px;">Cancel</button>
+        </div>
+    </div>
+
+    <script>
+        function showProcessing() {
+            document.getElementById('uploadView').classList.remove('active');
+            document.getElementById('processingView').classList.add('active');
+            setTimeout(() => {
+                document.getElementById('processingView').classList.remove('active');
+                document.getElementById('resultsView').classList.add('active');
+            }, 2000);
+        }
+
+        function showUpload() {
+            document.getElementById('resultsView').classList.remove('active');
+            document.getElementById('uploadView').classList.add('active');
+        }
+
+        function toggleBracket() {
+            const el = document.getElementById('fullBracket');
+            el.style.display = el.style.display === 'none' ? 'block' : 'none';
+        }
+    </script>
+</body>
+</html>

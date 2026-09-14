@@ -4,6 +4,7 @@ __pycache__/
 uploads/
 *.m4a
 fencing_data.json
+fencing_data.db
 fencing_notebook.md
 fencing_tips_printable.md
 fencing_tips_printable.html

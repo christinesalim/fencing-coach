@@ -46,11 +46,7 @@ The app will start on `http://0.0.0.0:5000`
 
 #### Option B: Deploy to Cloud (Access anywhere)
 
-For access from anywhere, deploy to a service like:
-- **Railway** (easiest, free tier available)
-- **Heroku**
-- **PythonAnywhere**
-- **Google Cloud Run**
+This app is deployed on **Render** — see `render.yaml`. Pushes to `main` auto-deploy.
 
 ## Usage
 
@@ -92,19 +88,9 @@ To backup your tips, simply copy this file.
 
 ## Deployment Options
 
-### Railway (Recommended)
+### Render (Production)
 
-1. Install Railway CLI: `npm install -g @railway/cli`
-2. Create a `Procfile`:
-   ```
-   web: python app.py
-   ```
-3. Deploy:
-   ```bash
-   railway login
-   railway init
-   railway up
-   ```
+This app is deployed on Render via `render.yaml`. Push to `main` and Render auto-deploys (2–3 min). Env vars `OPENAI_API_KEY` and `ANTHROPIC_API_KEY` are set in the Render dashboard.
 
 ### Using ngrok (Quick Testing)
 

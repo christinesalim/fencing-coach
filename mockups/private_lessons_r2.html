@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Private Lessons (R2) - Mockup</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #4a7fd4 0%, #1e3a7a 50%, #0f1f4a 100%);
+            min-height: 100vh;
+            padding: 20px;
+            padding-bottom: 80px;
+            color: #333;
+        }
+
+        .container { max-width: 700px; margin: 0 auto; }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+            position: relative;
+        }
+
+        .header h1 { font-size: 2em; margin-bottom: 10px; }
+        .header p { opacity: 0.9; font-size: 1.1em; }
+
+        .sign-out {
+            position: absolute;
+            top: 0; right: 0;
+            color: rgba(255,255,255,0.7);
+            font-size: 13px;
+            text-decoration: none;
+        }
+
+        .back-btn {
+            display: inline-block;
+            background: white;
+            color: #2c3e6b;
+            padding: 10px 20px;
+            border-radius: 50px;
+            text-decoration: none;
+            font-weight: 600;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 20px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        .card h2 { font-size: 1.2em; margin-bottom: 16px; color: #1a1a2e; }
+
+        .form-group { margin-bottom: 14px; }
+
+        label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: #555;
+            margin-bottom: 5px;
+        }
+
+        input[type="text"], input[type="date"], textarea, select {
+            width: 100%;
+            padding: 12px 14px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            font-size: 15px;
+            font-family: inherit;
+            outline: none;
+            background: white;
+        }
+
+        input:focus, textarea:focus { border-color: #2c3e6b; }
+        textarea { resize: vertical; min-height: 80px; }
+
+        .form-row {
+            display: flex;
+            gap: 10px;
+        }
+
+        .form-row .form-group { flex: 1; }
+
+        .btn-primary {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #4a7fd4 0%, #1e3a7a 50%, #0f1f4a 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 4px;
+        }
+
+        /* Upload area */
+        .upload-area {
+            border: 3px dashed #c0c8e0;
+            border-radius: 16px;
+            padding: 30px;
+            text-align: center;
+            margin-bottom: 16px;
+            cursor: pointer;
+            transition: border-color 0.2s, background 0.2s;
+        }
+
+        .upload-area:hover { border-color: #4a7fd4; background: #f0f4ff; }
+        .upload-area .icon { font-size: 36px; margin-bottom: 8px; }
+        .upload-area .label { font-size: 15px; color: #666; font-weight: 500; }
+        .upload-area .hint { font-size: 12px; color: #999; margin-top: 4px; }
+
+        .upload-area.has-file {
+            border-color: #27ae60;
+            background: #f0faf4;
+        }
+
+        .upload-area.has-file .icon { color: #27ae60; }
+        .upload-area.has-file .label { color: #155724; }
+
+        /* Category toggles */
+        .category-toggles {
+            display: flex;
+            gap: 8px;
+        }
+
+        .cat-toggle {
+            flex: 1;
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            text-align: center;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            background: white;
+            color: #555;
+            transition: all 0.2s;
+        }
+
+        .cat-toggle.active-offense { border-color: #4a7fd4; background: #eef3ff; color: #2c3e6b; }
+        .cat-toggle.active-defense { border-color: #27ae60; background: #f0faf4; color: #155724; }
+
+        /* Tags input */
+        .tags-input-wrap {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            padding: 10px 14px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            align-items: center;
+            min-height: 48px;
+        }
+
+        .tags-input-wrap:focus-within { border-color: #2c3e6b; }
+
+        .tag-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 13px;
+            font-weight: 600;
+            padding: 4px 10px;
+            border-radius: 20px;
+            background: #eef3ff;
+            color: #2c3e6b;
+        }
+
+        .tag-chip .remove {
+            cursor: pointer;
+            font-size: 14px;
+            color: #999;
+            margin-left: 2px;
+        }
+
+        .tags-input-wrap input {
+            border: none;
+            outline: none;
+            font-size: 14px;
+            flex: 1;
+            min-width: 100px;
+            padding: 4px 0;
+        }
+
+        /* Progress bar */
+        .progress-wrap {
+            margin: 16px 0;
+        }
+
+        .progress-info {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 6px;
+        }
+
+        .progress-bar {
+            height: 6px;
+            background: #e0e0e0;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4a7fd4, #27ae60);
+            border-radius: 3px;
+            transition: width 0.3s;
+        }
+
+        .progress-status {
+            font-size: 13px;
+            color: #2c3e6b;
+            font-weight: 500;
+            margin-top: 8px;
+            text-align: center;
+        }
+
+        /* Filter bar */
+        .filter-bar {
+            margin-bottom: 20px;
+        }
+
+        .filter-search {
+            position: relative;
+            margin-bottom: 12px;
+        }
+
+        .filter-search input {
+            width: 100%;
+            padding: 12px 14px 12px 42px;
+            border: 2px solid rgba(255,255,255,0.2);
+            border-radius: 14px;
+            font-size: 15px;
+            font-family: inherit;
+            outline: none;
+            background: rgba(255,255,255,0.95);
+        }
+
+        .filter-search .search-icon {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 18px;
+            color: #999;
+        }
+
+        .filter-pills {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            padding: 4px 0;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .filter-pill {
+            flex-shrink: 0;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            border: 2px solid rgba(255,255,255,0.3);
+            background: rgba(255,255,255,0.1);
+            color: white;
+            cursor: pointer;
+        }
+
+        .filter-pill.active {
+            background: white;
+            color: #2c3e6b;
+            border-color: white;
+        }
+
+        .filter-pill.active-offense {
+            background: #eef3ff;
+            color: #2c3e6b;
+            border-color: #eef3ff;
+        }
+
+        .filter-pill.active-defense {
+            background: #f0faf4;
+            color: #155724;
+            border-color: #f0faf4;
+        }
+
+        .filter-pill.active-tag {
+            background: #fff3cd;
+            color: #856404;
+            border-color: #fff3cd;
+        }
+
+        /* Lesson cards */
+        .lesson-card {
+            background: white;
+            border-radius: 20px;
+            margin-bottom: 16px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            overflow: hidden;
+            cursor: pointer;
+        }
+
+        .lesson-thumb {
+            height: 160px;
+            background: #1a1a2e;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .play-btn {
+            width: 56px;
+            height: 56px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .play-btn::after {
+            content: '';
+            display: block;
+            width: 0;
+            height: 0;
+            border-style: solid;
+            border-width: 10px 0 10px 18px;
+            border-color: transparent transparent transparent white;
+            margin-left: 4px;
+        }
+
+        .duration-badge {
+            position: absolute;
+            bottom: 8px;
+            right: 8px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 3px 8px;
+            border-radius: 6px;
+        }
+
+        .lesson-body { padding: 16px 20px 20px; }
+
+        .lesson-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: #1a1a2e;
+            margin-bottom: 4px;
+        }
+
+        .lesson-date {
+            font-size: 12px;
+            color: #999;
+            margin-bottom: 10px;
+        }
+
+        .lesson-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 8px;
+        }
+
+        .cat-badge {
+            font-size: 11px;
+            font-weight: 700;
+            padding: 3px 10px;
+            border-radius: 20px;
+        }
+
+        .cat-badge.offense { background: #eef3ff; color: #2c3e6b; }
+        .cat-badge.defense { background: #d4edda; color: #155724; }
+
+        .tag-badge {
+            font-size: 11px;
+            font-weight: 600;
+            padding: 3px 10px;
+            border-radius: 20px;
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .lesson-desc {
+            font-size: 13px;
+            color: #666;
+            line-height: 1.5;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        /* Modal overlay */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.6);
+            z-index: 100;
+            display: none;
+            align-items: flex-end;
+            justify-content: center;
+        }
+
+        .modal-overlay.active { display: flex; }
+
+        .modal {
+            background: white;
+            border-radius: 20px 20px 0 0;
+            width: 100%;
+            max-width: 700px;
+            max-height: 90vh;
+            overflow-y: auto;
+            padding: 0;
+        }
+
+        .modal-handle {
+            width: 40px;
+            height: 4px;
+            background: #ddd;
+            border-radius: 2px;
+            margin: 12px auto;
+        }
+
+        .modal-video {
+            width: 100%;
+            background: #000;
+            aspect-ratio: 16/9;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-video .play-btn { width: 64px; height: 64px; }
+
+        .modal-body { padding: 20px; }
+
+        .modal-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: #1a1a2e;
+            margin-bottom: 4px;
+        }
+
+        .modal-date { font-size: 13px; color: #999; margin-bottom: 12px; }
+
+        .modal-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 16px;
+            align-items: center;
+        }
+
+        .modal-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 5px 12px;
+            border-radius: 20px;
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .modal-tag .remove-tag {
+            cursor: pointer;
+            font-size: 14px;
+            color: #b8860b;
+        }
+
+        .add-tag-btn {
+            font-size: 12px;
+            font-weight: 600;
+            color: #4a7fd4;
+            background: #eef3ff;
+            border: 1px dashed #4a7fd4;
+            padding: 5px 12px;
+            border-radius: 20px;
+            cursor: pointer;
+        }
+
+        .modal-section-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: #999;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+
+        .modal-description {
+            font-size: 14px;
+            color: #555;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+
+        .transcript-toggle {
+            width: 100%;
+            padding: 12px;
+            background: #f5f7fa;
+            border: none;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #2c3e6b;
+            cursor: pointer;
+            margin-bottom: 12px;
+        }
+
+        .transcript-text {
+            font-size: 13px;
+            color: #666;
+            line-height: 1.7;
+            background: #f9fafb;
+            padding: 16px;
+            border-radius: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .modal-delete {
+            width: 100%;
+            padding: 12px;
+            background: none;
+            color: #e74c3c;
+            border: none;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 16px;
+        }
+
+        .modal-close {
+            position: sticky;
+            top: 0;
+            text-align: right;
+            padding: 12px 16px 0;
+            z-index: 1;
+        }
+
+        .modal-close button {
+            background: #f0f0f0;
+            border: none;
+            border-radius: 50%;
+            width: 32px;
+            height: 32px;
+            font-size: 18px;
+            cursor: pointer;
+            color: #666;
+        }
+
+        /* Section divider */
+        .section-label {
+            color: white;
+            font-size: 13px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin: 24px 0 12px;
+            opacity: 0.8;
+        }
+
+        /* Transcription status */
+        .transcription-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-weight: 600;
+        }
+
+        .transcription-status.complete { background: #d4edda; color: #155724; }
+        .transcription-status.processing { background: #fff3cd; color: #856404; }
+
+        .status-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+        }
+
+        .complete .status-dot { background: #27ae60; }
+        .processing .status-dot { background: #ffc107; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Private Lessons</h1>
+            <p>Video library for Ethan's training</p>
+            <a href="#" class="sign-out">Sign out</a>
+        </div>
+
+        <a href="#" class="back-btn">&#8592; Back</a>
+
+        <!-- Upload form -->
+        <div class="card" id="uploadCard">
+            <h2>Upload a Lesson Clip</h2>
+
+            <div class="upload-area has-file" onclick="document.getElementById('videoInput').click()">
+                <div class="icon">&#127909;</div>
+                <div class="label">parry4_riposte_april8.mp4 (42 MB)</div>
+                <div class="hint">Tap to change</div>
+            </div>
+            <input type="file" id="videoInput" accept="video/*,.mp4,.mov,.m4v" style="display:none">
+
+            <div class="form-group">
+                <label>Title</label>
+                <input type="text" value="Parry 4 Riposte - correct form">
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Lesson Date</label>
+                    <input type="date" value="2026-04-08">
+                </div>
+                <div class="form-group">
+                    <label>Category</label>
+                    <div class="category-toggles">
+                        <div class="cat-toggle" onclick="this.classList.toggle('active-offense'); this.nextElementSibling.classList.remove('active-defense')">Offense</div>
+                        <div class="cat-toggle active-defense" onclick="this.classList.toggle('active-defense'); this.previousElementSibling.classList.remove('active-offense')">Defense</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Tags</label>
+                <div class="tags-input-wrap">
+                    <span class="tag-chip">parry 4 <span class="remove">&#10005;</span></span>
+                    <span class="tag-chip">riposte <span class="remove">&#10005;</span></span>
+                    <span class="tag-chip">Coach Ziad <span class="remove">&#10005;</span></span>
+                    <input type="text" placeholder="Add tag...">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Description</label>
+                <textarea placeholder="Key points from this lesson...">Good example of keeping blade contact through the parry and finishing with a direct riposte to the chest.</textarea>
+            </div>
+
+            <button class="btn-primary" onclick="showProgress()">Upload &amp; Transcribe</button>
+
+            <!-- Progress (hidden by default, shown on upload) -->
+            <div class="progress-wrap" id="progressWrap" style="display:none;">
+                <div class="progress-info">
+                    <span>Uploading...</span>
+                    <span id="progressPct">68%</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill" style="width:68%"></div>
+                </div>
+                <div class="progress-status" id="progressStatus">Uploading video to cloud storage...</div>
+            </div>
+        </div>
+
+        <!-- Filter bar -->
+        <div class="filter-bar">
+            <div class="filter-search">
+                <span class="search-icon">&#128269;</span>
+                <input type="text" placeholder="Search lessons, tags, transcripts...">
+            </div>
+            <div class="filter-pills">
+                <div class="filter-pill active">All</div>
+                <div class="filter-pill" onclick="this.classList.toggle('active-offense')">Offense</div>
+                <div class="filter-pill active-defense">Defense</div>
+                <div class="filter-pill active-tag">parry 4</div>
+                <div class="filter-pill">riposte</div>
+                <div class="filter-pill">flick</div>
+                <div class="filter-pill">footwork</div>
+                <div class="filter-pill">fleche</div>
+                <div class="filter-pill">Coach Ziad</div>
+            </div>
+        </div>
+
+        <div class="section-label">3 lessons</div>
+
+        <!-- Lesson card 1 -->
+        <div class="lesson-card" onclick="openModal()">
+            <div class="lesson-thumb">
+                <div class="play-btn"></div>
+                <span class="duration-badge">2:34</span>
+            </div>
+            <div class="lesson-body">
+                <div class="lesson-title">Parry 4 Riposte - correct form</div>
+                <div class="lesson-date">April 8, 2026</div>
+                <div class="lesson-meta">
+                    <span class="cat-badge defense">Defense</span>
+                    <span class="tag-badge">parry 4</span>
+                    <span class="tag-badge">riposte</span>
+                    <span class="tag-badge">Coach Ziad</span>
+                </div>
+                <div class="lesson-desc">Good example of keeping blade contact through the parry and finishing with a direct riposte to the chest.</div>
+            </div>
+        </div>
+
+        <!-- Lesson card 2 -->
+        <div class="lesson-card">
+            <div class="lesson-thumb">
+                <div class="play-btn"></div>
+                <span class="duration-badge">4:12</span>
+            </div>
+            <div class="lesson-body">
+                <div class="lesson-title">Flick to back - wrist technique</div>
+                <div class="lesson-date">April 1, 2026</div>
+                <div class="lesson-meta">
+                    <span class="cat-badge offense">Offense</span>
+                    <span class="tag-badge">flick</span>
+                    <span class="tag-badge">wrist</span>
+                </div>
+                <div class="lesson-desc">Focus on the wrist snap at the end. Keep arm extended and relaxed until the last moment.</div>
+            </div>
+        </div>
+
+        <!-- Lesson card 3 (legacy YouTube) -->
+        <div class="lesson-card">
+            <div class="lesson-thumb" style="background:#2c3e6b;">
+                <div style="color:rgba(255,255,255,0.5);font-size:13px;text-align:center;">
+                    <div style="font-size:24px;margin-bottom:4px;">&#9654;</div>
+                    YouTube video
+                </div>
+            </div>
+            <div class="lesson-body">
+                <div class="lesson-title">Footwork drill - March 2026</div>
+                <div class="lesson-date">March 25, 2026</div>
+                <div class="lesson-meta">
+                    <span class="tag-badge">footwork</span>
+                    <span class="tag-badge">advance-lunge</span>
+                </div>
+                <div class="lesson-desc">Working on smooth advance-lunge timing with Coach Ziad.</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Detail Modal -->
+    <div class="modal-overlay" id="lessonModal">
+        <div class="modal">
+            <div class="modal-handle"></div>
+            <div class="modal-close">
+                <button onclick="closeModal()">&#10005;</button>
+            </div>
+            <div class="modal-video">
+                <div class="play-btn"></div>
+            </div>
+            <div class="modal-body">
+                <div class="modal-title">Parry 4 Riposte - correct form</div>
+                <div class="modal-date">
+                    April 8, 2026 &nbsp;&middot;&nbsp; 2:34 &nbsp;&middot;&nbsp;
+                    <span class="cat-badge defense">Defense</span> &nbsp;
+                    <span class="transcription-status complete"><span class="status-dot"></span> Transcribed</span>
+                </div>
+
+                <div class="modal-tags">
+                    <span class="modal-tag">parry 4 <span class="remove-tag">&#10005;</span></span>
+                    <span class="modal-tag">riposte <span class="remove-tag">&#10005;</span></span>
+                    <span class="modal-tag">Coach Ziad <span class="remove-tag">&#10005;</span></span>
+                    <button class="add-tag-btn">+ Add tag</button>
+                </div>
+
+                <div class="modal-section-title">Description</div>
+                <div class="modal-description">Good example of keeping blade contact through the parry and finishing with a direct riposte to the chest. Coach Ziad emphasized keeping the elbow high and not dropping the point during the parry.</div>
+
+                <div class="modal-section-title">Transcript</div>
+                <button class="transcript-toggle" onclick="toggleTranscript()">&#9660; Show transcript</button>
+                <div class="transcript-text" id="transcriptText" style="display:none;">
+                    OK so watch this one. See how he keeps the blade... there you go. That's what I want to see. The blade stays in contact the whole way through the parry. Don't let it bounce off. And then the riposte goes straight - don't circle, don't hesitate, just straight to the chest. Again... yes! Perfect. See the difference? Before you were dropping your point during the parry and then trying to come back up for the riposte. That's too slow. Keep the point up, keep contact, and then just extend. The riposte should feel like one motion with the parry, not two separate actions. One more time...
+                </div>
+
+                <button class="modal-delete">Delete lesson</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function showProgress() {
+            document.getElementById('progressWrap').style.display = 'block';
+            let pct = 0;
+            const fill = document.getElementById('progressFill');
+            const pctLabel = document.getElementById('progressPct');
+            const status = document.getElementById('progressStatus');
+
+            const interval = setInterval(() => {
+                pct += Math.random() * 15;
+                if (pct > 100) pct = 100;
+                fill.style.width = pct + '%';
+                pctLabel.textContent = Math.round(pct) + '%';
+
+                if (pct >= 100) {
+                    clearInterval(interval);
+                    status.textContent = 'Transcribing audio...';
+                    setTimeout(() => {
+                        status.textContent = 'Done! Lesson saved.';
+                        status.style.color = '#27ae60';
+                    }, 1500);
+                }
+            }, 300);
+        }
+
+        function openModal() {
+            document.getElementById('lessonModal').classList.add('active');
+        }
+
+        function closeModal() {
+            document.getElementById('lessonModal').classList.remove('active');
+        }
+
+        function toggleTranscript() {
+            const el = document.getElementById('transcriptText');
+            el.style.display = el.style.display === 'none' ? 'block' : 'none';
+        }
+    </script>
+</body>
+</html>

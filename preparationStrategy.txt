@@ -1,0 +1,61 @@
+            ┌────────────────────────────┐
+            │        START TOUCH         │
+            └────────────┬───────────────┘
+                         ↓
+        ┌──────────────────────────────────┐
+        │ What do I want them to do?       │
+        │ (Pick ONE)                       │                                        
+        └────────────┬────────────┬────────┘
+                     ↓            ↓        ↓
+            ┌────────────┐ ┌────────────┐ ┌────────────┐
+            │  ATTACK    │ │  RETREAT   │ │   FREEZE   │
+            └─────┬──────┘ └─────┬──────┘ └─────┬──────┘
+                  ↓              ↓              ↓
+        ┌────────────────────────────────────────────┐
+        │ PREPARE (1–2 actions ONLY)                 │
+        │ • Small advance                           │
+        │ • Pause                                   │
+        │ • Feint                                   │
+        └────────────┬───────────────────────────────┘
+                     ↓
+        ┌────────────────────────────────────────────┐
+        │         WATCH THEIR REACTION               │
+        └────────────┬────────────┬──────────────────┘
+                     ↓            ↓
+        ┌────────────┐   ┌────────────┐   ┌────────────┐
+        │ THEY       │   │ THEY       │   │ THEY       │
+        │ ATTACK     │   │ RETREAT    │   │ FREEZE     │
+        └─────┬──────┘   └─────┬──────┘   └─────┬──────┘
+              ↓                ↓                ↓
+   ┌────────────────┐ ┌────────────────┐ ┌────────────────┐
+   │ Pull distance  │ │ Go forward     │ │ Take initiative│
+   │ COUNTERATTACK  │ │ FINISH ATTACK  │ │ ATTACK FIRST   │
+   │ (arm/wrist)    │ │                │ │                │
+   └────────┬───────┘ └────────┬───────┘ └────────┬───────┘
+            ↓                  ↓                  ↓
+               ┌────────────────────────────┐
+               │        SCORE TOUCH         │
+               └────────────────────────────┘
+
+
+RULES:
+✔ Max 2–3 preparations → THEN ACT
+✔ Every move has a purpose
+✔ Commit fully
+
+❌ No endless bouncing
+❌ No repeating same rhythm
+❌ No hesitation
+
+
+🎯 4–4 LAST TOUCH PLAN:
+
+Before point starts:
+  ↓
+Choose ONE plan:
+  ├── Attack fast
+  └── Draw attack → counterattack
+  ↓
+Commit immediately
+  ↓
+WIN THE TOUCH

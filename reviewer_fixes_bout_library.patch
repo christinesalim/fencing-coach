@@ -1,0 +1,135 @@
+diff --git a/app.py b/app.py
+index 67567ee..19dd77e 100644
+--- a/app.py
++++ b/app.py
+@@ -2304,10 +2304,10 @@ def api_upload_scout_videos(bout_id):
+ 
+         if not saved_clips and last_error:
+             return jsonify({'error': last_error}), 500
+-        response = {'success': True, 'videos': saved_clips}
+-        if last_error:
+-            response['error'] = last_error
+-        return jsonify(response)
++        # Partial success: drop the error field so clients that check
++        # ``d.error`` don't reject responses where some clips uploaded fine.
++        # The per-file failure was already logged server-side above.
++        return jsonify({'success': True, 'videos': saved_clips})
+     finally:
+         for p in temp_paths:
+             try:
+diff --git a/database.py b/database.py
+index 0af176a..3f4660d 100644
+--- a/database.py
++++ b/database.py
+@@ -2646,8 +2646,10 @@ def get_scout_bouts(filters=None):
+                 pass
+         tag = filters.get('tag')
+         if tag:
+-            # Substring match on the JSON tags column.
+-            query = query.filter(ScoutBout.tags.like(f'%{tag}%'))
++            # Anchor on JSON token quotes so e.g. "fight" doesn't match
++            # "close_in_fighting". The tags column is a JSON array of strings,
++            # so each token is wrapped in double quotes in the serialized form.
++            query = query.filter(ScoutBout.tags.like(f'%"{tag}"%'))
+ 
+         rows = query.order_by(ScoutBout.created_at.desc()).all()
+ 
+@@ -2671,7 +2673,8 @@ def get_scout_bouts_for_opponent(opponent_id):
+ 
+ 
+ def update_scout_bout(bout_id, data):
+-    """Update any subset of bout fields; re-run auto-link if names changed."""
++    """Update any subset of bout fields; re-run auto-link if names changed
++    or a club hint is supplied for an unlinked side."""
+     db = get_db()
+     try:
+         bout = db.query(ScoutBout).filter_by(id=bout_id).first()
+@@ -2679,6 +2682,10 @@ def update_scout_bout(bout_id, data):
+             return None
+ 
+         names_changed = False
++        # A club hint on an unlinked side should also trigger re-linking, so a
++        # user can fix a previously-unmatched bout by adding a club to the
++        # edit form without having to retype the fencer's name.
++        club_hint_for_unlinked = False
+ 
+         if 'tournament_id' in data:
+             bout.tournament_id = data['tournament_id']
+@@ -2709,7 +2716,13 @@ def update_scout_bout(bout_id, data):
+         if 'tags' in data:
+             bout.tags = _serialize_json_list(data['tags'])
+ 
+-        if names_changed:
++        # Detect club-hint-on-unlinked-side after the name/id mutations above.
++        if data.get('fencer_a_club') and not bout.fencer_a_id:
++            club_hint_for_unlinked = True
++        if data.get('fencer_b_club') and not bout.fencer_b_id:
++            club_hint_for_unlinked = True
++
++        if names_changed or club_hint_for_unlinked:
+             opponents = [_opponent_to_dict(o) for o in db.query(Opponent).all()]
+             _auto_link_scout_bout_opponents(
+                 bout, opponents,
+diff --git a/templates/opponent_intel.html b/templates/opponent_intel.html
+index 36145b5..ba65f0e 100644
+--- a/templates/opponent_intel.html
++++ b/templates/opponent_intel.html
+@@ -410,13 +410,20 @@
+ 
+         <!-- Scouting Videos (collapsible, default-collapsed) -->
+         {% set scout_count = (scout_bouts or []) | length %}
+-        {% if scout_count > 0 %}
+         <div class="scout-section" id="scoutSection">
+             <div class="scout-section-header" onclick="toggleScoutSection()">
+                 <span>Scouting Videos ({{ scout_count }})</span>
+                 <span class="scout-section-arrow">&#9660;</span>
+             </div>
+             <div class="scout-section-body">
++                {% if scout_count == 0 %}
++                <div class="scout-bout-row" style="opacity: 0.65;">
++                    <div class="scout-bout-line">No scouting clips yet for this opponent.</div>
++                    <div class="scout-bout-actions">
++                        <a href="/bout-library">Add one in the Bout Library</a>
++                    </div>
++                </div>
++                {% endif %}
+                 {% for bout in scout_bouts %}
+                     {% set other_name = (bout.fencer_b_name if bout.fencer_a_id == opponent.id else bout.fencer_a_name) %}
+                     {% set other_id = (bout.fencer_b_id if bout.fencer_a_id == opponent.id else bout.fencer_a_id) %}
+@@ -479,7 +486,6 @@
+                 modal.style.display = 'none';
+             }
+         </script>
+-        {% endif %}
+ 
+         <!-- Edit link -->
+         <a href="/opponents/{{ opponent.id }}" class="edit-link">Edit notes &amp; profile &rarr;</a>
+diff --git a/templates/opponent_profile.html b/templates/opponent_profile.html
+index 1667a68..e80d75d 100644
+--- a/templates/opponent_profile.html
++++ b/templates/opponent_profile.html
+@@ -490,9 +490,14 @@
+         </div>
+ 
+         <!-- Scouting Videos card -->
+-        {% if scout_bouts %}
+         <div class="card">
+-            <h2>Scouting Videos ({{ scout_bouts | length }})</h2>
++            <h2>Scouting Videos ({{ (scout_bouts or []) | length }})</h2>
++            {% if not scout_bouts %}
++                <div class="empty-inline" style="padding: 8px 0;">
++                    No scouting clips yet.
++                    <a href="/bout-library" style="color:#2c3e6b; text-decoration:none; font-weight:600;">Add one in the Bout Library &rarr;</a>
++                </div>
++            {% endif %}
+             {% for bout in scout_bouts %}
+                 {% set other_name = (bout.fencer_b_name if bout.fencer_a_id == opponent.id else bout.fencer_a_name) %}
+                 {% set other_id = (bout.fencer_b_id if bout.fencer_a_id == opponent.id else bout.fencer_a_id) %}
+@@ -523,7 +528,6 @@
+             <button onclick="closeScoutClip()" style="position:absolute; top:20px; right:20px; background:rgba(0,0,0,0.6); color:white; border:1px solid rgba(255,255,255,0.3); border-radius:50%; width:40px; height:40px; font-size:22px; cursor:pointer; line-height:1;">&times;</button>
+             <video id="scoutVideoPlayer" controls playsinline style="max-width:100%; max-height:90vh; border-radius:12px; background:black;"></video>
+         </div>
+-        {% endif %}
+ 
+         <!-- Tactical notes card -->
+         <div class="card">

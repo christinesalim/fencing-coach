@@ -1,0 +1,987 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Opponent Intel - Mockup</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #4a7fd4 0%, #1e3a7a 50%, #0f1f4a 100%);
+            min-height: 100vh;
+            padding: 20px;
+            padding-bottom: 80px;
+            color: #333;
+        }
+
+        .container { max-width: 700px; margin: 0 auto; }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+            position: relative;
+        }
+
+        .header h1 { font-size: 2em; margin-bottom: 10px; }
+        .header p { opacity: 0.9; font-size: 1.1em; }
+
+        .sign-out {
+            position: absolute;
+            top: 0; right: 0;
+            color: rgba(255,255,255,0.7);
+            font-size: 13px;
+            text-decoration: none;
+        }
+
+        .back-btn {
+            display: inline-block;
+            background: white;
+            color: #2c3e6b;
+            padding: 10px 20px;
+            border-radius: 50px;
+            text-decoration: none;
+            font-weight: 600;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 20px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        .card h2 { font-size: 1.2em; margin-bottom: 16px; color: #1a1a2e; }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            background: rgba(255,255,255,0.15);
+            border-radius: 12px;
+            padding: 4px;
+            margin-bottom: 20px;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 10px;
+            text-align: center;
+            color: rgba(255,255,255,0.7);
+            font-size: 13px;
+            font-weight: 600;
+            border-radius: 10px;
+            cursor: pointer;
+            border: none;
+            background: none;
+        }
+
+        .tab.active {
+            background: white;
+            color: #2c3e6b;
+        }
+
+        /* Search */
+        .search-box {
+            position: relative;
+            margin-bottom: 14px;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 14px 14px 14px 42px;
+            border: 2px solid #e0e0e0;
+            border-radius: 14px;
+            font-size: 15px;
+            font-family: inherit;
+            outline: none;
+        }
+
+        .search-box input:focus { border-color: #2c3e6b; }
+
+        .search-box .search-icon {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 18px;
+            color: #999;
+        }
+
+        /* Trait filters */
+        .filters-toggle {
+            font-size: 13px;
+            color: #4a7fd4;
+            font-weight: 600;
+            background: none;
+            border: none;
+            cursor: pointer;
+            margin-bottom: 14px;
+        }
+
+        .filters-row {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 14px;
+        }
+
+        .filter-chip {
+            padding: 8px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            border: 2px solid #e0e0e0;
+            background: white;
+            cursor: pointer;
+            color: #555;
+        }
+
+        .filter-chip.active {
+            border-color: #4a7fd4;
+            background: #eef3ff;
+            color: #2c3e6b;
+        }
+
+        select.filter-select {
+            padding: 8px 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 13px;
+            font-family: inherit;
+            background: white;
+            color: #555;
+            outline: none;
+        }
+
+        /* Opponent card in list */
+        .opponent-card {
+            border: 2px solid #e8ecf0;
+            border-radius: 14px;
+            padding: 16px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+
+        .opponent-card:hover { border-color: #4a7fd4; }
+
+        .opponent-name {
+            font-size: 16px;
+            font-weight: 700;
+            color: #1a1a2e;
+        }
+
+        .opponent-club {
+            font-size: 12px;
+            color: #999;
+            margin-top: 2px;
+        }
+
+        .opponent-meta {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 8px;
+            flex-wrap: wrap;
+        }
+
+        .trait-pill {
+            display: inline-block;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 3px 10px;
+            border-radius: 20px;
+            background: #f0f4ff;
+            color: #2c3e6b;
+        }
+
+        .trait-pill.left-handed { background: #fff3cd; color: #856404; }
+        .trait-pill.tall { background: #e8daef; color: #6c3483; }
+        .trait-pill.aggressive { background: #f8d7da; color: #721c24; }
+        .trait-pill.fast { background: #d1ecf1; color: #0c5460; }
+        .trait-pill.defensive { background: #d4edda; color: #155724; }
+
+        .h2h-mini {
+            font-size: 13px;
+            font-weight: 700;
+            color: #27ae60;
+            margin-left: auto;
+        }
+
+        .h2h-mini.losing { color: #e74c3c; }
+
+        /* FAB */
+        .fab {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #4a7fd4 0%, #1e3a7a 100%);
+            color: white;
+            font-size: 28px;
+            border: none;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Lookup card */
+        .lookup-textarea {
+            width: 100%;
+            padding: 12px 14px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            font-size: 14px;
+            font-family: inherit;
+            outline: none;
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .lookup-textarea:focus { border-color: #2c3e6b; }
+
+        .btn-primary {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #4a7fd4 0%, #1e3a7a 50%, #0f1f4a 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 8px;
+        }
+
+        /* Lookup results */
+        .lookup-result {
+            border: 2px solid #e8ecf0;
+            border-radius: 12px;
+            padding: 14px;
+            margin-top: 10px;
+        }
+
+        .lookup-result .match-name { font-weight: 700; color: #1a1a2e; }
+        .lookup-result .match-score { font-size: 12px; color: #999; margin-top: 2px; }
+
+        .match-badge {
+            display: inline-block;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 3px 10px;
+            border-radius: 20px;
+            margin-top: 6px;
+        }
+
+        .match-badge.found { background: #d4edda; color: #155724; }
+        .match-badge.fuzzy { background: #fff3cd; color: #856404; }
+        .match-badge.new { background: #e0e0e0; color: #666; }
+
+        .match-actions {
+            margin-top: 8px;
+        }
+
+        .match-actions a {
+            font-size: 13px;
+            font-weight: 600;
+            color: #4a7fd4;
+            text-decoration: none;
+        }
+
+        /* ====== PRE-BOUT INTEL VIEW ====== */
+        .intel-header {
+            text-align: center;
+            padding-bottom: 10px;
+        }
+
+        .intel-opponent-name {
+            font-size: 24px;
+            font-weight: 800;
+            color: #1a1a2e;
+        }
+
+        .intel-club {
+            font-size: 14px;
+            color: #999;
+            margin-top: 2px;
+        }
+
+        .intel-h2h {
+            text-align: center;
+            padding: 16px;
+            background: linear-gradient(135deg, #f0f4ff, #e8ecf8);
+            border-radius: 14px;
+            margin: 16px 0;
+        }
+
+        .intel-h2h .record { font-size: 28px; font-weight: 800; color: #1e3a7a; }
+        .intel-h2h .subtitle { font-size: 13px; color: #666; margin-top: 4px; }
+
+        .intel-traits {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            justify-content: center;
+            margin: 12px 0 16px;
+        }
+
+        /* Tactical sections */
+        .tactic-section {
+            border-radius: 14px;
+            padding: 16px;
+            margin-bottom: 12px;
+        }
+
+        .tactic-section.works {
+            background: #d4edda;
+            border: 1px solid #b8dacc;
+        }
+
+        .tactic-section.watchout {
+            background: #fff3cd;
+            border: 1px solid #ffe08a;
+        }
+
+        .tactic-section.weakness {
+            background: #d6eaf8;
+            border: 1px solid #b3d7f0;
+        }
+
+        .tactic-title {
+            font-size: 12px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 10px;
+        }
+
+        .tactic-section.works .tactic-title { color: #155724; }
+        .tactic-section.watchout .tactic-title { color: #856404; }
+        .tactic-section.weakness .tactic-title { color: #1a5276; }
+
+        .tactic-note {
+            font-size: 14px;
+            padding: 6px 0;
+            line-height: 1.5;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 8px;
+        }
+
+        .tactic-note + .tactic-note { border-top: 1px solid rgba(0,0,0,0.08); }
+
+        .confidence {
+            font-size: 10px;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 10px;
+            background: rgba(0,0,0,0.08);
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        .last-encounter {
+            font-size: 13px;
+            color: #666;
+            text-align: center;
+            padding: 12px;
+            background: #f5f7fa;
+            border-radius: 10px;
+            margin-top: 16px;
+        }
+
+        .edit-link {
+            display: block;
+            text-align: center;
+            font-size: 13px;
+            font-weight: 600;
+            color: #4a7fd4;
+            text-decoration: none;
+            margin-top: 12px;
+        }
+
+        /* ====== OPPONENT PROFILE VIEW ====== */
+        .form-group { margin-bottom: 14px; }
+
+        label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: #555;
+            margin-bottom: 5px;
+        }
+
+        input[type="text"], select, input[type="date"] {
+            width: 100%;
+            padding: 12px 14px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            font-size: 15px;
+            font-family: inherit;
+            outline: none;
+            background: white;
+        }
+
+        .form-row {
+            display: flex;
+            gap: 10px;
+        }
+
+        .form-row .form-group { flex: 1; }
+
+        /* Notes section */
+        .note-category-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .note-category-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: #1a1a2e;
+        }
+
+        .add-note-btn {
+            font-size: 12px;
+            font-weight: 600;
+            color: #4a7fd4;
+            background: none;
+            border: none;
+            cursor: pointer;
+        }
+
+        .note-item {
+            padding: 10px 0;
+            border-bottom: 1px solid #f0f0f0;
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+        }
+
+        .note-text {
+            flex: 1;
+            font-size: 14px;
+            line-height: 1.5;
+            color: #333;
+        }
+
+        .note-actions {
+            display: flex;
+            gap: 4px;
+            flex-shrink: 0;
+        }
+
+        .note-btn {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .note-btn.validate { background: #d4edda; color: #155724; }
+        .note-btn.invalidate { background: #f8d7da; color: #721c24; }
+        .note-btn.edit { background: #f0f0f0; color: #666; }
+
+        .note-confidence {
+            font-size: 11px;
+            color: #999;
+            margin-top: 2px;
+        }
+
+        /* H2H bout list */
+        .bout-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 14px;
+        }
+
+        .bout-row .tournament { color: #666; font-size: 12px; }
+        .bout-row .score { font-weight: 700; }
+        .bout-row .score.win { color: #27ae60; }
+        .bout-row .score.loss { color: #e74c3c; }
+
+        .btn-danger {
+            width: 100%;
+            padding: 12px;
+            background: none;
+            color: #e74c3c;
+            border: 2px solid #e74c3c;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        /* Section divider */
+        .section-label {
+            color: white;
+            font-size: 13px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin: 24px 0 12px;
+            opacity: 0.8;
+        }
+
+        /* Views */
+        .view { display: none; }
+        .view.active { display: block; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Opponent Intel</h1>
+            <p>Know your competition</p>
+            <a href="#" class="sign-out">Sign out</a>
+        </div>
+
+        <a href="#" class="back-btn" onclick="showList(); return false;">&#8592; Back</a>
+
+        <!-- Tab bar -->
+        <div class="tabs">
+            <button class="tab active" onclick="showList()">Search</button>
+            <button class="tab" onclick="showLookup()">Lookup Names</button>
+        </div>
+
+        <!-- ====== VIEW 1: SEARCH / LIST ====== -->
+        <div class="view active" id="listView">
+            <div class="card">
+                <div class="search-box">
+                    <span class="search-icon">&#128269;</span>
+                    <input type="text" placeholder="Search opponent by name...">
+                </div>
+
+                <button class="filters-toggle" onclick="toggleFilters()">&#9660; Filter by traits</button>
+
+                <div id="filtersPanel" style="display:none;">
+                    <div class="filters-row">
+                        <select class="filter-select">
+                            <option>Handedness</option>
+                            <option>Left</option>
+                            <option>Right</option>
+                        </select>
+                        <select class="filter-select">
+                            <option>Height</option>
+                            <option>Very Tall</option>
+                            <option>Tall</option>
+                            <option>Average</option>
+                            <option>Short</option>
+                        </select>
+                        <select class="filter-select">
+                            <option>Style</option>
+                            <option>Aggressive</option>
+                            <option>Defensive</option>
+                            <option>Counter</option>
+                            <option>Distance</option>
+                        </select>
+                    </div>
+                    <div class="filters-row">
+                        <select class="filter-select">
+                            <option>Speed</option>
+                            <option>Very Fast</option>
+                            <option>Fast</option>
+                            <option>Average</option>
+                            <option>Slow</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Results -->
+            <div class="opponent-card" onclick="showIntel()">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+                    <div>
+                        <div class="opponent-name">YI Alexander</div>
+                        <div class="opponent-club">BFC / Northern California</div>
+                    </div>
+                    <div class="h2h-mini losing">1W-2L</div>
+                </div>
+                <div class="opponent-meta">
+                    <span class="trait-pill">Right-handed</span>
+                    <span class="trait-pill tall">Tall</span>
+                    <span class="trait-pill aggressive">Aggressive</span>
+                    <span class="trait-pill fast">Fast</span>
+                </div>
+            </div>
+
+            <div class="opponent-card" onclick="showIntel()">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+                    <div>
+                        <div class="opponent-name">JI Dylan</div>
+                        <div class="opponent-club">LAIFC / Southern California</div>
+                    </div>
+                    <div class="h2h-mini">2W-1L</div>
+                </div>
+                <div class="opponent-meta">
+                    <span class="trait-pill left-handed">Left-handed</span>
+                    <span class="trait-pill">Average</span>
+                    <span class="trait-pill defensive">Defensive</span>
+                </div>
+            </div>
+
+            <div class="opponent-card">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+                    <div>
+                        <div class="opponent-name">KATZEL Charles</div>
+                        <div class="opponent-club">EBFG / Northern California</div>
+                    </div>
+                    <div class="h2h-mini losing">0W-1L</div>
+                </div>
+                <div class="opponent-meta">
+                    <span class="trait-pill">Right-handed</span>
+                    <span class="trait-pill tall">Very Tall</span>
+                </div>
+            </div>
+
+            <div class="opponent-card">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+                    <div>
+                        <div class="opponent-name">LEUNG Joon</div>
+                        <div class="opponent-club">MFC / Central California</div>
+                    </div>
+                    <div class="h2h-mini losing">0W-2L</div>
+                </div>
+                <div class="opponent-meta">
+                    <span class="trait-pill">Right-handed</span>
+                    <span class="trait-pill fast">Very Fast</span>
+                    <span class="trait-pill aggressive">Aggressive</span>
+                </div>
+            </div>
+
+            <button class="fab" onclick="showProfile()">+</button>
+        </div>
+
+        <!-- ====== VIEW 2: LOOKUP NAMES ====== -->
+        <div class="view" id="lookupView">
+            <div class="card">
+                <h2>Look Up Pool / DE Opponents</h2>
+                <p style="font-size:13px;color:#666;margin-bottom:12px;">Paste opponent names (one per line) to check for intel</p>
+                <textarea class="lookup-textarea" placeholder="JI Dylan
+KATZEL Charles
+ARULKUMAR Rihaan
+CHO Lincoln
+LEUNG Joon">JI Dylan
+KATZEL Charles
+ARULKUMAR Rihaan
+CHO Lincoln
+LEUNG Joon</textarea>
+                <button class="btn-primary">Look Up</button>
+            </div>
+
+            <div class="section-label">Results</div>
+
+            <div class="card" style="padding:16px;">
+                <div class="lookup-result">
+                    <div class="match-name">JI Dylan</div>
+                    <div class="match-score">Confidence: 100% exact match</div>
+                    <span class="match-badge found">Known opponent -- 2W-1L</span>
+                    <div class="match-actions"><a href="#" onclick="showIntel(); return false;">View intel &#8594;</a></div>
+                </div>
+                <div class="lookup-result">
+                    <div class="match-name">KATZEL Charles</div>
+                    <div class="match-score">Confidence: 100% exact match</div>
+                    <span class="match-badge found">Known opponent -- 0W-1L</span>
+                    <div class="match-actions"><a href="#">View intel &#8594;</a></div>
+                </div>
+                <div class="lookup-result">
+                    <div class="match-name">ARULKUMAR Rihaan</div>
+                    <div class="match-score">Confidence: 82% fuzzy match &rarr; "ARUL KUMAR Rihaan"</div>
+                    <span class="match-badge fuzzy">Possible match -- confirm?</span>
+                    <div class="match-actions"><a href="#">Confirm match</a> &nbsp; <a href="#">Create new profile</a></div>
+                </div>
+                <div class="lookup-result">
+                    <div class="match-name">CHO Lincoln</div>
+                    <span class="match-badge new">New opponent</span>
+                    <div class="match-actions"><a href="#" onclick="showProfile(); return false;">Create profile &#8594;</a></div>
+                </div>
+                <div class="lookup-result">
+                    <div class="match-name">LEUNG Joon</div>
+                    <div class="match-score">Confidence: 100% exact match</div>
+                    <span class="match-badge found">Known opponent -- 0W-2L</span>
+                    <div class="match-actions"><a href="#">View intel &#8594;</a></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ====== VIEW 3: PRE-BOUT INTEL ====== -->
+        <div class="view" id="intelView">
+            <div class="card">
+                <div class="intel-header">
+                    <div class="intel-opponent-name">YI Alexander</div>
+                    <div class="intel-club">BFC / Northern California</div>
+                </div>
+
+                <div class="intel-traits">
+                    <span class="trait-pill">Right-handed</span>
+                    <span class="trait-pill tall">Tall</span>
+                    <span class="trait-pill aggressive">Aggressive</span>
+                    <span class="trait-pill fast">Fast</span>
+                </div>
+
+                <div class="intel-h2h">
+                    <div class="record">1W - 2L</div>
+                    <div class="subtitle">vs YI Alexander</div>
+                </div>
+            </div>
+
+            <!-- What works -->
+            <div class="tactic-section works">
+                <div class="tactic-title">What Works</div>
+                <div class="tactic-note">
+                    <span>Counter-attack when he rushes in -- he overextends on his lunge</span>
+                    <span class="confidence">3/3</span>
+                </div>
+                <div class="tactic-note">
+                    <span>Keep distance and make him come to you -- he gets impatient</span>
+                    <span class="confidence">2/3</span>
+                </div>
+            </div>
+
+            <!-- Watch out for -->
+            <div class="tactic-section watchout">
+                <div class="tactic-title">Watch Out For</div>
+                <div class="tactic-note">
+                    <span>Very fast fleche from distance -- hard to see coming</span>
+                    <span class="confidence">3/3</span>
+                </div>
+                <div class="tactic-note">
+                    <span>Uses a lot of feints to the arm then goes to the body</span>
+                    <span class="confidence">2/2</span>
+                </div>
+                <div class="tactic-note">
+                    <span>Gets stronger in the second period -- don't let up if ahead</span>
+                    <span class="confidence">1/2</span>
+                </div>
+            </div>
+
+            <!-- Weaknesses -->
+            <div class="tactic-section weakness">
+                <div class="tactic-title">Weaknesses to Exploit</div>
+                <div class="tactic-note">
+                    <span>Weak parry 6 -- can score with disengage to his outside</span>
+                    <span class="confidence">2/2</span>
+                </div>
+                <div class="tactic-note">
+                    <span>Doesn't recover well after a failed attack -- push tempo</span>
+                    <span class="confidence">1/1</span>
+                </div>
+            </div>
+
+            <div class="card" style="padding:16px;">
+                <div class="last-encounter">
+                    Last faced: South Point Y12, Mar 8 2026 -- Lost 7-15 (Table of 32)
+                </div>
+                <a href="#" class="edit-link" onclick="showProfile(); return false;">Edit notes &amp; profile &#8594;</a>
+            </div>
+        </div>
+
+        <!-- ====== VIEW 4: OPPONENT PROFILE ====== -->
+        <div class="view" id="profileView">
+            <div class="card">
+                <h2>Opponent Profile</h2>
+                <div class="form-group">
+                    <label>Name</label>
+                    <input type="text" value="YI Alexander">
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Club</label>
+                        <input type="text" value="BFC">
+                    </div>
+                    <div class="form-group">
+                        <label>Division</label>
+                        <input type="text" value="Northern California">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Handedness</label>
+                        <select><option>Right</option><option>Left</option><option>Unknown</option></select>
+                    </div>
+                    <div class="form-group">
+                        <label>Height</label>
+                        <select><option>Tall</option><option>Very Tall</option><option>Average</option><option>Short</option><option>Very Short</option></select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Speed</label>
+                        <select><option>Fast</option><option>Very Fast</option><option>Average</option><option>Slow</option></select>
+                    </div>
+                    <div class="form-group">
+                        <label>Build</label>
+                        <select><option>Athletic</option><option>Lean</option><option>Average</option><option>Stocky</option></select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Primary Style</label>
+                        <select><option>Aggressive</option><option>Defensive</option><option>Counter-attacker</option><option>Distance Fighter</option><option>Infighter</option><option>Tactician</option></select>
+                    </div>
+                    <div class="form-group">
+                        <label>Secondary Style</label>
+                        <select><option>--</option><option>Aggressive</option><option>Defensive</option><option>Counter-attacker</option><option>Distance Fighter</option></select>
+                    </div>
+                </div>
+                <button class="btn-primary">Save Changes</button>
+            </div>
+
+            <!-- Head to head -->
+            <div class="card">
+                <h2>Head-to-Head (1W - 2L)</h2>
+                <div class="bout-row">
+                    <div>
+                        <div style="font-weight:600;">Table of 32</div>
+                        <div class="tournament">South Point Y12 -- Mar 8, 2026</div>
+                    </div>
+                    <div class="score loss">7-15 L</div>
+                </div>
+                <div class="bout-row">
+                    <div>
+                        <div style="font-weight:600;">Pool bout</div>
+                        <div class="tournament">NAC Chicago -- Feb 15, 2026</div>
+                    </div>
+                    <div class="score win">5-3 W</div>
+                </div>
+                <div class="bout-row">
+                    <div>
+                        <div style="font-weight:600;">Table of 16</div>
+                        <div class="tournament">NAC Chicago -- Feb 15, 2026</div>
+                    </div>
+                    <div class="score loss">10-15 L</div>
+                </div>
+            </div>
+
+            <!-- Tactical Notes -->
+            <div class="card">
+                <h2>Tactical Notes</h2>
+
+                <div style="margin-bottom:20px;">
+                    <div class="note-category-header">
+                        <div class="note-category-title">What Worked</div>
+                        <button class="add-note-btn">+ Add</button>
+                    </div>
+                    <div class="note-item">
+                        <div>
+                            <div class="note-text">Counter-attack when he rushes in -- he overextends on his lunge</div>
+                            <div class="note-confidence">Confirmed 3/3 times</div>
+                        </div>
+                        <div class="note-actions">
+                            <button class="note-btn validate" title="Confirmed">&#10003;</button>
+                            <button class="note-btn invalidate" title="Wrong">&#10005;</button>
+                            <button class="note-btn edit" title="Edit">&#9998;</button>
+                        </div>
+                    </div>
+                    <div class="note-item">
+                        <div>
+                            <div class="note-text">Keep distance and make him come to you -- he gets impatient</div>
+                            <div class="note-confidence">Confirmed 2/3 times</div>
+                        </div>
+                        <div class="note-actions">
+                            <button class="note-btn validate">&#10003;</button>
+                            <button class="note-btn invalidate">&#10005;</button>
+                            <button class="note-btn edit">&#9998;</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="margin-bottom:20px;">
+                    <div class="note-category-header">
+                        <div class="note-category-title">Favorite Actions (Watch Out)</div>
+                        <button class="add-note-btn">+ Add</button>
+                    </div>
+                    <div class="note-item">
+                        <div>
+                            <div class="note-text">Very fast fleche from distance -- hard to see coming</div>
+                            <div class="note-confidence">Confirmed 3/3 times</div>
+                        </div>
+                        <div class="note-actions">
+                            <button class="note-btn validate">&#10003;</button>
+                            <button class="note-btn invalidate">&#10005;</button>
+                            <button class="note-btn edit">&#9998;</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <div class="note-category-header">
+                        <div class="note-category-title">Weaknesses</div>
+                        <button class="add-note-btn">+ Add</button>
+                    </div>
+                    <div class="note-item">
+                        <div>
+                            <div class="note-text">Weak parry 6 -- can score with disengage to his outside</div>
+                            <div class="note-confidence">Confirmed 2/2 times</div>
+                        </div>
+                        <div class="note-actions">
+                            <button class="note-btn validate">&#10003;</button>
+                            <button class="note-btn invalidate">&#10005;</button>
+                            <button class="note-btn edit">&#9998;</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <button class="btn-danger">Delete Opponent</button>
+        </div>
+    </div>
+
+    <script>
+        function showList() {
+            hideAll();
+            document.getElementById('listView').classList.add('active');
+            document.querySelector('.tabs .tab:nth-child(1)').classList.add('active');
+            document.querySelector('.tabs .tab:nth-child(2)').classList.remove('active');
+        }
+
+        function showLookup() {
+            hideAll();
+            document.getElementById('lookupView').classList.add('active');
+            document.querySelector('.tabs .tab:nth-child(1)').classList.remove('active');
+            document.querySelector('.tabs .tab:nth-child(2)').classList.add('active');
+        }
+
+        function showIntel() {
+            hideAll();
+            document.getElementById('intelView').classList.add('active');
+        }
+
+        function showProfile() {
+            hideAll();
+            document.getElementById('profileView').classList.add('active');
+        }
+
+        function hideAll() {
+            document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+        }
+
+        function toggleFilters() {
+            const p = document.getElementById('filtersPanel');
+            p.style.display = p.style.display === 'none' ? 'block' : 'none';
+        }
+    </script>
+</body>
+</html>
