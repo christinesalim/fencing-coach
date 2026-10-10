@@ -1728,6 +1728,83 @@ def api_upload_elim_bout_video(bout_id):
     return _upload_bout_video('elim', bout_id)
 
 
+# Direct-to-R2 presigned upload: splits the single /videos POST into two tiny
+# JSON calls (presign + register) so the file bytes bypass Flask entirely.
+# Needed because 4+ min videos exceed the gunicorn worker timeout.
+
+def _presign_bout_video(bout_kind, bout_id):
+    if not bout_exists(bout_kind, bout_id):
+        return jsonify({'error': 'Bout not found'}), 404
+    data = request.get_json(silent=True) or {}
+    filename = secure_filename(data.get('filename') or 'clip.mp4')
+    file_ext = Path(filename).suffix.lower() or '.mp4'
+    if file_ext not in ALLOWED_VIDEO_EXTENSIONS:
+        return jsonify({'error': f'Unsupported file extension: {file_ext}'}), 400
+    content_type = BOUT_VIDEO_MIME_MAP.get(file_ext, 'video/mp4')
+    r2_key = f"bout-videos/{bout_kind}_{bout_id}_{uuid.uuid4()}{file_ext}"
+    bucket = os.environ.get('R2_BUCKET_NAME', 'fencing-lessons')
+    try:
+        url = get_r2_client().generate_presigned_url(
+            'put_object',
+            Params={'Bucket': bucket, 'Key': r2_key, 'ContentType': content_type},
+            ExpiresIn=3600,
+        )
+        return jsonify({
+            'upload_url': url,
+            'r2_key': r2_key,
+            'content_type': content_type,
+            'expires_in': 3600,
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+def _register_bout_video(bout_kind, bout_id):
+    if not bout_exists(bout_kind, bout_id):
+        return jsonify({'error': 'Bout not found'}), 404
+    data = request.get_json(silent=True) or {}
+    r2_key = (data.get('r2_key') or '').strip()
+    # Namespace check: a logged-in client can only register keys that belong to
+    # this bout — prevents attaching arbitrary R2 objects to a bout they don't own.
+    expected_prefix = f"bout-videos/{bout_kind}_{bout_id}_"
+    if not r2_key.startswith(expected_prefix):
+        return jsonify({'error': 'r2_key does not match this bout'}), 400
+    bucket = os.environ.get('R2_BUCKET_NAME', 'fencing-lessons')
+    try:
+        get_r2_client().head_object(Bucket=bucket, Key=r2_key)
+    except Exception:
+        return jsonify({'error': 'Uploaded file not found in R2'}), 400
+    try:
+        video_id = add_bout_video(bout_kind, bout_id, r2_key)
+        return jsonify({'success': True, 'video_id': video_id})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/pool-bouts/<int:bout_id>/videos/presign', methods=['POST'])
+@login_required
+def api_presign_pool_bout_video(bout_id):
+    return _presign_bout_video('pool', bout_id)
+
+
+@app.route('/api/pool-bouts/<int:bout_id>/videos/register', methods=['POST'])
+@login_required
+def api_register_pool_bout_video(bout_id):
+    return _register_bout_video('pool', bout_id)
+
+
+@app.route('/api/elimination-rounds/<int:bout_id>/videos/presign', methods=['POST'])
+@login_required
+def api_presign_elim_bout_video(bout_id):
+    return _presign_bout_video('elim', bout_id)
+
+
+@app.route('/api/elimination-rounds/<int:bout_id>/videos/register', methods=['POST'])
+@login_required
+def api_register_elim_bout_video(bout_id):
+    return _register_bout_video('elim', bout_id)
+
+
 @app.route('/api/bout-videos/<int:video_id>', methods=['GET'])
 @login_required
 def api_get_bout_video_playback(video_id):
