@@ -64,7 +64,8 @@ def main():
         ("Content-Type set on PUT", "setRequestHeader('Content-Type'" in src),
         ("upload progress hook",    "xhr.upload.onprogress" in src),
         ("30-minute timeout",       "30 * 60 * 1000" in src),
-        ("timeout handler surfaces","Upload timed out" in src),
+        ("timeout handler surfaces","timed out after 30 min" in src),
+        ("per-step error labels",  "[presign]" in src and "[upload-to-R2]" in src and "[register]" in src),
         ("progress % in status",    "pct + '%'" in src),
     ]
     for name, ok in checks:
