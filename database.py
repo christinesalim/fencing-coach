@@ -313,9 +313,14 @@ def get_database_url():
     db_url = os.environ.get('DATABASE_URL')
 
     if db_url:
-        # Render uses postgres://, but SQLAlchemy needs postgresql://
+        # Render provides postgres://; SQLAlchemy needs postgresql://.
+        # We also force the psycopg2 driver because recent SQLAlchemy
+        # resolves bare postgresql:// URLs to psycopg (v3) which isn't
+        # installed — requirements.txt pins psycopg2-binary.
         if db_url.startswith('postgres://'):
-            db_url = db_url.replace('postgres://', 'postgresql://', 1)
+            db_url = db_url.replace('postgres://', 'postgresql+psycopg2://', 1)
+        elif db_url.startswith('postgresql://') and '+' not in db_url.split('://', 1)[0]:
+            db_url = db_url.replace('postgresql://', 'postgresql+psycopg2://', 1)
         return db_url
 
     # Fall back to SQLite for local development
