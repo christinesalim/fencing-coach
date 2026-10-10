@@ -1357,12 +1357,31 @@ def save_de_results_to_db(tournament_id, bracket_data):
     db = get_db()
     saved_rounds = []  # list of (bout_dict, elimination_round_id)
     try:
-        # Delete existing DE data for this tournament. Also delete any
-        # BoutRecord rows that were linked to the old EliminationRound rows —
-        # otherwise the new sync would duplicate them.
-        old_elim_ids = [
-            r.id for r in db.query(EliminationRound).filter_by(tournament_id=tournament_id).all()
-        ]
+        # Snapshot existing DE rows + any BoutVideo rows attached to them
+        # BEFORE the delete, so we can reattach videos to the new (post-recreate)
+        # elim rows by matching on (round_name, opponent_name). Without this,
+        # re-uploading a bracket silently orphans every clip the user has
+        # already uploaded to those bouts.
+        old_elim_rows = db.query(EliminationRound).filter_by(
+            tournament_id=tournament_id
+        ).all()
+        old_elim_ids = [r.id for r in old_elim_rows]
+        old_id_to_key = {
+            r.id: (
+                (r.round_name or '').strip().lower(),
+                (r.opponent_name or '').strip().lower(),
+            )
+            for r in old_elim_rows
+        }
+        videos_by_old_id = {}
+        if old_elim_ids:
+            attached = db.query(BoutVideo).filter(
+                BoutVideo.bout_kind == 'elim',
+                BoutVideo.bout_id.in_(old_elim_ids),
+            ).all()
+            for v in attached:
+                videos_by_old_id.setdefault(v.bout_id, []).append(v.id)
+
         if old_elim_ids:
             db.query(BoutRecord).filter(
                 BoutRecord.elimination_round_id.in_(old_elim_ids)
@@ -1390,6 +1409,39 @@ def save_de_results_to_db(tournament_id, bracket_data):
             db.add(elim_round)
             db.flush()
             saved_rounds.append((bout, elim_round.id))
+
+        # Reattach videos: for each old elim row that had videos, find the
+        # matching new elim row by (round_name, opponent_name) and point the
+        # BoutVideo rows at its new id. Clips whose opponent isn't in the new
+        # bracket (opponent misread, bracket actually changed) stay in the
+        # bout_videos table but become orphans — not deleted so the user can
+        # still remove or recover them manually.
+        if videos_by_old_id:
+            new_key_to_id = {}
+            for bout, new_id in saved_rounds:
+                key = (
+                    (bout.get('round_name') or '').strip().lower(),
+                    (bout.get('opponent_name') or '').strip().lower(),
+                )
+                if all(key):
+                    new_key_to_id[key] = new_id
+            preserved = orphaned = 0
+            for old_id, video_ids in videos_by_old_id.items():
+                key = old_id_to_key.get(old_id)
+                new_id = new_key_to_id.get(key) if key and all(key) else None
+                if new_id is not None:
+                    db.query(BoutVideo).filter(
+                        BoutVideo.id.in_(video_ids)
+                    ).update(
+                        {BoutVideo.bout_id: new_id},
+                        synchronize_session=False,
+                    )
+                    preserved += len(video_ids)
+                else:
+                    orphaned += len(video_ids)
+            if preserved or orphaned:
+                print(f"[de-save] video reattachment: {preserved} preserved, "
+                      f"{orphaned} orphaned (old key missing from new bracket)")
 
         # Save full bracket as JSON
         tournament_bracket = bracket_data.get('tournament_bracket', {})
