@@ -2016,6 +2016,9 @@
             }
         }
 
+        // Direct-to-R2 upload: presign → PUT (bypassing Flask) → register.
+        // Flask never sees the file bytes, so gunicorn's worker timeout can't
+        // kill long uploads anymore.
         async function uploadBoutVideo(kind, boutId, input) {
             const files = Array.from(input.files || []);
             if (!files.length) return;
@@ -2029,20 +2032,64 @@
             if (totalBoutUploadsInFlight === files.length) acquireBoutUploadWakeLock();
             refreshBoutUploadStatus(kind, boutId);
 
-            const uploadUrl = (kind === 'pool' ? '/api/pool-bouts/' : '/api/elimination-rounds/') + boutId + '/videos';
+            const base = (kind === 'pool' ? '/api/pool-bouts/' : '/api/elimination-rounds/') + boutId + '/videos';
             let lastError = null;
 
-            for (const file of files) {
-                const formData = new FormData();
-                formData.append('video', file);
+            for (let idx = 0; idx < files.length; idx++) {
+                const file = files[idx];
+                const label = files.length === 1 ? file.name : ((idx + 1) + ' of ' + files.length);
                 try {
-                    const response = await fetch(uploadUrl, { method: 'POST', body: formData });
-                    const data = await response.json();
-                    if (!response.ok || data.error) throw new Error(data.error || ('HTTP ' + response.status));
-                    addClipChip(container, data.video_id);
+                    // 1. Presign: tiny JSON round-trip, server returns a PUT URL for R2.
+                    const presignResp = await fetch(base + '/presign', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({filename: file.name}),
+                    });
+                    const presign = await presignResp.json();
+                    if (!presignResp.ok || presign.error) {
+                        throw new Error(presign.error || ('presign HTTP ' + presignResp.status));
+                    }
+
+                    // 2. PUT direct to R2 with progress. Use XHR instead of fetch
+                    // because fetch gives no upload progress events.
+                    await new Promise(function(resolve, reject) {
+                        const xhr = new XMLHttpRequest();
+                        xhr.open('PUT', presign.upload_url);
+                        xhr.setRequestHeader('Content-Type', presign.content_type || 'video/mp4');
+                        xhr.timeout = 30 * 60 * 1000;  // 30 min — Flask isn't in the loop
+                        xhr.upload.onprogress = function(e) {
+                            if (e.lengthComputable) {
+                                const pct = Math.round(e.loaded / e.total * 100);
+                                setBoutStatus(kind, boutId, 'Uploading ' + label + ' — ' + pct + '%');
+                            }
+                        };
+                        xhr.onload = function() {
+                            (xhr.status >= 200 && xhr.status < 300)
+                                ? resolve()
+                                : reject(new Error('R2 PUT ' + xhr.status));
+                        };
+                        xhr.onerror = function() { reject(new Error('Network error during upload')); };
+                        xhr.ontimeout = function() { reject(new Error('Upload timed out (30 min)')); };
+                        xhr.onabort = function() { reject(new Error('Upload aborted')); };
+                        xhr.send(file);
+                    });
+
+                    // 3. Register: tell the server the key landed in R2.
+                    const registerResp = await fetch(base + '/register', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({r2_key: presign.r2_key}),
+                    });
+                    const registered = await registerResp.json();
+                    if (!registerResp.ok || registered.error) {
+                        throw new Error(registered.error || ('register HTTP ' + registerResp.status));
+                    }
+
+                    addClipChip(container, registered.video_id);
                 } catch (error) {
                     lastError = file.name + ': ' + error.message;
                 }
+
                 boutUploadCounts[key]--;
                 totalBoutUploadsInFlight--;
                 if ((boutUploadCounts[key] || 0) > 0) {
