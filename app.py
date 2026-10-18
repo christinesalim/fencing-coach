@@ -1297,12 +1297,17 @@ def upload_pool_order_photo():
 @app.route('/api/pool-tracker/quick-start', methods=['POST'])
 @login_required
 def api_pool_tracker_quick_start():
-    """Create a PoolRound and redirect into the tracker.
+    """Create or resume a PoolRound and redirect into the tracker.
 
-    - If called without a body (or without `tournament_id`): also creates
-      a draft Tournament named "Pool — <YYYY-MM-DD>" (home-page flow).
-    - If called with `tournament_id` in the JSON body: attaches the new
-      PoolRound to that existing tournament (tournament-detail-page flow).
+    - With `tournament_id` in the body (tournament-detail page):
+      always creates a new PoolRound on that tournament.
+    - Without `tournament_id` (home-page Quick Start):
+      1. Reuse today's "Pool — <YYYY-MM-DD>" draft tournament if one
+         exists (prevents the dupe-tournament problem from repeated taps).
+      2. If that tournament's most recent PoolRound isn't finalized
+         (victories IS NULL), resume it. Otherwise create a new round
+         on the same tournament.
+      Response includes `reused: true` when we resumed instead of created.
     """
     from database import get_db, PoolRound, Tournament
     data = request.get_json(silent=True) or {}
@@ -1310,25 +1315,38 @@ def api_pool_tracker_quick_start():
 
     db = get_db()
     try:
+        reused = False
         if tournament_id:
             t = db.query(Tournament).filter_by(id=int(tournament_id)).first()
             if not t:
                 return jsonify({'error': 'Tournament not found'}), 404
+            pr = PoolRound(tournament_id=t.id)
+            db.add(pr)
         else:
             today = datetime.utcnow()
-            t = Tournament(
-                name=f"Pool — {today.strftime('%Y-%m-%d')}",
-                date=today,
-            )
-            db.add(t)
-            db.flush()
-        pr = PoolRound(tournament_id=t.id)
-        db.add(pr)
+            draft_name = f"Pool — {today.strftime('%Y-%m-%d')}"
+            t = db.query(Tournament).filter(
+                Tournament.name == draft_name
+            ).order_by(Tournament.id.desc()).first()
+            if t is None:
+                t = Tournament(name=draft_name, date=today)
+                db.add(t)
+                db.flush()
+            latest_pr = db.query(PoolRound).filter_by(
+                tournament_id=t.id
+            ).order_by(PoolRound.id.desc()).first()
+            if latest_pr is not None and latest_pr.victories is None:
+                pr = latest_pr
+                reused = True
+            else:
+                pr = PoolRound(tournament_id=t.id)
+                db.add(pr)
         db.commit()
         return jsonify({
             'success': True,
             'tournament_id': t.id,
             'pool_round_id': pr.id,
+            'reused': reused,
             'redirect': f'/pool-tracker/{pr.id}',
         })
     except Exception as e:
