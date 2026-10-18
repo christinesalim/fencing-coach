@@ -907,6 +907,111 @@ CRITICAL RULES:
     return result
 
 
+# ── Pool Tracker: Vision extraction of FTL screenshot ───────────────────────
+#
+# Different input than extract_pool_results_from_photo above:
+#   that one reads the completed paper pool sheet (V5/D4 grid cells)
+#   this one reads the Fencing Time Live app screen (roster + bout order list)
+# So the two share only base64/media-type boilerplate — the prompt and output
+# shape are entirely different.
+
+def extract_pool_bout_order_from_photo(image_path):
+    """Extract roster + bout order from a Fencing Time Live pool screenshot.
+
+    Returns a dict with pool number, strip, roster, bouts, and ethan_pool_num
+    (null if Ethan isn't on this sheet). Ethan is matched by BOTH first name
+    "Ethan" AND last name "SALIM" (case-insensitive, both required) because
+    other fencers may share a surname.
+    """
+    with open(image_path, "rb") as f:
+        image_data = base64.standard_b64encode(f.read()).decode("utf-8")
+
+    ext = image_path.suffix.lower()
+    if ext in ('.jpg', '.jpeg'):
+        media_type = "image/jpeg"
+    elif ext == '.png':
+        media_type = "image/png"
+    elif ext == '.webp':
+        media_type = "image/webp"
+    else:
+        raise ValueError(f"Unsupported image format: {ext}")
+
+    message = get_claude_client().messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=2048,
+        messages=[{
+            "role": "user",
+            "content": [
+                {
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": media_type,
+                        "data": image_data,
+                    },
+                },
+                {
+                    "type": "text",
+                    "text": """This is a screenshot of a Fencing Time Live (FTL) pool page.
+
+Extract the following:
+
+1. POOL NUMBER — look for "POOL #X" or similar heading
+2. STRIP NUMBER — look for "ON STRIP X" (may be absent — return null)
+3. ROSTER — the numbered list of fencers (positions 1 through N, usually 1-6 for a pool of 6).
+   For each fencer, extract:
+     - pool_num (1-based position in the roster)
+     - last_name (ALL CAPS surname — FTL shows surname first)
+     - first_name (mixed case given name — FTL shows it after the surname)
+     - club (abbreviation like "AFM", "EBFG", "BAYFC")
+     - region (e.g. "Central California", "Northern California") — may be absent
+4. BOUT ORDER — the numbered list of upcoming bouts (usually 15 bouts for a pool of 6).
+   Columns in FTL are: # | Right Fencer | Left Fencer | #
+   The second # column is the LEFT fencer's pool position.
+   For each bout, return {order, right_num, left_num}
+   where right_num and left_num reference the pool_num values from the roster.
+5. ETHAN_POOL_NUM — find the fencer whose first_name is "Ethan" AND last_name is "SALIM"
+   (both must match, case-insensitive). Return their pool_num.
+   Return null if no fencer matches both.
+
+Return JSON only — no commentary:
+
+{
+  "pool_number": <int or null>,
+  "strip": <int or null>,
+  "roster": [
+    {"pool_num": 1, "last_name": "...", "first_name": "...", "club": "...", "region": "..."},
+    ...
+  ],
+  "bouts": [
+    {"order": 1, "right_num": 1, "left_num": 2},
+    ...
+  ],
+  "ethan_pool_num": <int or null>
+}
+
+CRITICAL:
+- Standard FIE pool-of-6 bout order is 15 bouts: 1-2, 4-5, 2-3, 5-6, 3-1, 6-4, 2-5, 1-4, 5-3, 1-6, 4-2, 3-6, 5-1, 3-4, 6-2.
+- Pool-of-7 is 21 bouts, pool-of-5 is 10. Use whatever the screenshot shows — don't fabricate.
+- If a field is unreadable, return null for that field rather than guessing."""
+                }
+            ],
+        }],
+    )
+
+    try:
+        result = json.loads(message.content[0].text)
+    except json.JSONDecodeError:
+        text = message.content[0].text
+        if "```json" in text:
+            text = text.split("```json")[1].split("```")[0]
+        elif "```" in text:
+            text = text.split("```")[1].split("```")[0]
+        result = json.loads(text.strip())
+
+    return result
+
+
 # --- Tournament routes ---
 
 @app.route('/tournaments')
@@ -1116,6 +1221,104 @@ def upload_pool_photo():
     finally:
         if filepath.exists():
             filepath.unlink()
+
+
+@app.route('/api/upload-pool-order-photo', methods=['POST'])
+@login_required
+def upload_pool_order_photo():
+    """Pool Tracker: accept an FTL screenshot, return extracted roster + bouts.
+
+    Does NOT write anything to the DB — the client reviews, confirms, and then
+    POSTs the data back via a save endpoint (built in Stage 2). Keeping the
+    extract/save split lets the user correct a bad extraction without losing
+    the image upload.
+    """
+    if 'photo' not in request.files:
+        return jsonify({'error': 'No photo uploaded'}), 400
+
+    file = request.files['photo']
+    if file.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
+
+    filename = secure_filename(file.filename)
+    filepath = app.config['UPLOAD_FOLDER'] / f"pool_order_{uuid.uuid4().hex[:8]}_{filename}"
+    file.save(filepath)
+
+    try:
+        data = extract_pool_bout_order_from_photo(filepath)
+        return jsonify({'success': True, 'extracted_data': data})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if filepath.exists():
+            filepath.unlink()
+
+
+@app.route('/api/pool-tracker/quick-start', methods=['POST'])
+@login_required
+def api_pool_tracker_quick_start():
+    """Create a PoolRound and redirect into the tracker.
+
+    - If called without a body (or without `tournament_id`): also creates
+      a draft Tournament named "Pool — <YYYY-MM-DD>" (home-page flow).
+    - If called with `tournament_id` in the JSON body: attaches the new
+      PoolRound to that existing tournament (tournament-detail-page flow).
+    """
+    from database import get_db, PoolRound, Tournament
+    data = request.get_json(silent=True) or {}
+    tournament_id = data.get('tournament_id')
+
+    db = get_db()
+    try:
+        if tournament_id:
+            t = db.query(Tournament).filter_by(id=int(tournament_id)).first()
+            if not t:
+                return jsonify({'error': 'Tournament not found'}), 404
+        else:
+            today = datetime.utcnow()
+            t = Tournament(
+                name=f"Pool — {today.strftime('%Y-%m-%d')}",
+                date=today,
+            )
+            db.add(t)
+            db.flush()
+        pr = PoolRound(tournament_id=t.id)
+        db.add(pr)
+        db.commit()
+        return jsonify({
+            'success': True,
+            'tournament_id': t.id,
+            'pool_round_id': pr.id,
+            'redirect': f'/pool-tracker/{pr.id}',
+        })
+    except Exception as e:
+        db.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        db.close()
+
+
+@app.route('/pool-tracker/<int:pool_round_id>')
+@login_required
+def pool_tracker_page(pool_round_id):
+    """Pool Tracker UI. Stage 1 ships a placeholder — the real tracker
+    arrives in Stage 2 (full upload → live grid → score modal flow)."""
+    from database import get_db, PoolRound, Tournament
+    db = get_db()
+    try:
+        pr = db.query(PoolRound).filter_by(id=pool_round_id).first()
+        if not pr:
+            return 'Pool round not found', 404
+        t = db.query(Tournament).filter_by(id=pr.tournament_id).first()
+        tournament_name = t.name if t else '(unknown tournament)'
+    finally:
+        db.close()
+    return render_template(
+        'pool_tracker_placeholder.html',
+        pool_round_id=pool_round_id,
+        tournament_id=pr.tournament_id,
+        tournament_name=tournament_name,
+    )
 
 
 @app.route('/api/confirm-pool-results', methods=['POST'])

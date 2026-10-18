@@ -110,6 +110,25 @@
             <div class="nav-card-title">Bout Library</div>
             <div class="nav-card-desc">Watch and study videos of opponents and other fencers' bouts.</div>
         </a>
+
+        <a href="#" onclick="quickStartPool(event)" class="nav-card">
+            <div class="nav-card-icon">⚡</div>
+            <div class="nav-card-title">Quick Start Pool</div>
+            <div class="nav-card-desc">Jump straight into live pool tracking. Creates a draft tournament for today.</div>
+        </a>
     </div>
+    <script>
+        async function quickStartPool(e) {
+            e.preventDefault();
+            try {
+                const r = await fetch('/api/pool-tracker/quick-start', { method: 'POST' });
+                const data = await r.json();
+                if (!r.ok || data.error) throw new Error(data.error || ('HTTP ' + r.status));
+                window.location.href = data.redirect;
+            } catch (err) {
+                alert('Could not start pool: ' + err.message);
+            }
+        }
+    </script>
 </body>
 </html>

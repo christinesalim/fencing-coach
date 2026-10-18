@@ -107,6 +107,13 @@ class PoolRound(Base):
     indicator = Column(Integer)
     notes = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
+    # Pool Tracker (new). Nullable so existing rows don't need backfill.
+    # SQLite picks these up via create_all on a fresh DB; Render Postgres
+    # needs a manual ALTER TABLE (see migrate_pool_tracker.py).
+    strip_number = Column(Integer)
+    roster_json = Column(Text)         # JSON array of {pool_num, last_name, first_name, club, region}
+    bout_order_json = Column(Text)     # JSON array of {order, right_num, left_num, done, score_right, score_left}
+    ethan_pool_num = Column(Integer)   # Ethan's position in this pool (null if not identified)
 
 
 class DEPrepTips(Base):

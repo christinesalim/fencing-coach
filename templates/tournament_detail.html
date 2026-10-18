@@ -1012,7 +1012,25 @@
                 <p style="color:#777;margin-bottom:16px;font-size:14px;">Upload a photo of the pool sheet to extract results automatically.</p>
                 <input type="file" id="poolPhoto" accept="image/*">
                 <label for="poolPhoto" class="upload-btn">Upload Pool Sheet Photo</label>
+                <p style="color:#999;margin:14px 0 10px;font-size:12px;">— OR —</p>
+                <button type="button" class="upload-btn" onclick="startPoolTracker()">Start Pool Tracker (live)</button>
             </div>
+            <script>
+                async function startPoolTracker() {
+                    try {
+                        const r = await fetch('/api/pool-tracker/quick-start', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({ tournament_id: {{ tournament.id }} }),
+                        });
+                        const data = await r.json();
+                        if (!r.ok || data.error) throw new Error(data.error || ('HTTP ' + r.status));
+                        window.location.href = data.redirect;
+                    } catch (err) {
+                        alert('Could not start pool tracker: ' + err.message);
+                    }
+                }
+            </script>
 
             <div class="loader" id="loader"></div>
             <div class="status" id="uploadStatus"></div>

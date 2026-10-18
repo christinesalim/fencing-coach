@@ -1,0 +1,954 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Pool Tracker - Mockup</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #4a7fd4 0%, #1e3a7a 50%, #0f1f4a 100%);
+            min-height: 100vh;
+            padding: 20px;
+            padding-bottom: 80px;
+            color: #333;
+        }
+
+        .container { max-width: 700px; margin: 0 auto; }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 24px;
+            position: relative;
+        }
+        .header h1 { font-size: 1.8em; margin-bottom: 6px; }
+        .header p { opacity: 0.9; font-size: 1em; }
+        .sign-out {
+            position: absolute;
+            top: 0; right: 0;
+            color: rgba(255,255,255,0.7);
+            font-size: 13px;
+            text-decoration: none;
+        }
+
+        .back-btn {
+            display: inline-block;
+            background: white;
+            color: #2c3e6b;
+            padding: 10px 20px;
+            border-radius: 50px;
+            text-decoration: none;
+            font-weight: 600;
+            margin-bottom: 16px;
+            font-size: 14px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 20px;
+            padding: 22px;
+            margin-bottom: 16px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            max-width: 100%;
+            overflow-wrap: break-word;
+        }
+        .card h2 { font-size: 1.2em; margin-bottom: 14px; color: #1a1a2e; }
+
+        .form-group { margin-bottom: 14px; }
+        label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: #555;
+            margin-bottom: 5px;
+        }
+        select, input[type="text"], input[type="number"] {
+            width: 100%;
+            max-width: 100%;
+            padding: 12px 14px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            font-size: 15px;
+            font-family: inherit;
+            outline: none;
+            background: white;
+            -webkit-appearance: none;
+            appearance: none;
+            box-sizing: border-box;
+        }
+
+        .btn-primary {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #4a7fd4 0%, #1e3a7a 50%, #0f1f4a 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 4px;
+        }
+        .btn-secondary {
+            width: 100%;
+            padding: 14px;
+            background: white;
+            color: #2c3e6b;
+            border: 2px solid #2c3e6b;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 8px;
+        }
+
+        /* Upload area */
+        .upload-area {
+            border: 3px dashed #c0c8e0;
+            border-radius: 16px;
+            padding: 28px;
+            text-align: center;
+            margin-bottom: 14px;
+            cursor: pointer;
+        }
+        .upload-area:hover { border-color: #4a7fd4; background: #f0f4ff; }
+        .upload-area .icon { font-size: 36px; margin-bottom: 8px; }
+        .upload-area .label { font-size: 15px; color: #666; font-weight: 500; }
+        .upload-area .hint { font-size: 12px; color: #999; margin-top: 4px; }
+
+        .thumb {
+            width: 90px; height: 90px;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 2px solid #e0e0e0;
+            margin-bottom: 14px;
+            position: relative;
+        }
+        .thumb .fake-img {
+            width: 100%; height: 100%;
+            background: #dde3f0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            color: #666;
+        }
+
+        /* Processing */
+        .processing {
+            background: #eef3ff;
+            border-radius: 12px;
+            padding: 16px;
+            text-align: center;
+        }
+        .processing .spinner {
+            display: inline-block;
+            width: 20px; height: 20px;
+            border: 3px solid #c0c8e0;
+            border-top-color: #4a7fd4;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .processing .text { font-size: 14px; color: #2c3e6b; font-weight: 500; }
+
+        /* ────── Live tracker ────── */
+
+        /* Pool header (top-of-screen card) */
+        .pool-head {
+            background: linear-gradient(135deg, #4a7fd4 0%, #1e3a7a 100%);
+            color: white;
+            border-radius: 18px;
+            padding: 16px 20px;
+            margin-bottom: 14px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        .pool-head .top-line {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13px;
+            opacity: 0.9;
+            margin-bottom: 6px;
+        }
+        .pool-head .headline {
+            font-size: 20px;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+        .pool-head .sub {
+            font-size: 14px;
+            opacity: 0.9;
+            margin-top: 4px;
+        }
+
+        /* Pinned "Ethan's next" card */
+        .next-card {
+            background: #fff8e1;
+            border: 2px solid #ffcf3a;
+            border-radius: 14px;
+            padding: 14px 16px;
+            margin-bottom: 14px;
+        }
+        .next-card .tag {
+            display: inline-block;
+            background: #ffcf3a;
+            color: #5a3800;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 3px 8px;
+            border-radius: 10px;
+            margin-bottom: 6px;
+            letter-spacing: 0.3px;
+        }
+        .next-card .matchup {
+            font-size: 15px;
+            font-weight: 600;
+            color: #1a1a2e;
+        }
+        .next-card .matchup .vs { color: #999; font-weight: 400; margin: 0 6px; }
+
+        /* Section labels (PENDING / DONE) */
+        .section-label {
+            color: white;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            margin: 18px 0 8px;
+            opacity: 0.85;
+            padding-left: 4px;
+            display: flex;
+            justify-content: space-between;
+        }
+        .section-label .counter { opacity: 0.7; font-weight: 500; }
+
+        /* Bout row */
+        .bout-list { padding: 6px 0; }
+        .bout-row {
+            display: flex;
+            align-items: stretch;
+            background: white;
+            border: 1px solid #e8ebf2;
+            border-radius: 14px;
+            padding: 0;
+            margin-bottom: 8px;
+            overflow: hidden;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+        }
+        .bout-row.ethan {
+            background: #e8f1ff;
+            border-color: #a7c6ff;
+        }
+        .bout-row.done .names { color: #666; }
+
+        .bout-num {
+            flex: 0 0 42px;
+            background: #f3f5fa;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 15px;
+            font-weight: 700;
+            color: #2c3e6b;
+            padding: 10px 0;
+            border-right: 1px solid #e8ebf2;
+        }
+        .bout-row.ethan .bout-num {
+            background: #c6dbff;
+            color: #0f1f4a;
+        }
+        .bout-num .star { font-size: 11px; line-height: 1; margin-top: 2px; color: #d08b00; }
+
+        .names {
+            flex: 1 1 auto;
+            display: flex;
+            align-items: center;
+            padding: 10px 10px;
+            min-width: 0;
+            cursor: pointer;
+        }
+        .names .side {
+            flex: 1 1 50%;
+            min-width: 0;
+            font-size: 14px;
+            color: #1a1a2e;
+        }
+        .names .side .last { font-weight: 700; }
+        .names .side .first {
+            font-size: 12px;
+            color: #777;
+            margin-left: 2px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: inline-block;
+            max-width: 80px;
+            vertical-align: bottom;
+        }
+        .names .side.right { text-align: left; }
+        .names .side.left { text-align: right; }
+        .names .vs {
+            flex: 0 0 20px;
+            text-align: center;
+            color: #999;
+            font-size: 11px;
+            font-weight: 500;
+        }
+        /* Inline pool number — small chip next to each fencer's name so you
+           can cross-reference without a separate column eating horizontal space. */
+        .pnum {
+            display: inline-block;
+            background: #eceff4;
+            color: #666;
+            font-size: 10px;
+            font-weight: 700;
+            padding: 1px 5px;
+            border-radius: 6px;
+            margin: 0 3px;
+            vertical-align: middle;
+        }
+        .bout-row.ethan .pnum { background: #c6dbff; color: #0f1f4a; }
+
+        .score-cell {
+            flex: 0 0 68px;
+            border-left: 1px solid #e8ebf2;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 10px 6px;
+            cursor: pointer;
+            font-size: 12px;
+            color: #2c3e6b;
+            font-weight: 600;
+            background: #f8faff;
+        }
+        .score-cell:active { background: #e8f1ff; }
+        .score-cell .plus { font-size: 16px; }
+
+        /* Done states — single list, each row carries its own state */
+        .bout-row.done .names .side .last { font-weight: 600; }
+        .bout-row.done .names { color: #888; }
+        .bout-row.done:not(.ethan) { background: #fafbfd; }
+        .bout-row.done:not(.ethan) .bout-num { background: #ebeef4; color: #777; }
+        .bout-row.done.ethan { background: #d4e4ff; }
+
+        /* Score cell variants after bout is done */
+        .score-cell.ck {         /* done, no score entered — just checkmark */
+            background: #eef2f8;
+            color: #6a7a95;
+            font-size: 15px;
+        }
+        .score-cell.win {
+            background: #d4edda;
+            color: #155724;
+            font-size: 13px;
+            font-weight: 700;
+            line-height: 1.1;
+        }
+        .score-cell.loss {
+            background: #f8d7da;
+            color: #721c24;
+            font-size: 13px;
+            font-weight: 700;
+            line-height: 1.1;
+        }
+        .score-cell.noe {        /* non-Ethan, scored — muted */
+            background: #f0f2f6;
+            color: #555;
+            font-size: 13px;
+            font-weight: 600;
+        }
+        .score-cell .vd {
+            display: block;
+            font-size: 10px;
+            opacity: 0.75;
+            margin-top: 2px;
+        }
+        .score-cell .edit-hint {
+            display: block;
+            font-size: 9px;
+            font-weight: 500;
+            opacity: 0.6;
+            margin-top: 1px;
+        }
+
+        .done-collapse-bar {
+            background: white;
+            border: 1px dashed #c0c8e0;
+            border-radius: 12px;
+            padding: 10px 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13px;
+            color: #666;
+            margin-top: 6px;
+            cursor: pointer;
+        }
+        .done-collapse-bar .toggle {
+            color: #2c3e6b;
+            font-weight: 600;
+            font-size: 12px;
+        }
+
+        .finish-bar {
+            margin-top: 18px;
+        }
+
+        /* ────── Score modal ────── */
+        .modal-backdrop {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(10,15,35,0.6);
+            display: none;
+            align-items: flex-end;
+            justify-content: center;
+            z-index: 10;
+            padding: 20px;
+        }
+        .modal-backdrop.open { display: flex; }
+        .modal {
+            background: white;
+            border-radius: 18px;
+            padding: 20px;
+            width: 100%;
+            max-width: 420px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+        }
+        .modal-title {
+            text-align: center;
+            font-size: 13px;
+            color: #999;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            margin-bottom: 12px;
+        }
+        .modal-matchup {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        .modal-side {
+            flex: 1;
+            text-align: center;
+        }
+        .modal-side .name {
+            font-size: 13px;
+            color: #555;
+            margin-bottom: 6px;
+            font-weight: 600;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .modal-side input {
+            text-align: center;
+            font-size: 26px;
+            font-weight: 700;
+            padding: 14px 10px;
+        }
+        .modal-dash { font-size: 20px; color: #999; }
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 6px;
+        }
+        .modal-actions .btn-secondary,
+        .modal-actions .btn-primary { margin-top: 0; }
+
+        /* ────── End-of-pool summary ────── */
+        .summary-stats {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .summary-stat {
+            flex: 1;
+            background: #f5f7fa;
+            border-radius: 10px;
+            padding: 10px;
+            text-align: center;
+        }
+        .summary-stat .k { font-size: 11px; color: #666; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+        .summary-stat .v { font-size: 20px; color: #1a1a2e; font-weight: 800; margin-top: 2px; }
+        .partial-note {
+            font-size: 12px;
+            color: #999;
+            text-align: center;
+            margin-top: 4px;
+        }
+
+        /* Pool-sheet grid — mirrors the ref's paper layout.
+           Each column = one opponent. Cell shows result from Ethan's view. */
+        .pool-grid {
+            display: flex;
+            gap: 4px;
+            margin-top: 4px;
+        }
+        .pg-col {
+            flex: 1 1 0;
+            min-width: 0;
+            text-align: center;
+            cursor: pointer;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid #e8ebf2;
+            background: white;
+        }
+        .pg-col:active { transform: scale(0.97); }
+        .pg-name {
+            font-size: 10px;
+            font-weight: 700;
+            color: #666;
+            padding: 5px 2px;
+            background: #f5f7fa;
+            text-transform: uppercase;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            letter-spacing: 0.3px;
+        }
+        .pg-cell {
+            font-size: 20px;
+            font-weight: 800;
+            padding: 10px 0;
+            letter-spacing: 0.5px;
+            line-height: 1.1;
+        }
+        .pg-cell.win { background: #d4edda; color: #155724; }
+        .pg-cell.loss { background: #f8d7da; color: #721c24; }
+        .pg-cell.unset {
+            background: #fafbfd;
+            color: #c0c8e0;
+            font-size: 22px;
+            font-weight: 500;
+        }
+        .pg-detail {
+            font-size: 11px;
+            color: #666;
+            padding: 4px 2px;
+            background: white;
+            border-top: 1px solid #f0f0f0;
+            min-height: 20px;
+        }
+        .pg-detail.muted { color: #c0c8e0; }
+        .pg-hint {
+            font-size: 11px;
+            color: #999;
+            text-align: center;
+            margin-top: 10px;
+        }
+        .pg-boutnum {
+            font-size: 10px;
+            color: #999;
+            padding: 2px 0 4px;
+            background: white;
+        }
+        .pg-ethan-label {
+            font-size: 12px;
+            font-weight: 700;
+            color: #0f1f4a;
+            margin-bottom: 8px;
+            text-align: center;
+            letter-spacing: 0.4px;
+        }
+
+        /* View toggles */
+        .view { display: none; }
+        .view.active { display: block; }
+
+        /* Mockup chrome */
+        .mockup-nav {
+            background: rgba(0,0,0,0.3);
+            border-radius: 12px;
+            padding: 10px;
+            margin-bottom: 14px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .mockup-nav button {
+            background: rgba(255,255,255,0.15);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.3);
+            border-radius: 8px;
+            padding: 6px 10px;
+            font-size: 11px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        .mockup-nav button.active {
+            background: white;
+            color: #0f1f4a;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Pool Tracker</h1>
+            <p>Live at-the-strip bout tracker</p>
+            <a href="#" class="sign-out">Sign out</a>
+        </div>
+
+        <!-- Mockup view switcher (not part of real UI) -->
+        <div class="mockup-nav">
+            <button onclick="showView('upload')" class="active" id="nav-upload">1. Upload</button>
+            <button onclick="showView('processing')" id="nav-processing">2. Processing</button>
+            <button onclick="showView('tracker')" id="nav-tracker">3. Live tracker</button>
+            <button onclick="showModal()" id="nav-score">4. Score modal</button>
+            <button onclick="showView('summary')" id="nav-summary">5. End-of-pool</button>
+        </div>
+
+        <a href="#" class="back-btn">&#8592; Back</a>
+
+        <!-- ================= VIEW 1: Upload ================= -->
+        <div class="view active" id="uploadView">
+            <div class="card">
+                <h2>Start a Pool</h2>
+
+                <div class="form-group">
+                    <label>Tournament</label>
+                    <select>
+                        <option>Draft &mdash; 2026-10-11 (new)</option>
+                        <option>South Point Y12 Epee &mdash; Mar 8, 2026</option>
+                        <option>NAC Chicago Y12 Epee &mdash; Feb 15, 2026</option>
+                    </select>
+                </div>
+
+                <div class="upload-area" onclick="return false;">
+                    <div class="icon">&#128247;</div>
+                    <div class="label">Tap to add FTL pool screenshot</div>
+                    <div class="hint">One screenshot &mdash; roster + bout order</div>
+                </div>
+
+                <div class="thumb">
+                    <div class="fake-img">pool-5.png</div>
+                </div>
+
+                <button class="btn-primary" onclick="showView('processing')">Extract Roster &amp; Bouts</button>
+                <button class="btn-secondary" onclick="showView('tracker')">Skip &mdash; set up by hand</button>
+            </div>
+        </div>
+
+        <!-- ================= VIEW 2: Processing ================= -->
+        <div class="view" id="processingView">
+            <div class="card">
+                <h2>Reading Pool Sheet</h2>
+                <div class="processing">
+                    <span class="spinner"></span>
+                    <span class="text">Pulling roster and 15 bouts…</span>
+                </div>
+                <div style="font-size:12px;color:#999;text-align:center;margin-top:10px;">
+                    Usually 10&ndash;20 seconds
+                </div>
+                <button class="btn-secondary" style="margin-top:16px;" onclick="showView('tracker')">(demo) jump to tracker</button>
+            </div>
+        </div>
+
+        <!-- ================= VIEW 3: Live tracker ================= -->
+        <div class="view" id="trackerView">
+
+            <!-- Pool header -->
+            <div class="pool-head">
+                <div class="top-line">
+                    <span>POOL 5 &middot; STRIP 6</span>
+                    <span>6 of 15 done</span>
+                </div>
+                <div class="headline">Ethan 2V &ndash; 1D so far</div>
+                <div class="sub">TS 15 &middot; TR 11 (3 bouts scored)</div>
+            </div>
+
+            <!-- Ethan's next bout -->
+            <div class="next-card">
+                <span class="tag">&#9733; ETHAN'S NEXT</span>
+                <div class="matchup">
+                    Bout 9 &mdash; XIAO Yijian <span class="vs">vs</span> <strong>SALIM Ethan</strong>
+                </div>
+            </div>
+
+            <div class="section-label">
+                <span>Bouts (6 of 15 done)</span>
+                <span class="counter">Tap name = done &middot; tap score = edit</span>
+            </div>
+
+            <div class="bout-list">
+                <!-- Format of each row: [bout#] | [pnum] Right LAST First  vs  First LAST [pnum] | [score-cell]
+                     Pool numbers (.pnum) inline next to each fencer so both are visible. -->
+                <div class="bout-row done">
+                    <div class="bout-num">1</div>
+                    <div class="names">
+                        <div class="side right"><span class="pnum">1</span><span class="last">BOROVIKOV</span></div>
+                        <div class="vs">vs</div>
+                        <div class="side left"><span class="last">ZHU</span><span class="pnum">2</span></div>
+                    </div>
+                    <div class="score-cell noe" onclick="showModal()">5&ndash;3<span class="edit-hint">edit</span></div>
+                </div>
+
+                <div class="bout-row done">
+                    <div class="bout-num">2</div>
+                    <div class="names">
+                        <div class="side right"><span class="pnum">5</span><span class="last">XIAO</span></div>
+                        <div class="vs">vs</div>
+                        <div class="side left"><span class="last">HOLBROOK</span><span class="pnum">4</span></div>
+                    </div>
+                    <div class="score-cell ck" onclick="showModal()">&#10003;<span class="edit-hint">add score</span></div>
+                </div>
+
+                <div class="bout-row ethan done">
+                    <div class="bout-num">3<span class="star">&#9733;</span></div>
+                    <div class="names">
+                        <div class="side right"><span class="pnum">2</span><span class="last">ZHU</span></div>
+                        <div class="vs">vs</div>
+                        <div class="side left"><span class="last">SALIM</span><span class="pnum">3</span></div>
+                    </div>
+                    <div class="score-cell win" onclick="showModal()">2&ndash;5<span class="vd">V</span></div>
+                </div>
+
+                <div class="bout-row">
+                    <div class="bout-num">4</div>
+                    <div class="names">
+                        <div class="side right"><span class="pnum">4</span><span class="last">HOLBROOK</span></div>
+                        <div class="vs">vs</div>
+                        <div class="side left"><span class="last">POLIAKOV</span><span class="pnum">6</span></div>
+                    </div>
+                    <div class="score-cell"><span class="plus">&#43;</span></div>
+                </div>
+
+                <div class="bout-row ethan done">
+                    <div class="bout-num">5<span class="star">&#9733;</span></div>
+                    <div class="names">
+                        <div class="side right"><span class="pnum">3</span><span class="last">SALIM</span></div>
+                        <div class="vs">vs</div>
+                        <div class="side left"><span class="last">BOROVIKOV</span><span class="pnum">1</span></div>
+                    </div>
+                    <div class="score-cell win" onclick="showModal()">5&ndash;3<span class="vd">V</span></div>
+                </div>
+
+                <div class="bout-row">
+                    <div class="bout-num">6</div>
+                    <div class="names">
+                        <div class="side right"><span class="pnum">6</span><span class="last">POLIAKOV</span></div>
+                        <div class="vs">vs</div>
+                        <div class="side left"><span class="last">XIAO</span><span class="pnum">5</span></div>
+                    </div>
+                    <div class="score-cell"><span class="plus">&#43;</span></div>
+                </div>
+
+                <div class="bout-row done">
+                    <div class="bout-num">7</div>
+                    <div class="names">
+                        <div class="side right"><span class="pnum">2</span><span class="last">ZHU</span></div>
+                        <div class="vs">vs</div>
+                        <div class="side left"><span class="last">XIAO</span><span class="pnum">5</span></div>
+                    </div>
+                    <div class="score-cell ck" onclick="showModal()">&#10003;<span class="edit-hint">add score</span></div>
+                </div>
+
+                <div class="bout-row done">
+                    <div class="bout-num">8</div>
+                    <div class="names">
+                        <div class="side right"><span class="pnum">1</span><span class="last">BOROVIKOV</span></div>
+                        <div class="vs">vs</div>
+                        <div class="side left"><span class="last">HOLBROOK</span><span class="pnum">4</span></div>
+                    </div>
+                    <div class="score-cell ck" onclick="showModal()">&#10003;<span class="edit-hint">add score</span></div>
+                </div>
+
+                <div class="bout-row ethan">
+                    <div class="bout-num">9<span class="star">&#9733;</span></div>
+                    <div class="names">
+                        <div class="side right"><span class="pnum">5</span><span class="last">XIAO</span></div>
+                        <div class="vs">vs</div>
+                        <div class="side left"><span class="last">SALIM</span><span class="pnum">3</span></div>
+                    </div>
+                    <div class="score-cell" onclick="showModal()"><span class="plus">&#43;</span></div>
+                </div>
+
+                <div class="bout-row">
+                    <div class="bout-num">10</div>
+                    <div class="names">
+                        <div class="side right"><span class="pnum">1</span><span class="last">BOROVIKOV</span></div>
+                        <div class="vs">vs</div>
+                        <div class="side left"><span class="last">POLIAKOV</span><span class="pnum">6</span></div>
+                    </div>
+                    <div class="score-cell"><span class="plus">&#43;</span></div>
+                </div>
+
+                <div class="bout-row">
+                    <div class="bout-num">11</div>
+                    <div class="names">
+                        <div class="side right"><span class="pnum">4</span><span class="last">HOLBROOK</span></div>
+                        <div class="vs">vs</div>
+                        <div class="side left"><span class="last">ZHU</span><span class="pnum">2</span></div>
+                    </div>
+                    <div class="score-cell"><span class="plus">&#43;</span></div>
+                </div>
+
+                <div class="bout-row ethan">
+                    <div class="bout-num">12<span class="star">&#9733;</span></div>
+                    <div class="names">
+                        <div class="side right"><span class="pnum">3</span><span class="last">SALIM</span></div>
+                        <div class="vs">vs</div>
+                        <div class="side left"><span class="last">POLIAKOV</span><span class="pnum">6</span></div>
+                    </div>
+                    <div class="score-cell" onclick="showModal()"><span class="plus">&#43;</span></div>
+                </div>
+
+                <div class="bout-row">
+                    <div class="bout-num">13</div>
+                    <div class="names">
+                        <div class="side right"><span class="pnum">5</span><span class="last">XIAO</span></div>
+                        <div class="vs">vs</div>
+                        <div class="side left"><span class="last">BOROVIKOV</span><span class="pnum">1</span></div>
+                    </div>
+                    <div class="score-cell"><span class="plus">&#43;</span></div>
+                </div>
+
+                <div class="bout-row ethan">
+                    <div class="bout-num">14<span class="star">&#9733;</span></div>
+                    <div class="names">
+                        <div class="side right"><span class="pnum">3</span><span class="last">SALIM</span></div>
+                        <div class="vs">vs</div>
+                        <div class="side left"><span class="last">HOLBROOK</span><span class="pnum">4</span></div>
+                    </div>
+                    <div class="score-cell" onclick="showModal()"><span class="plus">&#43;</span></div>
+                </div>
+
+                <div class="bout-row">
+                    <div class="bout-num">15</div>
+                    <div class="names">
+                        <div class="side right"><span class="pnum">6</span><span class="last">POLIAKOV</span></div>
+                        <div class="vs">vs</div>
+                        <div class="side left"><span class="last">ZHU</span><span class="pnum">2</span></div>
+                    </div>
+                    <div class="score-cell"><span class="plus">&#43;</span></div>
+                </div>
+            </div>
+
+            <div class="finish-bar">
+                <button class="btn-primary" onclick="showView('summary')">Finish Pool &amp; Review</button>
+            </div>
+        </div>
+
+        <!-- ================= VIEW 5: End-of-pool summary ================= -->
+        <div class="view" id="summaryView">
+            <div class="card">
+                <h2>Pool 5 &mdash; Complete</h2>
+
+                <div class="summary-stats">
+                    <div class="summary-stat"><div class="k">V&ndash;D</div><div class="v">3&ndash;2</div></div>
+                    <div class="summary-stat"><div class="k">Ind</div><div class="v">+4</div></div>
+                    <div class="summary-stat"><div class="k">TS</div><div class="v">23</div></div>
+                    <div class="summary-stat"><div class="k">TR</div><div class="v">19</div></div>
+                </div>
+                <div class="partial-note">Indicator from 5 of 15 bouts (yours only)</div>
+            </div>
+
+            <div class="section-label">
+                <span>Your row on the ref's paper</span>
+            </div>
+
+            <div class="card" style="padding:14px 12px;">
+                <!-- Grid mirrors the paper pool sheet: columns are opponents in
+                     POOL NUMBER order (not bout order), so your eye lands in the
+                     same cell as the paper. Ethan is #3, so his row shows #1, #2,
+                     #4, #5, #6 (his own column is skipped on the paper too). -->
+                <div class="pg-ethan-label">SALIM Ethan &middot; Pool #3</div>
+                <div class="pool-grid">
+                    <div class="pg-col" onclick="showModal()">
+                        <div class="pg-name">#1 BORO</div>
+                        <div class="pg-cell win">V5</div>
+                        <div class="pg-detail">5&ndash;3</div>
+                        <div class="pg-boutnum">bout #5</div>
+                    </div>
+                    <div class="pg-col" onclick="showModal()">
+                        <div class="pg-name">#2 ZHU</div>
+                        <div class="pg-cell loss">D2</div>
+                        <div class="pg-detail">2&ndash;5</div>
+                        <div class="pg-boutnum">bout #3</div>
+                    </div>
+                    <div class="pg-col" onclick="showModal()">
+                        <div class="pg-name">#4 HOLB</div>
+                        <div class="pg-cell win">V5</div>
+                        <div class="pg-detail">5&ndash;4</div>
+                        <div class="pg-boutnum">bout #14</div>
+                    </div>
+                    <div class="pg-col" onclick="showModal()">
+                        <div class="pg-name">#5 XIAO</div>
+                        <div class="pg-cell win">V5</div>
+                        <div class="pg-detail">5&ndash;2</div>
+                        <div class="pg-boutnum">bout #9</div>
+                    </div>
+                    <div class="pg-col" onclick="showModal()">
+                        <div class="pg-name">#6 POLI</div>
+                        <div class="pg-cell loss">D2</div>
+                        <div class="pg-detail">2&ndash;5</div>
+                        <div class="pg-boutnum">bout #12</div>
+                    </div>
+                </div>
+                <div class="pg-hint">Tap any cell to edit</div>
+            </div>
+
+            <button class="btn-primary">Looks good &mdash; save pool</button>
+            <button class="btn-secondary">Upload ref's final pool sheet (Vision cross-check)</button>
+        </div>
+    </div>
+
+    <!-- ================= Score modal ================= -->
+    <!-- Opens for both new scores and edits. For edits, inputs are pre-filled.
+         "Mark as not done" only appears when the bout is already in a done
+         state (either scored or tap-marked) and reverts it back to Pending. -->
+    <div class="modal-backdrop" id="scoreModal">
+        <div class="modal">
+            <div class="modal-title">Bout 5 &middot; Editing</div>
+            <div class="modal-matchup">
+                <div class="modal-side">
+                    <div class="name">SALIM Ethan</div>
+                    <input type="number" value="5" min="0" max="5">
+                </div>
+                <div class="modal-dash">&ndash;</div>
+                <div class="modal-side">
+                    <div class="name">BOROVIKOV Alex</div>
+                    <input type="number" value="3" min="0" max="5">
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-secondary" onclick="hideModal()">Cancel</button>
+                <button class="btn-primary" onclick="hideModal()">Save</button>
+            </div>
+            <button class="btn-secondary" style="margin-top:10px; border-color:#e74c3c; color:#e74c3c;" onclick="hideModal()">
+                Mark as not done
+            </button>
+        </div>
+    </div>
+
+    <script>
+        function showView(name) {
+            document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+            document.getElementById(name + 'View').classList.add('active');
+            document.querySelectorAll('.mockup-nav button').forEach(b => b.classList.remove('active'));
+            const nav = document.getElementById('nav-' + name);
+            if (nav) nav.classList.add('active');
+            window.scrollTo(0, 0);
+        }
+        function showModal() {
+            document.getElementById('scoreModal').classList.add('open');
+        }
+        function hideModal() {
+            document.getElementById('scoreModal').classList.remove('open');
+        }
+    </script>
+</body>
+</html>
