@@ -187,6 +187,13 @@ def main():
             '.sort((a, b) => a.pool_num - b.pool_num)' in tpl),
         ("grid skips Ethan's own column",   "r => r.pool_num !== e" in tpl),
         ("edits re-render summary too",     'renderSummary();' in tpl),
+        # Opponent's cell: each grid column must also show what the
+        # OPPONENT's row on the ref's paper will have in Ethan's column,
+        # so the user can cross-check both cells per bout.
+        ("grid renders opponent-cell notation (opp D{n} / opp V{n})",
+            '.pg-opp' in tpl
+            and "'<span class=\"lbl\">opp</span>'" in tpl
+            and 'oppMark' in tpl),
     ]
     for name, ok in checks:
         record(f"template: {name}", ok)

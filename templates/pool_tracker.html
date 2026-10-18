@@ -443,6 +443,20 @@
         .pg-cell.win { background: #d4edda; color: #155724; }
         .pg-cell.loss { background: #f8d7da; color: #721c24; }
         .pg-cell.unset { background: #fafbfd; color: #c0c8e0; font-size: 20px; font-weight: 500; }
+        /* Opponent's cell — what the OPPONENT's row on the ref's paper
+           should show in Ethan's column. Smaller + muted color, with an
+           "opp:" prefix so it can't be confused with Ethan's own cell. */
+        .pg-opp {
+            font-size: 12px;
+            font-weight: 700;
+            padding: 5px 2px;
+            background: white;
+            border-top: 1px solid #f0f0f0;
+            letter-spacing: 0.3px;
+        }
+        .pg-opp.win  { color: #27ae60; }   /* opp won = Ethan lost */
+        .pg-opp.loss { color: #c0392b; }   /* opp lost = Ethan won */
+        .pg-opp .lbl { color: #999; font-weight: 500; font-size: 10px; margin-right: 2px; }
         .pg-detail {
             font-size: 10px;
             color: #666;
@@ -1017,10 +1031,10 @@
                     || (b.left_num === e && b.right_num === opp.pool_num)
                 );
                 const header = '#' + opp.pool_num + ' ' + (opp.last_name || '?').toUpperCase().slice(0, 6);
-                let cellHtml, detailHtml, boutNumHtml;
+                let cellHtml, oppHtml, boutNumHtml;
                 if (!bout || bout.right_score == null || bout.left_score == null) {
                     cellHtml = '<div class="pg-cell unset">—</div>';
-                    detailHtml = '<div class="pg-detail muted">no score</div>';
+                    oppHtml = '<div class="pg-opp"><span class="lbl">opp</span>—</div>';
                     boutNumHtml = bout
                         ? '<div class="pg-boutnum">bout #' + bout.order + '</div>'
                         : '<div class="pg-boutnum">&nbsp;</div>';
@@ -1028,16 +1042,22 @@
                     const myScore = (bout.right_num === e) ? bout.right_score : bout.left_score;
                     const oppScore = (bout.right_num === e) ? bout.left_score : bout.right_score;
                     const win = myScore > oppScore;
+                    // Ethan's cell = what YOUR row on the paper should show.
                     cellHtml = '<div class="pg-cell ' + (win ? 'win' : 'loss') + '">'
                         + (win ? 'V' : 'D') + myScore + '</div>';
-                    detailHtml = '<div class="pg-detail">' + myScore + '&ndash;' + oppScore + '</div>';
+                    // Opponent's cell = what the OPPONENT's row on the paper
+                    // should show in your column. Opposite result from Ethan's.
+                    const oppMark = win ? ('D' + oppScore) : ('V' + oppScore);
+                    const oppCls = win ? 'loss' : 'win';
+                    oppHtml = '<div class="pg-opp ' + oppCls + '">'
+                        + '<span class="lbl">opp</span>' + oppMark + '</div>';
                     boutNumHtml = '<div class="pg-boutnum">bout #' + bout.order + '</div>';
                 }
                 const onclick = bout ? ' onclick="openScoreModal(' + bout.order + ')"' : '';
                 cols.push(
                     '<div class="pg-col"' + onclick + '>'
                     + '<div class="pg-name">' + header + '</div>'
-                    + cellHtml + detailHtml + boutNumHtml
+                    + cellHtml + oppHtml + boutNumHtml
                     + '</div>'
                 );
             }
