@@ -1301,8 +1301,9 @@ def api_pool_tracker_quick_start():
 @app.route('/pool-tracker/<int:pool_round_id>')
 @login_required
 def pool_tracker_page(pool_round_id):
-    """Pool Tracker UI. Stage 1 ships a placeholder — the real tracker
-    arrives in Stage 2 (full upload → live grid → score modal flow)."""
+    """Pool Tracker UI. The template hydrates its state from the JSON
+    blob embedded in the page — single source of truth for the client's
+    initial view decision (upload vs tracker)."""
     from database import get_db, PoolRound, Tournament
     db = get_db()
     try:
@@ -1311,14 +1312,117 @@ def pool_tracker_page(pool_round_id):
             return 'Pool round not found', 404
         t = db.query(Tournament).filter_by(id=pr.tournament_id).first()
         tournament_name = t.name if t else '(unknown tournament)'
+        state = {
+            'pool_round_id': pr.id,
+            'pool_number': pr.pool_number,
+            'strip_number': pr.strip_number,
+            'ethan_pool_num': pr.ethan_pool_num,
+            'roster': json.loads(pr.roster_json) if pr.roster_json else [],
+            'bouts': json.loads(pr.bout_order_json) if pr.bout_order_json else [],
+        }
     finally:
         db.close()
     return render_template(
-        'pool_tracker_placeholder.html',
+        'pool_tracker.html',
         pool_round_id=pool_round_id,
         tournament_id=pr.tournament_id,
         tournament_name=tournament_name,
+        state_json=json.dumps(state),
     )
+
+
+def _bouts_sane(bouts):
+    """Validate the shape of the bouts payload before persisting it.
+
+    Each entry must have an int order and int right/left_num. done is bool
+    (coerced). right/left_score are int in 0..5 or null. Returns the
+    normalised list or raises ValueError.
+    """
+    if not isinstance(bouts, list):
+        raise ValueError('bouts must be a list')
+    out = []
+    for raw in bouts:
+        if not isinstance(raw, dict):
+            raise ValueError('each bout must be an object')
+        try:
+            entry = {
+                'order': int(raw['order']),
+                'right_num': int(raw['right_num']),
+                'left_num': int(raw['left_num']),
+                'done': bool(raw.get('done', False)),
+                'right_score': None if raw.get('right_score') in (None, '') else int(raw['right_score']),
+                'left_score':  None if raw.get('left_score')  in (None, '') else int(raw['left_score']),
+            }
+        except (KeyError, ValueError, TypeError) as e:
+            raise ValueError(f'invalid bout {raw!r}: {e}')
+        for k in ('right_score', 'left_score'):
+            if entry[k] is not None and not (0 <= entry[k] <= 5):
+                raise ValueError(f'{k} must be 0-5, got {entry[k]}')
+        out.append(entry)
+    return out
+
+
+@app.route('/api/pool-tracker/<int:pool_round_id>/save-extraction', methods=['POST'])
+@login_required
+def api_pool_tracker_save_extraction(pool_round_id):
+    """Persist the Vision-extracted roster + bouts + scalars. Called once,
+    right after upload-pool-order-photo returns. Overwrites any prior state."""
+    from database import get_db, PoolRound
+    data = request.get_json(silent=True) or {}
+    try:
+        bouts = _bouts_sane(data.get('bouts') or [])
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    roster = data.get('roster') or []
+    if not isinstance(roster, list):
+        return jsonify({'error': 'roster must be a list'}), 400
+
+    db = get_db()
+    try:
+        pr = db.query(PoolRound).filter_by(id=pool_round_id).first()
+        if not pr:
+            return jsonify({'error': 'Pool round not found'}), 404
+        pr.pool_number = data.get('pool_number')
+        pr.strip_number = data.get('strip_number')
+        pr.ethan_pool_num = data.get('ethan_pool_num')
+        pr.roster_json = json.dumps(roster)
+        pr.bout_order_json = json.dumps(bouts)
+        db.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        db.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        db.close()
+
+
+@app.route('/api/pool-tracker/<int:pool_round_id>/update', methods=['POST'])
+@login_required
+def api_pool_tracker_update(pool_round_id):
+    """Autosave endpoint. Client sends the whole bouts array on every
+    state change — the server just replaces bout_order_json. Keeping it
+    dumb lets localStorage caching + replay-on-reconnect work with no
+    conflict-resolution logic."""
+    from database import get_db, PoolRound
+    data = request.get_json(silent=True) or {}
+    try:
+        bouts = _bouts_sane(data.get('bouts') or [])
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+
+    db = get_db()
+    try:
+        pr = db.query(PoolRound).filter_by(id=pool_round_id).first()
+        if not pr:
+            return jsonify({'error': 'Pool round not found'}), 404
+        pr.bout_order_json = json.dumps(bouts)
+        db.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        db.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        db.close()
 
 
 @app.route('/api/confirm-pool-results', methods=['POST'])

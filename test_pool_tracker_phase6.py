@@ -28,7 +28,7 @@ from database import PoolRound, Tournament, get_db
 PREFIX = "PT6_TEST_"
 INDEX_TPL = Path(__file__).parent / "templates" / "index.html"
 TOURN_TPL = Path(__file__).parent / "templates" / "tournament_detail.html"
-PLACEHOLDER_TPL = Path(__file__).parent / "templates" / "pool_tracker_placeholder.html"
+TRACKER_TPL = Path(__file__).parent / "templates" / "pool_tracker.html"
 
 results = []
 
@@ -93,8 +93,8 @@ def main():
     )
 
     record(
-        "template: placeholder page exists",
-        PLACEHOLDER_TPL.exists(),
+        "template: tracker page exists",
+        TRACKER_TPL.exists(),
     )
 
     # 2. Auth ---------------------------------------------------------

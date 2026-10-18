@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Pool Tracker</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #4a7fd4 0%, #1e3a7a 50%, #0f1f4a 100%);
+            min-height: 100vh;
+            padding: 20px;
+            padding-bottom: 80px;
+            color: #333;
+        }
+
+        .container { max-width: 700px; margin: 0 auto; }
+
+        .header { text-align: center; color: white; margin-bottom: 20px; position: relative; }
+        .header h1 { font-size: 1.6em; margin-bottom: 4px; }
+        .header p { opacity: 0.9; font-size: 0.95em; }
+        .sign-out {
+            position: absolute;
+            top: 0; right: 0;
+            color: rgba(255,255,255,0.7);
+            font-size: 13px;
+            text-decoration: none;
+        }
+
+        .back-btn {
+            display: inline-block;
+            background: white;
+            color: #2c3e6b;
+            padding: 10px 18px;
+            border-radius: 50px;
+            text-decoration: none;
+            font-weight: 600;
+            margin-bottom: 14px;
+            font-size: 14px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 20px;
+            padding: 22px;
+            margin-bottom: 14px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            max-width: 100%;
+            overflow-wrap: break-word;
+        }
+        .card h2 { font-size: 1.15em; margin-bottom: 12px; color: #1a1a2e; }
+
+        .btn-primary {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #4a7fd4 0%, #1e3a7a 50%, #0f1f4a 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 4px;
+        }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-secondary {
+            width: 100%;
+            padding: 14px;
+            background: white;
+            color: #2c3e6b;
+            border: 2px solid #2c3e6b;
+            border-radius: 12px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 8px;
+        }
+
+        /* Upload area */
+        .upload-area {
+            border: 3px dashed #c0c8e0;
+            border-radius: 16px;
+            padding: 28px;
+            text-align: center;
+            margin-bottom: 14px;
+            cursor: pointer;
+        }
+        .upload-area:active { background: #f0f4ff; }
+        .upload-area .icon { font-size: 36px; margin-bottom: 8px; }
+        .upload-area .label { font-size: 15px; color: #666; font-weight: 500; }
+        .upload-area .hint { font-size: 12px; color: #999; margin-top: 4px; }
+
+        .thumb {
+            width: 90px; height: 90px;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 2px solid #e0e0e0;
+            margin-bottom: 14px;
+            background: #dde3f0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            color: #666;
+        }
+
+        /* Processing */
+        .processing {
+            background: #eef3ff;
+            border-radius: 12px;
+            padding: 16px;
+            text-align: center;
+        }
+        .processing .spinner {
+            display: inline-block;
+            width: 20px; height: 20px;
+            border: 3px solid #c0c8e0;
+            border-top-color: #4a7fd4;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .processing .text { font-size: 14px; color: #2c3e6b; font-weight: 500; }
+
+        .error-banner {
+            background: #fdeeee;
+            border: 1px solid #e74c3c;
+            border-radius: 12px;
+            padding: 12px 14px;
+            margin-bottom: 12px;
+            color: #721c24;
+            font-size: 13px;
+        }
+
+        /* Pool header card */
+        .pool-head {
+            background: linear-gradient(135deg, #4a7fd4 0%, #1e3a7a 100%);
+            color: white;
+            border-radius: 18px;
+            padding: 14px 18px;
+            margin-bottom: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        .pool-head .top-line {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+            opacity: 0.9;
+            margin-bottom: 4px;
+        }
+        .pool-head .headline {
+            font-size: 18px;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+        .pool-head .sub {
+            font-size: 13px;
+            opacity: 0.9;
+            margin-top: 3px;
+        }
+
+        .next-card {
+            background: #fff8e1;
+            border: 2px solid #ffcf3a;
+            border-radius: 14px;
+            padding: 12px 14px;
+            margin-bottom: 12px;
+        }
+        .next-card .tag {
+            display: inline-block;
+            background: #ffcf3a;
+            color: #5a3800;
+            font-size: 10px;
+            font-weight: 700;
+            padding: 3px 8px;
+            border-radius: 10px;
+            margin-bottom: 6px;
+            letter-spacing: 0.3px;
+        }
+        .next-card .matchup { font-size: 14px; font-weight: 600; color: #1a1a2e; }
+        .next-card .matchup .vs { color: #999; font-weight: 400; margin: 0 6px; }
+        .next-card.empty { display: none; }
+
+        .section-label {
+            color: white;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            margin: 16px 0 8px;
+            opacity: 0.85;
+            padding-left: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            gap: 10px;
+        }
+        .section-label .counter { opacity: 0.75; font-weight: 500; font-size: 10px; text-transform: none; letter-spacing: 0.3px; }
+
+        /* Bout rows */
+        .bout-list { padding: 4px 0; }
+        .bout-row {
+            display: flex;
+            align-items: stretch;
+            background: white;
+            border: 1px solid #e8ebf2;
+            border-radius: 12px;
+            padding: 0;
+            margin-bottom: 6px;
+            overflow: hidden;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+        }
+        .bout-row.ethan { background: #e8f1ff; border-color: #a7c6ff; }
+        .bout-row.done .names { color: #888; }
+        .bout-row.done:not(.ethan) { background: #fafbfd; }
+        .bout-row.done:not(.ethan) .bout-num { background: #ebeef4; color: #777; }
+        .bout-row.done.ethan { background: #d4e4ff; }
+
+        .bout-num {
+            flex: 0 0 38px;
+            background: #f3f5fa;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: 700;
+            color: #2c3e6b;
+            padding: 10px 0;
+            border-right: 1px solid #e8ebf2;
+        }
+        .bout-row.ethan .bout-num { background: #c6dbff; color: #0f1f4a; }
+        .bout-num .star { font-size: 10px; line-height: 1; margin-top: 2px; color: #d08b00; }
+
+        .names {
+            flex: 1 1 auto;
+            display: flex;
+            align-items: center;
+            padding: 10px 8px;
+            min-width: 0;
+            cursor: pointer;
+        }
+        .names .side {
+            flex: 1 1 50%;
+            min-width: 0;
+            font-size: 13px;
+            color: #1a1a2e;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .names .side .last { font-weight: 700; }
+        .names .side.right { text-align: left; }
+        .names .side.left { text-align: right; }
+        .names .vs {
+            flex: 0 0 18px;
+            text-align: center;
+            color: #999;
+            font-size: 10px;
+            font-weight: 500;
+        }
+        .pnum {
+            display: inline-block;
+            background: #eceff4;
+            color: #666;
+            font-size: 10px;
+            font-weight: 700;
+            padding: 1px 5px;
+            border-radius: 6px;
+            margin: 0 3px;
+            vertical-align: middle;
+        }
+        .bout-row.ethan .pnum { background: #c6dbff; color: #0f1f4a; }
+
+        .score-cell {
+            flex: 0 0 62px;
+            border-left: 1px solid #e8ebf2;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 8px 4px;
+            cursor: pointer;
+            font-size: 12px;
+            color: #2c3e6b;
+            font-weight: 600;
+            background: #f8faff;
+            line-height: 1.1;
+            text-align: center;
+        }
+        .score-cell:active { background: #e8f1ff; }
+        .score-cell .plus { font-size: 16px; }
+        .score-cell.ck { background: #eef2f8; color: #6a7a95; font-size: 14px; }
+        .score-cell.win { background: #d4edda; color: #155724; font-weight: 700; }
+        .score-cell.loss { background: #f8d7da; color: #721c24; font-weight: 700; }
+        .score-cell.noe { background: #f0f2f6; color: #555; font-size: 12px; }
+        .score-cell .vd { display: block; font-size: 9px; opacity: 0.75; margin-top: 2px; }
+        .score-cell .edit-hint { display: block; font-size: 8px; font-weight: 500; opacity: 0.6; margin-top: 1px; }
+
+        .finish-bar { margin-top: 18px; }
+
+        /* Score modal */
+        .modal-backdrop {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(10,15,35,0.6);
+            display: none;
+            align-items: flex-end;
+            justify-content: center;
+            z-index: 10;
+            padding: 20px;
+        }
+        .modal-backdrop.open { display: flex; }
+        .modal {
+            background: white;
+            border-radius: 18px;
+            padding: 20px;
+            width: 100%;
+            max-width: 420px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+        }
+        .modal-title {
+            text-align: center;
+            font-size: 13px;
+            color: #999;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            margin-bottom: 12px;
+        }
+        .modal-matchup {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        .modal-side { flex: 1; text-align: center; }
+        .modal-side .name {
+            font-size: 13px;
+            color: #555;
+            margin-bottom: 6px;
+            font-weight: 600;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .modal-side input {
+            width: 100%;
+            text-align: center;
+            font-size: 26px;
+            font-weight: 700;
+            padding: 14px 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            -webkit-appearance: none;
+            appearance: none;
+            box-sizing: border-box;
+        }
+        .modal-dash { font-size: 20px; color: #999; }
+        .modal-actions { display: flex; gap: 10px; margin-top: 6px; }
+        .modal-actions .btn-secondary,
+        .modal-actions .btn-primary { margin-top: 0; }
+
+        .status-line {
+            text-align: center;
+            color: rgba(255,255,255,0.75);
+            font-size: 11px;
+            margin-top: 10px;
+            min-height: 14px;
+        }
+
+        /* View toggles */
+        .view { display: none; }
+        .view.active { display: block; }
+
+        /* Narrow screens — tighten pool-num chips and font sizes */
+        @media (max-width: 380px) {
+            .names .side { font-size: 12px; }
+            .pnum { font-size: 9px; padding: 1px 4px; }
+            .bout-num { flex-basis: 34px; font-size: 13px; }
+            .score-cell { flex-basis: 56px; font-size: 11px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Pool Tracker</h1>
+            <p>{{ tournament_name }}</p>
+            <a href="/logout" class="sign-out">Sign out</a>
+        </div>
+        <a href="/tournaments/{{ tournament_id }}" class="back-btn">&larr; Back to tournament</a>
+
+        <!-- VIEW 1: Upload FTL screenshot -->
+        <div class="view" id="uploadView">
+            <div class="card">
+                <h2>Upload FTL Screenshot</h2>
+                <p style="color:#666;font-size:13px;margin-bottom:14px;line-height:1.4;">
+                    Take a screenshot of the Fencing Time Live pool page (roster + bout order on one screen) and upload it below. The app will extract everything in ~15 seconds.
+                </p>
+                <label for="poolPhoto" class="upload-area">
+                    <div class="icon">&#128247;</div>
+                    <div class="label">Tap to add FTL pool screenshot</div>
+                    <div class="hint">One screenshot &mdash; roster + bout order</div>
+                </label>
+                <input type="file" id="poolPhoto" accept="image/*" style="display:none" onchange="handlePhotoPicked(this)">
+                <div id="uploadError"></div>
+            </div>
+        </div>
+
+        <!-- VIEW 2: Processing -->
+        <div class="view" id="processingView">
+            <div class="card">
+                <h2>Reading Pool Sheet</h2>
+                <div class="processing">
+                    <span class="spinner"></span>
+                    <span class="text" id="processingText">Extracting roster and bouts...</span>
+                </div>
+                <div style="font-size:12px;color:#999;text-align:center;margin-top:10px;">
+                    Usually 10&ndash;20 seconds
+                </div>
+            </div>
+        </div>
+
+        <!-- VIEW 3: Live tracker -->
+        <div class="view" id="trackerView">
+            <div class="pool-head" id="poolHead"></div>
+            <div class="next-card empty" id="nextCard"></div>
+            <div class="section-label" id="sectionLabel">
+                <span>Bouts</span>
+                <span class="counter">Tap name = done &middot; tap score = enter/edit</span>
+            </div>
+            <div class="bout-list" id="boutList"></div>
+            <div class="finish-bar">
+                <button class="btn-primary" onclick="finishPool()">Finish Pool &amp; Review</button>
+                <button class="btn-secondary" onclick="confirmReupload()">Re-upload FTL screenshot</button>
+            </div>
+            <div class="status-line" id="statusLine"></div>
+        </div>
+    </div>
+
+    <!-- Score modal -->
+    <div class="modal-backdrop" id="scoreModal">
+        <div class="modal">
+            <div class="modal-title" id="modalTitle">Bout</div>
+            <div class="modal-matchup">
+                <div class="modal-side">
+                    <div class="name" id="modalRightName">Right</div>
+                    <input type="number" id="modalRightScore" min="0" max="5" inputmode="numeric">
+                </div>
+                <div class="modal-dash">&ndash;</div>
+                <div class="modal-side">
+                    <div class="name" id="modalLeftName">Left</div>
+                    <input type="number" id="modalLeftScore" min="0" max="5" inputmode="numeric">
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+                <button class="btn-primary" onclick="saveFromModal()">Save</button>
+            </div>
+            <button
+                class="btn-secondary"
+                id="modalMarkNotDoneBtn"
+                style="margin-top:10px; border-color:#e74c3c; color:#e74c3c; display:none;"
+                onclick="markNotDoneFromModal()">
+                Mark as not done
+            </button>
+        </div>
+    </div>
+
+    <!-- Server-rendered initial state -->
+    <script id="initialState" type="application/json">
+    {{ state_json | safe }}
+    </script>
+
+    <script>
+        // ─── State ─────────────────────────────────────────────────────
+        // Shape:
+        //   poolState = {
+        //     pool_round_id, pool_number, strip_number, ethan_pool_num,
+        //     roster: [{pool_num, last_name, first_name, club, region}],
+        //     bouts:  [{order, right_num, left_num, done, right_score, left_score}]
+        //   }
+        let poolState = JSON.parse(document.getElementById('initialState').textContent);
+        let modalOrder = null;      // which bout the modal is editing
+        let saveTimer = null;
+        const POOL_ROUND_ID = poolState.pool_round_id;
+        const STORAGE_KEY = 'pool_tracker_' + POOL_ROUND_ID;
+
+        // ─── Boot ──────────────────────────────────────────────────────
+        function boot() {
+            // localStorage can hold a newer version than the server if the
+            // user went offline. Honor it only when its state is a proper
+            // superset of the server's (same bout count + at least as many
+            // done rows).
+            try {
+                const cached = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+                if (cached && cached.bouts && poolState.bouts
+                        && cached.bouts.length === poolState.bouts.length) {
+                    const srvDone = poolState.bouts.filter(b => b.done).length;
+                    const cacheDone = cached.bouts.filter(b => b.done).length;
+                    if (cacheDone > srvDone) poolState = cached;
+                }
+            } catch (_) {}
+
+            if (!poolState.roster || !poolState.roster.length) {
+                showView('upload');
+            } else {
+                renderTracker();
+                showView('tracker');
+            }
+        }
+
+        function showView(name) {
+            document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+            const el = document.getElementById(name + 'View');
+            if (el) el.classList.add('active');
+        }
+
+        // ─── Upload flow ───────────────────────────────────────────────
+        function handlePhotoPicked(input) {
+            const file = (input.files || [])[0];
+            if (!file) return;
+            uploadPhoto(file);
+        }
+
+        async function uploadPhoto(file) {
+            document.getElementById('uploadError').innerHTML = '';
+            showView('processing');
+            document.getElementById('processingText').textContent =
+                'Uploading ' + file.name + ' (' + Math.round(file.size / 1024) + ' KB)...';
+            try {
+                const fd = new FormData();
+                fd.append('photo', file);
+                const r = await fetch('/api/upload-pool-order-photo', { method: 'POST', body: fd });
+                const data = await r.json();
+                if (!r.ok || data.error) throw new Error(data.error || ('HTTP ' + r.status));
+                hydrateFromExtraction(data.extracted_data || {});
+                await saveExtraction();
+                renderTracker();
+                showView('tracker');
+            } catch (err) {
+                showView('upload');
+                document.getElementById('uploadError').innerHTML =
+                    '<div class="error-banner">Upload failed: ' + err.message + '</div>';
+            }
+        }
+
+        function hydrateFromExtraction(data) {
+            poolState.pool_number = data.pool_number || null;
+            poolState.strip_number = data.strip || null;
+            poolState.ethan_pool_num = data.ethan_pool_num || null;
+            poolState.roster = data.roster || [];
+            poolState.bouts = (data.bouts || []).map(b => ({
+                order: b.order,
+                right_num: b.right_num,
+                left_num: b.left_num,
+                done: false,
+                right_score: null,
+                left_score: null,
+            }));
+        }
+
+        // ─── Persistence ───────────────────────────────────────────────
+        async function saveExtraction() {
+            // Writes everything (roster + bouts + scalars) in one call.
+            // Called once right after Vision extraction completes.
+            const r = await fetch('/api/pool-tracker/' + POOL_ROUND_ID + '/save-extraction', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    pool_number: poolState.pool_number,
+                    strip_number: poolState.strip_number,
+                    ethan_pool_num: poolState.ethan_pool_num,
+                    roster: poolState.roster,
+                    bouts: poolState.bouts,
+                }),
+            });
+            const data = await r.json();
+            if (!r.ok || data.error) throw new Error(data.error || ('HTTP ' + r.status));
+            persistLocal();
+        }
+
+        function queueAutosave() {
+            // Debounce so bursts of taps collapse to one request.
+            persistLocal();
+            if (saveTimer) clearTimeout(saveTimer);
+            saveTimer = setTimeout(doAutosave, 500);
+        }
+
+        async function doAutosave() {
+            saveTimer = null;
+            setStatus('Saving...');
+            try {
+                const r = await fetch('/api/pool-tracker/' + POOL_ROUND_ID + '/update', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ bouts: poolState.bouts }),
+                });
+                const data = await r.json();
+                if (!r.ok || data.error) throw new Error(data.error || ('HTTP ' + r.status));
+                setStatus('Saved ' + new Date().toLocaleTimeString());
+            } catch (err) {
+                setStatus('Offline — changes cached locally');
+            }
+        }
+
+        function persistLocal() {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(poolState));
+            } catch (_) { /* storage full / privacy mode */ }
+        }
+
+        function setStatus(text) {
+            const el = document.getElementById('statusLine');
+            if (el) el.textContent = text || '';
+        }
+
+        // ─── Rendering ─────────────────────────────────────────────────
+        function renderTracker() {
+            renderPoolHead();
+            renderNextCard();
+            renderBoutList();
+            renderSectionLabel();
+        }
+
+        function fencerShort(poolNum) {
+            // Returns {last, pnum} for the fencer at a pool position.
+            const f = (poolState.roster || []).find(x => x.pool_num === poolNum);
+            if (!f) return { last: '?', pnum: poolNum };
+            return { last: (f.last_name || '').toUpperCase(), pnum: poolNum };
+        }
+
+        function ethanStats() {
+            // Compute V–D + TS + TR from Ethan's scored bouts only.
+            const e = poolState.ethan_pool_num;
+            if (!e) return { v: 0, d: 0, ts: 0, tr: 0, scored: 0 };
+            let v=0, d=0, ts=0, tr=0, scored=0;
+            for (const b of poolState.bouts || []) {
+                if (b.right_num !== e && b.left_num !== e) continue;
+                if (b.right_score == null || b.left_score == null) continue;
+                scored++;
+                const ethanScore = (b.right_num === e) ? b.right_score : b.left_score;
+                const oppScore   = (b.right_num === e) ? b.left_score  : b.right_score;
+                ts += ethanScore;
+                tr += oppScore;
+                if (ethanScore > oppScore) v++; else d++;
+            }
+            return { v, d, ts, tr, scored };
+        }
+
+        function renderPoolHead() {
+            const total = (poolState.bouts || []).length;
+            const done = (poolState.bouts || []).filter(b => b.done).length;
+            const s = ethanStats();
+            const bits = [];
+            if (poolState.pool_number != null) bits.push('POOL ' + poolState.pool_number);
+            if (poolState.strip_number != null) bits.push('STRIP ' + poolState.strip_number);
+            const topLeft = bits.join(' · ') || 'POOL';
+            const topRight = done + ' of ' + total + ' done';
+            const headline = 'Ethan ' + s.v + 'V – ' + s.d + 'D so far';
+            const sub = 'TS ' + s.ts + ' · TR ' + s.tr + ' (' + s.scored + ' bout' + (s.scored === 1 ? '' : 's') + ' scored)';
+            document.getElementById('poolHead').innerHTML =
+                '<div class="top-line"><span>' + topLeft + '</span><span>' + topRight + '</span></div>'
+                + '<div class="headline">' + headline + '</div>'
+                + '<div class="sub">' + sub + '</div>';
+        }
+
+        function renderNextCard() {
+            const e = poolState.ethan_pool_num;
+            const card = document.getElementById('nextCard');
+            if (!e) { card.classList.add('empty'); return; }
+            const next = (poolState.bouts || []).find(b =>
+                !b.done && (b.right_num === e || b.left_num === e));
+            if (!next) { card.classList.add('empty'); return; }
+            const r = fencerShort(next.right_num);
+            const l = fencerShort(next.left_num);
+            card.classList.remove('empty');
+            card.innerHTML =
+                '<span class="tag">&#9733; ETHAN\'S NEXT</span>'
+                + '<div class="matchup">Bout ' + next.order + ' &mdash; '
+                + r.last + ' <span class="vs">vs</span> ' + l.last + '</div>';
+        }
+
+        function renderSectionLabel() {
+            const total = (poolState.bouts || []).length;
+            const done = (poolState.bouts || []).filter(b => b.done).length;
+            const el = document.getElementById('sectionLabel');
+            if (el) el.children[0].textContent = 'Bouts (' + done + ' of ' + total + ' done)';
+        }
+
+        function renderBoutList() {
+            const e = poolState.ethan_pool_num;
+            const list = document.getElementById('boutList');
+            const parts = [];
+            for (const b of poolState.bouts || []) {
+                const isEthan = (b.right_num === e || b.left_num === e);
+                const scored = (b.right_score != null && b.left_score != null);
+                const r = fencerShort(b.right_num);
+                const l = fencerShort(b.left_num);
+                const classes = ['bout-row'];
+                if (isEthan) classes.push('ethan');
+                if (b.done) classes.push('done');
+
+                // Score-cell content depends on done + scored + ethan
+                let scoreCell;
+                if (!b.done) {
+                    scoreCell = '<div class="score-cell" onclick="openScoreModal(' + b.order + ')"><span class="plus">+</span></div>';
+                } else if (!scored) {
+                    scoreCell = '<div class="score-cell ck" onclick="openScoreModal(' + b.order + ')">&#10003;<span class="edit-hint">add score</span></div>';
+                } else if (isEthan) {
+                    const ethanScore = (b.right_num === e) ? b.right_score : b.left_score;
+                    const oppScore   = (b.right_num === e) ? b.left_score  : b.right_score;
+                    const win = ethanScore > oppScore;
+                    const cls = win ? 'win' : 'loss';
+                    const vd = win ? 'V' : 'D';
+                    scoreCell = '<div class="score-cell ' + cls + '" onclick="openScoreModal(' + b.order + ')">'
+                        + ethanScore + '&ndash;' + oppScore
+                        + '<span class="vd">' + vd + '</span></div>';
+                } else {
+                    scoreCell = '<div class="score-cell noe" onclick="openScoreModal(' + b.order + ')">'
+                        + b.right_score + '&ndash;' + b.left_score
+                        + '<span class="edit-hint">edit</span></div>';
+                }
+
+                const star = isEthan ? '<span class="star">&#9733;</span>' : '';
+                parts.push(
+                    '<div class="' + classes.join(' ') + '">'
+                    + '<div class="bout-num">' + b.order + star + '</div>'
+                    + '<div class="names" onclick="toggleBoutDone(' + b.order + ')">'
+                      + '<div class="side right"><span class="pnum">' + r.pnum + '</span><span class="last">' + r.last + '</span></div>'
+                      + '<div class="vs">vs</div>'
+                      + '<div class="side left"><span class="last">' + l.last + '</span><span class="pnum">' + l.pnum + '</span></div>'
+                    + '</div>'
+                    + scoreCell
+                    + '</div>'
+                );
+            }
+            list.innerHTML = parts.join('');
+        }
+
+        // ─── Tap handlers ──────────────────────────────────────────────
+        function toggleBoutDone(order) {
+            const b = (poolState.bouts || []).find(x => x.order === order);
+            if (!b) return;
+            // Tapping names area marks done; already done does nothing (undo
+            // lives in the score modal to avoid accidental revert).
+            if (b.done) return;
+            b.done = true;
+            renderTracker();
+            queueAutosave();
+        }
+
+        function openScoreModal(order) {
+            const b = (poolState.bouts || []).find(x => x.order === order);
+            if (!b) return;
+            modalOrder = order;
+            const r = fencerShort(b.right_num);
+            const l = fencerShort(b.left_num);
+            document.getElementById('modalTitle').textContent =
+                'Bout ' + order + (b.done ? ' · Editing' : '');
+            document.getElementById('modalRightName').textContent = r.last;
+            document.getElementById('modalLeftName').textContent = l.last;
+            document.getElementById('modalRightScore').value = b.right_score != null ? b.right_score : '';
+            document.getElementById('modalLeftScore').value  = b.left_score  != null ? b.left_score  : '';
+            document.getElementById('modalMarkNotDoneBtn').style.display = b.done ? 'block' : 'none';
+            document.getElementById('scoreModal').classList.add('open');
+            // Autofocus right input shortly after open so iOS keyboard shows
+            setTimeout(() => document.getElementById('modalRightScore').focus(), 50);
+        }
+
+        function closeModal() {
+            document.getElementById('scoreModal').classList.remove('open');
+            modalOrder = null;
+        }
+
+        function saveFromModal() {
+            if (modalOrder == null) return closeModal();
+            const b = (poolState.bouts || []).find(x => x.order === modalOrder);
+            if (!b) return closeModal();
+            const rightRaw = document.getElementById('modalRightScore').value.trim();
+            const leftRaw  = document.getElementById('modalLeftScore').value.trim();
+            const right = rightRaw === '' ? null : parseInt(rightRaw, 10);
+            const left  = leftRaw  === '' ? null : parseInt(leftRaw, 10);
+            // Allow empty (just mark done without score) or valid 0-5 ints
+            if (right != null && (isNaN(right) || right < 0 || right > 5)) {
+                alert('Right score must be 0 to 5'); return;
+            }
+            if (left != null && (isNaN(left) || left < 0 || left > 5)) {
+                alert('Left score must be 0 to 5'); return;
+            }
+            b.right_score = right;
+            b.left_score  = left;
+            b.done = true;
+            renderTracker();
+            queueAutosave();
+            closeModal();
+        }
+
+        function markNotDoneFromModal() {
+            if (modalOrder == null) return closeModal();
+            const b = (poolState.bouts || []).find(x => x.order === modalOrder);
+            if (!b) return closeModal();
+            b.done = false;
+            b.right_score = null;
+            b.left_score = null;
+            renderTracker();
+            queueAutosave();
+            closeModal();
+        }
+
+        function confirmReupload() {
+            if (confirm('Re-upload will replace the roster and all 15 bouts with the new screenshot. Scores already entered will be lost. Continue?')) {
+                poolState.roster = [];
+                poolState.bouts = [];
+                showView('upload');
+            }
+        }
+
+        function finishPool() {
+            // Stage 3 ships the end-of-pool grid. For now flag the gap.
+            alert('End-of-pool summary (Stage 3) is coming soon. Your in-progress state is already saved.');
+        }
+
+        boot();
+    </script>
+</body>
+</html>
