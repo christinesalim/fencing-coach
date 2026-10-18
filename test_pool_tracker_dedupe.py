@@ -169,8 +169,7 @@ def main():
         f"got_tid={body.get('tournament_id')} y_tid={y_tid}",
     )
 
-    # 6. Explicit tournament_id (tournament-detail flow) always creates
-    #    a new round and never reuses ---------------------------------
+    # 6. Explicit tournament_id, no existing round yet → creates new -----
     db = get_db()
     try:
         existing = Tournament(name=f"{PREFIX}EXISTING_TOURNEY", date=datetime(2026,1,1))
@@ -183,7 +182,7 @@ def main():
     body = r.get_json() or {}
     first_pr_on_existing = body.get("pool_round_id")
     record(
-        "with tournament_id: creates new round, reused=false",
+        "with tournament_id, no existing round: creates fresh round, reused=false",
         r.status_code == 200
         and body.get("tournament_id") == existing_tid
         and body.get("reused") is False
@@ -191,14 +190,41 @@ def main():
         f"status={r.status_code} tid={body.get('tournament_id')} prid={first_pr_on_existing}",
     )
 
+    # 7. Explicit tournament_id, previous round unfinished → resumes it
+    #    (new behavior — matches home-page Quick Start to reflect that
+    #    a tournament has one set of pools, not many).
     r = quick_start(c, tournament_id=existing_tid)
     body = r.get_json() or {}
     record(
-        "with tournament_id: second call ALWAYS creates another new round (no resume on explicit flow)",
+        "with tournament_id, unfinished round exists: RESUMES same round",
         r.status_code == 200
+        and body.get("reused") is True
+        and body.get("pool_round_id") == first_pr_on_existing,
+        f"got_prid={body.get('pool_round_id')} expected={first_pr_on_existing}",
+    )
+
+    # 8. After finalize, explicit tournament_id creates a NEW round ------
+    db = get_db()
+    try:
+        pr = db.query(PoolRound).filter_by(id=first_pr_on_existing).first()
+        pr.victories = 3
+        pr.defeats = 2
+        pr.touches_scored = 20
+        pr.touches_received = 14
+        pr.indicator = 6
+        db.commit()
+    finally:
+        db.close()
+
+    r = quick_start(c, tournament_id=existing_tid)
+    body = r.get_json() or {}
+    record(
+        "with tournament_id, previous round finalized: creates NEW round, reused=false",
+        r.status_code == 200
+        and body.get("tournament_id") == existing_tid
         and body.get("reused") is False
         and body.get("pool_round_id") != first_pr_on_existing,
-        f"second_prid={body.get('pool_round_id')} vs first={first_pr_on_existing}",
+        f"got_prid={body.get('pool_round_id')} vs first={first_pr_on_existing}",
     )
 
     # Separate cleanup for yesterday + existing tournaments

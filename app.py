@@ -1299,15 +1299,20 @@ def upload_pool_order_photo():
 def api_pool_tracker_quick_start():
     """Create or resume a PoolRound and redirect into the tracker.
 
-    - With `tournament_id` in the body (tournament-detail page):
-      always creates a new PoolRound on that tournament.
-    - Without `tournament_id` (home-page Quick Start):
-      1. Reuse today's "Pool — <YYYY-MM-DD>" draft tournament if one
-         exists (prevents the dupe-tournament problem from repeated taps).
-      2. If that tournament's most recent PoolRound isn't finalized
-         (victories IS NULL), resume it. Otherwise create a new round
-         on the same tournament.
-      Response includes `reused: true` when we resumed instead of created.
+    Two entry points, same resume behavior:
+      - Home page Quick Start (no `tournament_id` in body): find-or-create
+        today's "Pool — <YYYY-MM-DD>" draft tournament.
+      - Tournament detail "Start Pool Tracker" (with `tournament_id`):
+        use that tournament directly.
+
+    In both cases, if the tournament already has a PoolRound whose
+    `victories` is still NULL (not finalized), that round is resumed
+    instead of a new one being created. Only after the user has
+    finalized the previous round via "Looks good — save pool" does a
+    new tap produce a fresh PoolRound. This matches reality: one set
+    of pools per tournament event.
+
+    Response includes `reused: true` when we resumed instead of created.
     """
     from database import get_db, PoolRound, Tournament
     data = request.get_json(silent=True) or {}
@@ -1315,13 +1320,10 @@ def api_pool_tracker_quick_start():
 
     db = get_db()
     try:
-        reused = False
         if tournament_id:
             t = db.query(Tournament).filter_by(id=int(tournament_id)).first()
             if not t:
                 return jsonify({'error': 'Tournament not found'}), 404
-            pr = PoolRound(tournament_id=t.id)
-            db.add(pr)
         else:
             today = datetime.utcnow()
             draft_name = f"Pool — {today.strftime('%Y-%m-%d')}"
@@ -1332,15 +1334,19 @@ def api_pool_tracker_quick_start():
                 t = Tournament(name=draft_name, date=today)
                 db.add(t)
                 db.flush()
-            latest_pr = db.query(PoolRound).filter_by(
-                tournament_id=t.id
-            ).order_by(PoolRound.id.desc()).first()
-            if latest_pr is not None and latest_pr.victories is None:
-                pr = latest_pr
-                reused = True
-            else:
-                pr = PoolRound(tournament_id=t.id)
-                db.add(pr)
+
+        # Shared resume logic: if the latest PoolRound on this tournament
+        # isn't finalized, resume it instead of creating a sibling.
+        latest_pr = db.query(PoolRound).filter_by(
+            tournament_id=t.id
+        ).order_by(PoolRound.id.desc()).first()
+        if latest_pr is not None and latest_pr.victories is None:
+            pr = latest_pr
+            reused = True
+        else:
+            pr = PoolRound(tournament_id=t.id)
+            db.add(pr)
+            reused = False
         db.commit()
         return jsonify({
             'success': True,
