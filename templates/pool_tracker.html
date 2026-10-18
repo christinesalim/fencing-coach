@@ -376,6 +376,104 @@
             min-height: 14px;
         }
 
+        /* End-of-pool summary grid */
+        .summary-stats {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+        .summary-stat {
+            flex: 1;
+            background: #f5f7fa;
+            border-radius: 10px;
+            padding: 10px 4px;
+            text-align: center;
+        }
+        .summary-stat .k { font-size: 10px; color: #666; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; }
+        .summary-stat .v { font-size: 20px; color: #1a1a2e; font-weight: 800; margin-top: 2px; }
+        .partial-note {
+            font-size: 11px;
+            color: #999;
+            text-align: center;
+            margin-top: 2px;
+        }
+        .pg-ethan-label {
+            font-size: 12px;
+            font-weight: 700;
+            color: #0f1f4a;
+            margin-bottom: 8px;
+            text-align: center;
+            letter-spacing: 0.4px;
+        }
+        .pool-grid {
+            display: flex;
+            gap: 4px;
+            margin-top: 4px;
+        }
+        .pg-col {
+            flex: 1 1 0;
+            min-width: 0;
+            text-align: center;
+            cursor: pointer;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid #e8ebf2;
+            background: white;
+        }
+        .pg-col:active { transform: scale(0.97); }
+        .pg-name {
+            font-size: 10px;
+            font-weight: 700;
+            color: #666;
+            padding: 5px 2px;
+            background: #f5f7fa;
+            text-transform: uppercase;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            letter-spacing: 0.3px;
+        }
+        .pg-cell {
+            font-size: 18px;
+            font-weight: 800;
+            padding: 10px 0;
+            letter-spacing: 0.5px;
+            line-height: 1.1;
+        }
+        .pg-cell.win { background: #d4edda; color: #155724; }
+        .pg-cell.loss { background: #f8d7da; color: #721c24; }
+        .pg-cell.unset { background: #fafbfd; color: #c0c8e0; font-size: 20px; font-weight: 500; }
+        .pg-detail {
+            font-size: 10px;
+            color: #666;
+            padding: 3px 2px;
+            background: white;
+            border-top: 1px solid #f0f0f0;
+            min-height: 18px;
+        }
+        .pg-detail.muted { color: #c0c8e0; }
+        .pg-boutnum {
+            font-size: 9px;
+            color: #999;
+            padding: 2px 0 4px;
+            background: white;
+        }
+        .pg-hint {
+            font-size: 11px;
+            color: #999;
+            text-align: center;
+            margin-top: 10px;
+        }
+        .finalize-ok {
+            background: #d4edda;
+            border: 1px solid #27ae60;
+            color: #155724;
+            border-radius: 12px;
+            padding: 12px 14px;
+            font-size: 13px;
+            margin-top: 10px;
+        }
+
         /* View toggles */
         .view { display: none; }
         .view.active { display: block; }
@@ -443,6 +541,26 @@
                 <button class="btn-secondary" onclick="confirmReupload()">Re-upload FTL screenshot</button>
             </div>
             <div class="status-line" id="statusLine"></div>
+        </div>
+
+        <!-- VIEW 4: End-of-pool summary (ref's paper mirror) -->
+        <div class="view" id="summaryView">
+            <div class="card">
+                <h2 id="summaryHeadline">Pool Complete</h2>
+                <div class="summary-stats" id="summaryStats"></div>
+                <div class="partial-note" id="summaryPartial"></div>
+            </div>
+            <div class="section-label">
+                <span>Your row on the ref's paper</span>
+            </div>
+            <div class="card" style="padding:14px 12px;">
+                <div class="pg-ethan-label" id="summaryEthanLabel"></div>
+                <div class="pool-grid" id="summaryGrid"></div>
+                <div class="pg-hint">Tap any cell to edit</div>
+            </div>
+            <div id="finalizeResult"></div>
+            <button class="btn-primary" onclick="savePoolFinal()" id="savePoolBtn">Looks good &mdash; save pool</button>
+            <button class="btn-secondary" onclick="backToTracker()">Back to bout list</button>
         </div>
     </div>
 
@@ -800,6 +918,7 @@
             b.left_score  = left;
             b.done = true;
             renderTracker();
+            renderSummary();   // no-op if summary view hasn't been visited yet
             queueAutosave();
             closeModal();
         }
@@ -812,6 +931,7 @@
             b.right_score = null;
             b.left_score = null;
             renderTracker();
+            renderSummary();
             queueAutosave();
             closeModal();
         }
@@ -825,8 +945,138 @@
         }
 
         function finishPool() {
-            // Stage 3 ships the end-of-pool grid. For now flag the gap.
-            alert('End-of-pool summary (Stage 3) is coming soon. Your in-progress state is already saved.');
+            // Both renders are cheap; the summary view hydrates off poolState
+            // so there's nothing to fetch — just switch and render.
+            renderSummary();
+            showView('summary');
+            window.scrollTo(0, 0);
+        }
+
+        function backToTracker() {
+            renderTracker();
+            showView('tracker');
+            window.scrollTo(0, 0);
+        }
+
+        // ─── Summary view ──────────────────────────────────────────────
+        function renderSummary() {
+            const e = poolState.ethan_pool_num;
+            const s = ethanStats();
+            const totalEthanBouts = e
+                ? (poolState.bouts || []).filter(b => b.right_num === e || b.left_num === e).length
+                : 0;
+
+            // Headline
+            const bits = ['Pool'];
+            if (poolState.pool_number != null) bits[0] = 'Pool ' + poolState.pool_number;
+            if (poolState.strip_number != null) bits.push('Strip ' + poolState.strip_number);
+            bits.push('Complete');
+            document.getElementById('summaryHeadline').textContent = bits.join(' · ');
+
+            // 4-stat tiles
+            document.getElementById('summaryStats').innerHTML =
+                statTile('V–D', s.v + '–' + s.d)
+                + statTile('Ind', (s.ts - s.tr >= 0 ? '+' : '') + (s.ts - s.tr))
+                + statTile('TS', String(s.ts))
+                + statTile('TR', String(s.tr));
+
+            // Partial-data note
+            const partial = document.getElementById('summaryPartial');
+            if (totalEthanBouts && s.scored < totalEthanBouts) {
+                partial.textContent =
+                    'Indicator from ' + s.scored + ' of ' + totalEthanBouts
+                    + ' Ethan bouts scored';
+            } else if (!e) {
+                partial.textContent = 'Ethan not identified in this pool — stats unavailable';
+            } else {
+                partial.textContent = '';
+            }
+
+            // Ethan label — e.g. "SALIM Ethan · Pool #3"
+            const ethanRoster = (poolState.roster || []).find(x => x.pool_num === e);
+            let labelParts = [];
+            if (ethanRoster) {
+                labelParts.push(((ethanRoster.last_name || '') + ' ' + (ethanRoster.first_name || '')).trim());
+            }
+            if (e != null) labelParts.push('Pool #' + e);
+            document.getElementById('summaryEthanLabel').textContent =
+                labelParts.join(' · ') || 'Ethan — pool position unknown';
+
+            // Grid: columns in pool_num order, skipping Ethan's own.
+            const grid = document.getElementById('summaryGrid');
+            if (!e) { grid.innerHTML = ''; return; }
+            const opponents = (poolState.roster || [])
+                .filter(r => r.pool_num !== e)
+                .slice()
+                .sort((a, b) => a.pool_num - b.pool_num);
+
+            const cols = [];
+            for (const opp of opponents) {
+                const bout = (poolState.bouts || []).find(b =>
+                    (b.right_num === e && b.left_num === opp.pool_num)
+                    || (b.left_num === e && b.right_num === opp.pool_num)
+                );
+                const header = '#' + opp.pool_num + ' ' + (opp.last_name || '?').toUpperCase().slice(0, 6);
+                let cellHtml, detailHtml, boutNumHtml;
+                if (!bout || bout.right_score == null || bout.left_score == null) {
+                    cellHtml = '<div class="pg-cell unset">—</div>';
+                    detailHtml = '<div class="pg-detail muted">no score</div>';
+                    boutNumHtml = bout
+                        ? '<div class="pg-boutnum">bout #' + bout.order + '</div>'
+                        : '<div class="pg-boutnum">&nbsp;</div>';
+                } else {
+                    const myScore = (bout.right_num === e) ? bout.right_score : bout.left_score;
+                    const oppScore = (bout.right_num === e) ? bout.left_score : bout.right_score;
+                    const win = myScore > oppScore;
+                    cellHtml = '<div class="pg-cell ' + (win ? 'win' : 'loss') + '">'
+                        + (win ? 'V' : 'D') + myScore + '</div>';
+                    detailHtml = '<div class="pg-detail">' + myScore + '&ndash;' + oppScore + '</div>';
+                    boutNumHtml = '<div class="pg-boutnum">bout #' + bout.order + '</div>';
+                }
+                const onclick = bout ? ' onclick="openScoreModal(' + bout.order + ')"' : '';
+                cols.push(
+                    '<div class="pg-col"' + onclick + '>'
+                    + '<div class="pg-name">' + header + '</div>'
+                    + cellHtml + detailHtml + boutNumHtml
+                    + '</div>'
+                );
+            }
+            grid.innerHTML = cols.join('');
+        }
+
+        function statTile(k, v) {
+            return '<div class="summary-stat"><div class="k">' + k + '</div><div class="v">' + v + '</div></div>';
+        }
+
+        async function savePoolFinal() {
+            const btn = document.getElementById('savePoolBtn');
+            btn.disabled = true;
+            btn.textContent = 'Saving...';
+            const resultDiv = document.getElementById('finalizeResult');
+            resultDiv.innerHTML = '';
+            try {
+                const r = await fetch('/api/pool-tracker/' + POOL_ROUND_ID + '/finalize', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}',
+                });
+                const data = await r.json();
+                if (!r.ok || data.error) throw new Error(data.error || ('HTTP ' + r.status));
+                resultDiv.innerHTML = '<div class="finalize-ok">&#10003; Pool saved. '
+                    + data.victories + 'V&ndash;' + data.defeats + 'D &middot; '
+                    + 'Ind ' + (data.indicator >= 0 ? '+' : '') + data.indicator
+                    + ' &middot; TS ' + data.touches_scored
+                    + ' &middot; TR ' + data.touches_received
+                    + ' &middot; ' + data.scored_bouts + ' of '
+                    + data.total_ethan_bouts + ' Ethan bouts counted.'
+                    + '</div>';
+                btn.textContent = 'Saved — tap again to resave';
+                btn.disabled = false;
+                // localStorage no longer needs to shadow server state
+                try { localStorage.removeItem(STORAGE_KEY); } catch(_) {}
+            } catch (err) {
+                resultDiv.innerHTML = '<div class="error-banner">Save failed: ' + err.message + '</div>';
+                btn.disabled = false;
+                btn.textContent = 'Looks good — save pool';
+            }
         }
 
         boot();

@@ -1439,6 +1439,104 @@ def api_pool_tracker_save_extraction(pool_round_id):
         db.close()
 
 
+@app.route('/api/pool-tracker/<int:pool_round_id>/finalize', methods=['POST'])
+@login_required
+def api_pool_tracker_finalize(pool_round_id):
+    """Compute V/D/TS/TR/Ind from Ethan's scored bouts, write them to the
+    PoolRound summary columns, and replace this round's PoolBout rows with
+    one per Ethan bout. Idempotent — safe to call repeatedly as the user
+    corrects scores and re-saves."""
+    from database import get_db, PoolRound, PoolBout
+    db = get_db()
+    try:
+        pr = db.query(PoolRound).filter_by(id=pool_round_id).first()
+        if not pr:
+            return jsonify({'error': 'Pool round not found'}), 404
+        if pr.ethan_pool_num is None:
+            return jsonify({'error': 'Ethan not identified in this pool — reupload the screenshot'}), 400
+
+        try:
+            bouts = json.loads(pr.bout_order_json or '[]')
+            roster = json.loads(pr.roster_json or '[]')
+        except Exception as e:
+            return jsonify({'error': f'Corrupt pool state: {e}'}), 500
+
+        roster_by_num = {r.get('pool_num'): r for r in roster}
+        ethan = pr.ethan_pool_num
+
+        v = d = ts = tr = scored = 0
+        ethan_bouts = []  # (bout_order, opponent, score_for, score_against, result)
+        for b in bouts:
+            if b.get('right_num') != ethan and b.get('left_num') != ethan:
+                continue
+            rs = b.get('right_score'); ls = b.get('left_score')
+            if rs is None or ls is None:
+                continue
+            scored += 1
+            if b.get('right_num') == ethan:
+                mine, theirs = int(rs), int(ls)
+                opp_num = b.get('left_num')
+            else:
+                mine, theirs = int(ls), int(rs)
+                opp_num = b.get('right_num')
+            ts += mine
+            tr += theirs
+            won = mine > theirs
+            if won: v += 1
+            else:   d += 1
+            opp = roster_by_num.get(opp_num) or {}
+            opp_name = (
+                (opp.get('last_name') or '').strip()
+                + (' ' + opp.get('first_name') if opp.get('first_name') else '')
+            ).strip() or f'Fencer #{opp_num}'
+            ethan_bouts.append({
+                'bout_order': b.get('order'),
+                'opponent_name': opp_name[:255],
+                'opponent_club': (opp.get('club') or '')[:255] or None,
+                'score_for': mine,
+                'score_against': theirs,
+                'result': 'won' if won else 'lost',
+            })
+
+        # Replace PoolBout rows for this pool round (idempotent).
+        db.query(PoolBout).filter_by(pool_round_id=pool_round_id).delete(
+            synchronize_session=False
+        )
+        for eb in ethan_bouts:
+            db.add(PoolBout(
+                pool_round_id=pool_round_id,
+                opponent_name=eb['opponent_name'],
+                opponent_club=eb['opponent_club'],
+                score_for=eb['score_for'],
+                score_against=eb['score_against'],
+                result=eb['result'],
+                bout_order=eb['bout_order'],
+            ))
+
+        pr.victories = v
+        pr.defeats = d
+        pr.touches_scored = ts
+        pr.touches_received = tr
+        pr.indicator = ts - tr
+        db.commit()
+        return jsonify({
+            'success': True,
+            'victories': v, 'defeats': d,
+            'touches_scored': ts, 'touches_received': tr,
+            'indicator': ts - tr,
+            'scored_bouts': scored,
+            'total_ethan_bouts': sum(
+                1 for b in bouts
+                if b.get('right_num') == ethan or b.get('left_num') == ethan
+            ),
+        })
+    except Exception as e:
+        db.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        db.close()
+
+
 @app.route('/api/pool-tracker/<int:pool_round_id>/update', methods=['POST'])
 @login_required
 def api_pool_tracker_update(pool_round_id):
