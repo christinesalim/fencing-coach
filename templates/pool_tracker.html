@@ -437,37 +437,41 @@
         }
         .sr-name {
             flex: 1 1 auto;
+            min-width: 0;
+            overflow: hidden;
+        }
+        .sr-last {
             font-size: 15px;
             font-weight: 700;
             color: #1a1a2e;
-            min-width: 0;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
-        }
-        .sr-mine {
-            flex: 0 0 48px;
-            text-align: center;
-            font-size: 22px;
-            font-weight: 800;
-            letter-spacing: 0.5px;
             line-height: 1.1;
         }
-        .sr-mine.win   { color: #27ae60; }
-        .sr-mine.loss  { color: #c0392b; }
-        .sr-mine.unset { color: #c0c8e0; font-weight: 500; font-size: 18px; }
-        .sr-opp {
-            flex: 0 0 66px;
-            text-align: center;
-            font-size: 17px;
-            font-weight: 700;
+        .sr-first {
+            font-size: 12px;
+            font-weight: 500;
+            color: #777;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            margin-top: 2px;
+        }
+        /* Single combined notation "V5-D2" — Ethan's result always on the
+           left, opponent's always on the right. Whole score colored by
+           Ethan's outcome so a quick scan tells you win/loss immediately. */
+        .sr-score {
+            flex: 0 0 92px;
+            text-align: right;
+            font-size: 20px;
+            font-weight: 800;
             letter-spacing: 0.3px;
             line-height: 1.1;
         }
-        .sr-opp.win   { color: #27ae60; }     /* opp won  = Ethan lost */
-        .sr-opp.loss  { color: #c0392b; }     /* opp lost = Ethan won */
-        .sr-opp.unset { color: #c0c8e0; font-weight: 500; }
-        .sr-opp .lbl { font-size: 9px; color: #999; font-weight: 500; margin-right: 3px; letter-spacing: 0.2px; display: block; margin-bottom: 1px; }
+        .sr-score.win   { color: #27ae60; }
+        .sr-score.loss  { color: #c0392b; }
+        .sr-score.unset { color: #c0c8e0; font-weight: 500; font-size: 18px; }
         .pg-hint {
             font-size: 11px;
             color: #999;
@@ -1022,38 +1026,41 @@
 
             // One row per opponent in pool-number order (matches the vertical
             // sequence of columns on the ref's paper, which Ethan uses as his
-            // mental model for cross-checking).
+            // mental model for cross-checking). Score shown as a single
+            // "V5-D2" notation — Ethan's result always on the left so he can
+            // scan down the column. First name shown below last name (muted)
+            // so same-last-name fencers can be disambiguated at a glance.
             const rows = [];
             for (const opp of opponents) {
                 const bout = (poolState.bouts || []).find(b =>
                     (b.right_num === e && b.left_num === opp.pool_num)
                     || (b.left_num === e && b.right_num === opp.pool_num)
                 );
-                const fullName = (opp.last_name || '?').toUpperCase();
-                let mineHtml, oppHtml;
+                const lastName = (opp.last_name || '?').toUpperCase();
+                const firstName = opp.first_name || '';
+                let scoreHtml;
                 if (!bout || bout.right_score == null || bout.left_score == null) {
-                    mineHtml = '<div class="sr-mine unset">—</div>';
-                    oppHtml = '<div class="sr-opp unset"><span class="lbl">opp</span>—</div>';
+                    scoreHtml = '<div class="sr-score unset">—</div>';
                 } else {
                     const myScore = (bout.right_num === e) ? bout.right_score : bout.left_score;
                     const oppScore = (bout.right_num === e) ? bout.left_score : bout.right_score;
                     const win = myScore > oppScore;
-                    // Ethan's cell: what YOUR row on the paper should show
-                    mineHtml = '<div class="sr-mine ' + (win ? 'win' : 'loss') + '">'
-                        + (win ? 'V' : 'D') + myScore + '</div>';
-                    // Opponent's cell: what the OPPONENT's row on the paper
-                    // should show in YOUR column (opposite result from Ethan's)
-                    const oppMark = win ? ('D' + oppScore) : ('V' + oppScore);
-                    const oppCls = win ? 'loss' : 'win';
-                    oppHtml = '<div class="sr-opp ' + oppCls + '">'
-                        + '<span class="lbl">opp</span>' + oppMark + '</div>';
+                    const myMark  = (win ? 'V' : 'D') + myScore;
+                    const oppMark = (win ? 'D' : 'V') + oppScore;
+                    scoreHtml = '<div class="sr-score ' + (win ? 'win' : 'loss') + '">'
+                        + myMark + '&ndash;' + oppMark + '</div>';
                 }
                 const onclick = bout ? ' onclick="openScoreModal(' + bout.order + ')"' : '';
+                const firstHtml = firstName
+                    ? '<div class="sr-first">' + firstName + '</div>' : '';
                 rows.push(
                     '<div class="summary-row"' + onclick + '>'
                     + '<div class="sr-num">#' + opp.pool_num + '</div>'
-                    + '<div class="sr-name">' + fullName + '</div>'
-                    + mineHtml + oppHtml
+                    + '<div class="sr-name">'
+                      + '<div class="sr-last">' + lastName + '</div>'
+                      + firstHtml
+                    + '</div>'
+                    + scoreHtml
                     + '</div>'
                 );
             }

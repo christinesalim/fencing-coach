@@ -190,14 +190,16 @@ def main():
         # Row-based layout: one opponent per row, scales to pool-of-7+
         ("summary rendered as vertical rows (not horizontal columns)",
             'summary-rows' in tpl and 'summary-row' in tpl
-            and 'sr-num' in tpl and 'sr-name' in tpl
-            and 'sr-mine' in tpl and 'sr-opp' in tpl),
-        # Opponent's cell shown with "opp" label and FIE notation so user can
-        # verify both their own row AND opponent's row on the ref's paper.
-        ("row renders opponent cell with 'opp' prefix + FIE notation",
-            '.sr-opp' in tpl
-            and "'<span class=\"lbl\">opp</span>'" in tpl
-            and 'oppMark' in tpl),
+            and 'sr-num' in tpl and 'sr-name' in tpl and 'sr-score' in tpl),
+        # Combined "V5-D2" notation (Ethan on the left, opp on the right)
+        ("score shown as combined V5-D2 notation (not two separate cells)",
+            "myMark + '&ndash;' + oppMark" in tpl
+            and 'sr-score' in tpl
+            and '.sr-opp' not in tpl),
+        # First name shown below last name to disambiguate same-surname fencers
+        ("first name rendered as muted line under last name",
+            '.sr-first' in tpl and '.sr-last' in tpl
+            and "'<div class=\"sr-first\">'" in tpl),
         # Removed per feedback — bout # not needed since rows are in
         # pool-number order matching the paper.
         ("bout # removed from summary row",
