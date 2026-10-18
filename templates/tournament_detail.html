@@ -1006,6 +1006,22 @@
                 <label for="poolPhoto" class="upload-btn">Upload Pool Sheet Photo</label>
             </div>
 
+            {% if tracker_rounds %}
+            <!-- Resume Pool Tracker banner: shows any PoolRound on this
+                 tournament that already has roster data loaded. -->
+            <div style="background:#fff8e1;border:2px solid #ffcf3a;border-radius:14px;padding:14px;margin-bottom:14px;">
+                <div style="font-weight:700;font-size:13px;color:#5a3800;margin-bottom:8px;">⚡ Resume Pool Tracker</div>
+                {% for tr in tracker_rounds %}
+                <a href="/pool-tracker/{{ tr.id }}" style="display:flex;justify-content:space-between;align-items:center;text-decoration:none;background:white;border:1px solid #e8ebf2;border-radius:10px;padding:10px 12px;margin-bottom:6px;color:#1a1a2e;">
+                    <span style="font-size:14px;font-weight:600;">
+                        Pool{% if tr.pool_number %} #{{ tr.pool_number }}{% endif %}{% if tr.strip_number %} · Strip {{ tr.strip_number }}{% endif %}
+                    </span>
+                    <span style="font-size:12px;color:#666;">{{ tr.done }} of {{ tr.total }} done →</span>
+                </a>
+                {% endfor %}
+            </div>
+            {% endif %}
+
             {% else %}
             <!-- Upload section -->
             <div style="text-align:center;">
@@ -1015,6 +1031,19 @@
                 <p style="color:#999;margin:14px 0 10px;font-size:12px;">— OR —</p>
                 <button type="button" class="upload-btn" onclick="startPoolTracker()">Start Pool Tracker (live)</button>
             </div>
+            {% if tracker_rounds %}
+            <div style="background:#fff8e1;border:2px solid #ffcf3a;border-radius:14px;padding:14px;margin-top:14px;">
+                <div style="font-weight:700;font-size:13px;color:#5a3800;margin-bottom:8px;">⚡ Resume Pool Tracker</div>
+                {% for tr in tracker_rounds %}
+                <a href="/pool-tracker/{{ tr.id }}" style="display:flex;justify-content:space-between;align-items:center;text-decoration:none;background:white;border:1px solid #e8ebf2;border-radius:10px;padding:10px 12px;margin-bottom:6px;color:#1a1a2e;">
+                    <span style="font-size:14px;font-weight:600;">
+                        Pool{% if tr.pool_number %} #{{ tr.pool_number }}{% endif %}{% if tr.strip_number %} · Strip {{ tr.strip_number }}{% endif %}
+                    </span>
+                    <span style="font-size:12px;color:#666;">{{ tr.done }} of {{ tr.total }} done →</span>
+                </a>
+                {% endfor %}
+            </div>
+            {% endif %}
             <script>
                 async function startPoolTracker() {
                     try {

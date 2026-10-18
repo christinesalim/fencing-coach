@@ -1036,7 +1036,44 @@ def tournament_detail_page(tournament_id):
     de_results = get_de_results(tournament_id)
     de_summary = get_de_summary(tournament_id)
     photos = get_tournament_photos(tournament_id)
-    return render_template('tournament_detail.html', tournament=tournament, pool_data=pool_data, de_tips=de_tips, de_results=de_results, de_summary=de_summary, photos=photos)
+    # Resume-banner data: any PoolRound rows attached to this tournament that
+    # already have Vision-extracted roster data. Lets the user get back to an
+    # in-progress tracker without digging through the URL bar.
+    tracker_rounds = []
+    from database import get_db, PoolRound
+    _db = get_db()
+    try:
+        for pr in _db.query(PoolRound).filter_by(
+            tournament_id=tournament_id,
+        ).order_by(PoolRound.id.desc()).all():
+            if pr.roster_json:
+                done = 0
+                total = 0
+                try:
+                    bouts = json.loads(pr.bout_order_json or '[]')
+                    total = len(bouts)
+                    done = sum(1 for b in bouts if b.get('done'))
+                except Exception:
+                    pass
+                tracker_rounds.append({
+                    'id': pr.id,
+                    'pool_number': pr.pool_number,
+                    'strip_number': pr.strip_number,
+                    'done': done,
+                    'total': total,
+                })
+    finally:
+        _db.close()
+    return render_template(
+        'tournament_detail.html',
+        tournament=tournament,
+        pool_data=pool_data,
+        de_tips=de_tips,
+        de_results=de_results,
+        de_summary=de_summary,
+        photos=photos,
+        tracker_rounds=tracker_rounds,
+    )
 
 
 @app.route('/api/tournaments', methods=['POST'])
