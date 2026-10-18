@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Pool Tracker Summary — Preview (new vertical rows)</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #4a7fd4 0%, #1e3a7a 50%, #0f1f4a 100%);
+            min-height: 100vh;
+            padding: 20px;
+            padding-bottom: 60px;
+            color: #333;
+        }
+        .container { max-width: 700px; margin: 0 auto; }
+
+        .mockup-nav {
+            background: rgba(0,0,0,0.3);
+            border-radius: 12px;
+            padding: 10px;
+            margin-bottom: 14px;
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+        .mockup-nav button {
+            background: rgba(255,255,255,0.15);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.3);
+            border-radius: 8px;
+            padding: 6px 10px;
+            font-size: 11px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        .mockup-nav button.active { background: white; color: #0f1f4a; }
+
+        .header { text-align: center; color: white; margin-bottom: 20px; }
+        .header h1 { font-size: 1.6em; margin-bottom: 4px; }
+        .header p { opacity: 0.9; font-size: 0.95em; }
+
+        .card {
+            background: white;
+            border-radius: 20px;
+            padding: 22px;
+            margin-bottom: 14px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        .card h2 { font-size: 1.15em; margin-bottom: 12px; color: #1a1a2e; }
+
+        .summary-stats { display: flex; gap: 8px; margin-bottom: 10px; }
+        .summary-stat { flex: 1; background: #f5f7fa; border-radius: 10px; padding: 10px 4px; text-align: center; }
+        .summary-stat .k { font-size: 10px; color: #666; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; }
+        .summary-stat .v { font-size: 20px; color: #1a1a2e; font-weight: 800; margin-top: 2px; }
+        .partial-note { font-size: 11px; color: #999; text-align: center; margin-top: 2px; }
+
+        .section-label {
+            color: white;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            margin: 16px 0 8px;
+            opacity: 0.85;
+            padding-left: 4px;
+        }
+
+        .pg-ethan-label {
+            font-size: 13px;
+            font-weight: 700;
+            color: #0f1f4a;
+            margin-bottom: 10px;
+            text-align: center;
+            letter-spacing: 0.4px;
+        }
+
+        .summary-rows { display: block; }
+        .summary-row {
+            display: flex;
+            align-items: center;
+            padding: 10px 10px;
+            border-bottom: 1px solid #f0f0f0;
+            cursor: pointer;
+            gap: 10px;
+        }
+        .summary-row:last-child { border-bottom: none; }
+        .summary-row:active { background: #f5f7fa; }
+        .sr-num {
+            flex: 0 0 34px;
+            font-size: 12px;
+            font-weight: 700;
+            color: #666;
+            background: #eceff4;
+            border-radius: 8px;
+            padding: 6px 0;
+            text-align: center;
+            letter-spacing: 0.2px;
+        }
+        .sr-name {
+            flex: 1 1 auto;
+            font-size: 15px;
+            font-weight: 700;
+            color: #1a1a2e;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .sr-scores { flex: 0 0 90px; text-align: right; line-height: 1.1; }
+        .sr-mine { font-size: 22px; font-weight: 800; letter-spacing: 0.5px; }
+        .sr-mine.win  { color: #27ae60; }
+        .sr-mine.loss { color: #c0392b; }
+        .sr-mine.unset { color: #c0c8e0; font-weight: 500; font-size: 18px; }
+        .sr-opp { font-size: 15px; font-weight: 700; margin-top: 3px; letter-spacing: 0.3px; }
+        .sr-opp.win   { color: #27ae60; }
+        .sr-opp.loss  { color: #c0392b; }
+        .sr-opp.unset { color: #c0c8e0; font-weight: 500; }
+        .sr-opp .lbl { font-size: 10px; color: #999; font-weight: 500; margin-right: 2px; }
+        .pg-hint { font-size: 11px; color: #999; text-align: center; margin-top: 12px; }
+
+        .btn-primary {
+            width: 100%; padding: 14px;
+            background: linear-gradient(135deg, #4a7fd4 0%, #1e3a7a 50%, #0f1f4a 100%);
+            color: white; border: none; border-radius: 12px;
+            font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 4px;
+        }
+        .btn-secondary {
+            width: 100%; padding: 14px;
+            background: white; color: #2c3e6b;
+            border: 2px solid #2c3e6b; border-radius: 12px;
+            font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Pool Tracker Summary — Preview</h1>
+            <p>Showing the new vertical-row layout for 5-, 6- and 7-person pools</p>
+        </div>
+
+        <div class="mockup-nav">
+            <button onclick="show('pool6')" class="active" id="btn-pool6">Pool of 6 (your test pool)</button>
+            <button onclick="show('pool7')" id="btn-pool7">Pool of 7</button>
+            <button onclick="show('partial')" id="btn-partial">Pool of 6 (partial scoring)</button>
+        </div>
+
+        <!-- POOL OF 6 — your actual test pool -->
+        <div id="view-pool6">
+            <div class="card">
+                <h2>Pool 5 · Strip 6 · Complete</h2>
+                <div class="summary-stats">
+                    <div class="summary-stat"><div class="k">V–D</div><div class="v">3–2</div></div>
+                    <div class="summary-stat"><div class="k">Ind</div><div class="v">+6</div></div>
+                    <div class="summary-stat"><div class="k">TS</div><div class="v">20</div></div>
+                    <div class="summary-stat"><div class="k">TR</div><div class="v">14</div></div>
+                </div>
+            </div>
+            <div class="section-label">Your row on the ref's paper</div>
+            <div class="card" style="padding:14px 12px;">
+                <div class="pg-ethan-label">SALIM Ethan · Pool #3</div>
+                <div class="summary-rows">
+                    <div class="summary-row">
+                        <div class="sr-num">#1</div>
+                        <div class="sr-name">BOROVIKOV</div>
+                        <div class="sr-scores">
+                            <div class="sr-mine win">V5</div>
+                            <div class="sr-opp loss"><span class="lbl">opp</span>D2</div>
+                        </div>
+                    </div>
+                    <div class="summary-row">
+                        <div class="sr-num">#2</div>
+                        <div class="sr-name">ZHU</div>
+                        <div class="sr-scores">
+                            <div class="sr-mine win">V5</div>
+                            <div class="sr-opp loss"><span class="lbl">opp</span>D2</div>
+                        </div>
+                    </div>
+                    <div class="summary-row">
+                        <div class="sr-num">#4</div>
+                        <div class="sr-name">HOLBROOK</div>
+                        <div class="sr-scores">
+                            <div class="sr-mine loss">D2</div>
+                            <div class="sr-opp win"><span class="lbl">opp</span>V4</div>
+                        </div>
+                    </div>
+                    <div class="summary-row">
+                        <div class="sr-num">#5</div>
+                        <div class="sr-name">XIAO</div>
+                        <div class="sr-scores">
+                            <div class="sr-mine loss">D3</div>
+                            <div class="sr-opp win"><span class="lbl">opp</span>V4</div>
+                        </div>
+                    </div>
+                    <div class="summary-row">
+                        <div class="sr-num">#6</div>
+                        <div class="sr-name">POLIAKOV</div>
+                        <div class="sr-scores">
+                            <div class="sr-mine win">V5</div>
+                            <div class="sr-opp loss"><span class="lbl">opp</span>D2</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="pg-hint">Tap any row to edit</div>
+            </div>
+            <button class="btn-primary">Looks good — save pool</button>
+            <button class="btn-secondary">Back to bout list</button>
+        </div>
+
+        <!-- POOL OF 7 — stress test with 6 opponents -->
+        <div id="view-pool7" style="display:none;">
+            <div class="card">
+                <h2>Pool 2 · Strip 4 · Complete</h2>
+                <div class="summary-stats">
+                    <div class="summary-stat"><div class="k">V–D</div><div class="v">4–2</div></div>
+                    <div class="summary-stat"><div class="k">Ind</div><div class="v">+7</div></div>
+                    <div class="summary-stat"><div class="k">TS</div><div class="v">26</div></div>
+                    <div class="summary-stat"><div class="k">TR</div><div class="v">19</div></div>
+                </div>
+            </div>
+            <div class="section-label">Your row on the ref's paper</div>
+            <div class="card" style="padding:14px 12px;">
+                <div class="pg-ethan-label">SALIM Ethan · Pool #4</div>
+                <div class="summary-rows">
+                    <div class="summary-row">
+                        <div class="sr-num">#1</div>
+                        <div class="sr-name">BOROVIKOV</div>
+                        <div class="sr-scores">
+                            <div class="sr-mine win">V5</div>
+                            <div class="sr-opp loss"><span class="lbl">opp</span>D3</div>
+                        </div>
+                    </div>
+                    <div class="summary-row">
+                        <div class="sr-num">#2</div>
+                        <div class="sr-name">CHERENSHCHIKOV</div>
+                        <div class="sr-scores">
+                            <div class="sr-mine loss">D2</div>
+                            <div class="sr-opp win"><span class="lbl">opp</span>V5</div>
+                        </div>
+                    </div>
+                    <div class="summary-row">
+                        <div class="sr-num">#3</div>
+                        <div class="sr-name">ARULKUMAR</div>
+                        <div class="sr-scores">
+                            <div class="sr-mine win">V5</div>
+                            <div class="sr-opp loss"><span class="lbl">opp</span>D4</div>
+                        </div>
+                    </div>
+                    <div class="summary-row">
+                        <div class="sr-num">#5</div>
+                        <div class="sr-name">HOLBROOK</div>
+                        <div class="sr-scores">
+                            <div class="sr-mine win">V5</div>
+                            <div class="sr-opp loss"><span class="lbl">opp</span>D1</div>
+                        </div>
+                    </div>
+                    <div class="summary-row">
+                        <div class="sr-num">#6</div>
+                        <div class="sr-name">LUCENAY</div>
+                        <div class="sr-scores">
+                            <div class="sr-mine loss">D4</div>
+                            <div class="sr-opp win"><span class="lbl">opp</span>V5</div>
+                        </div>
+                    </div>
+                    <div class="summary-row">
+                        <div class="sr-num">#7</div>
+                        <div class="sr-name">POLIAKOV</div>
+                        <div class="sr-scores">
+                            <div class="sr-mine win">V5</div>
+                            <div class="sr-opp loss"><span class="lbl">opp</span>D1</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="pg-hint">Tap any row to edit</div>
+            </div>
+            <button class="btn-primary">Looks good — save pool</button>
+            <button class="btn-secondary">Back to bout list</button>
+        </div>
+
+        <!-- POOL OF 6 — partial scoring (how pending/unscored opponents look) -->
+        <div id="view-partial" style="display:none;">
+            <div class="card">
+                <h2>Pool 3 · Strip 9-10 · Complete</h2>
+                <div class="summary-stats">
+                    <div class="summary-stat"><div class="k">V–D</div><div class="v">2–1</div></div>
+                    <div class="summary-stat"><div class="k">Ind</div><div class="v">+3</div></div>
+                    <div class="summary-stat"><div class="k">TS</div><div class="v">12</div></div>
+                    <div class="summary-stat"><div class="k">TR</div><div class="v">9</div></div>
+                </div>
+                <div class="partial-note">Indicator from 3 of 5 Ethan bouts scored</div>
+            </div>
+            <div class="section-label">Your row on the ref's paper</div>
+            <div class="card" style="padding:14px 12px;">
+                <div class="pg-ethan-label">SALIM Ethan · Pool #3</div>
+                <div class="summary-rows">
+                    <div class="summary-row">
+                        <div class="sr-num">#1</div>
+                        <div class="sr-name">BOROVIKOV</div>
+                        <div class="sr-scores">
+                            <div class="sr-mine win">V5</div>
+                            <div class="sr-opp loss"><span class="lbl">opp</span>D2</div>
+                        </div>
+                    </div>
+                    <div class="summary-row">
+                        <div class="sr-num">#2</div>
+                        <div class="sr-name">ZHU</div>
+                        <div class="sr-scores">
+                            <div class="sr-mine unset">—</div>
+                            <div class="sr-opp unset"><span class="lbl">opp</span>—</div>
+                        </div>
+                    </div>
+                    <div class="summary-row">
+                        <div class="sr-num">#4</div>
+                        <div class="sr-name">HOLBROOK</div>
+                        <div class="sr-scores">
+                            <div class="sr-mine loss">D2</div>
+                            <div class="sr-opp win"><span class="lbl">opp</span>V5</div>
+                        </div>
+                    </div>
+                    <div class="summary-row">
+                        <div class="sr-num">#5</div>
+                        <div class="sr-name">XIAO</div>
+                        <div class="sr-scores">
+                            <div class="sr-mine unset">—</div>
+                            <div class="sr-opp unset"><span class="lbl">opp</span>—</div>
+                        </div>
+                    </div>
+                    <div class="summary-row">
+                        <div class="sr-num">#6</div>
+                        <div class="sr-name">POLIAKOV</div>
+                        <div class="sr-scores">
+                            <div class="sr-mine win">V5</div>
+                            <div class="sr-opp loss"><span class="lbl">opp</span>D2</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="pg-hint">Tap any row to edit</div>
+            </div>
+            <button class="btn-primary">Looks good — save pool</button>
+            <button class="btn-secondary">Back to bout list</button>
+        </div>
+    </div>
+
+    <script>
+        function show(name) {
+            ['pool6', 'pool7', 'partial'].forEach(k => {
+                document.getElementById('view-' + k).style.display = k === name ? 'block' : 'none';
+                document.getElementById('btn-' + k).classList.toggle('active', k === name);
+            });
+            window.scrollTo(0, 0);
+        }
+    </script>
+</body>
+</html>

@@ -183,17 +183,24 @@ def main():
             "statTile('V" in tpl and "statTile('Ind'" in tpl
             and "statTile('TS'" in tpl and "statTile('TR'" in tpl),
         ("partial-data note slot present",  'summaryPartial' in tpl),
-        ("grid orders columns by pool_num (sort ascending)",
+        ("grid orders rows by pool_num (sort ascending)",
             '.sort((a, b) => a.pool_num - b.pool_num)' in tpl),
-        ("grid skips Ethan's own column",   "r => r.pool_num !== e" in tpl),
+        ("grid skips Ethan's own row",      "r => r.pool_num !== e" in tpl),
         ("edits re-render summary too",     'renderSummary();' in tpl),
-        # Opponent's cell: each grid column must also show what the
-        # OPPONENT's row on the ref's paper will have in Ethan's column,
-        # so the user can cross-check both cells per bout.
-        ("grid renders opponent-cell notation (opp D{n} / opp V{n})",
-            '.pg-opp' in tpl
+        # Row-based layout: one opponent per row, scales to pool-of-7+
+        ("summary rendered as vertical rows (not horizontal columns)",
+            'summary-rows' in tpl and 'summary-row' in tpl
+            and 'sr-num' in tpl and 'sr-name' in tpl and 'sr-scores' in tpl),
+        # Opponent's cell shown with "opp" label and FIE notation so user can
+        # verify both their own row AND opponent's row on the ref's paper.
+        ("row renders opponent cell with 'opp' prefix + FIE notation",
+            '.sr-opp' in tpl
             and "'<span class=\"lbl\">opp</span>'" in tpl
             and 'oppMark' in tpl),
+        # Removed per feedback — bout # not needed since rows are in
+        # pool-number order matching the paper.
+        ("bout # removed from summary row",
+            "'bout #'" not in tpl.split("renderSummary()")[-1].split("function statTile")[0]),
     ]
     for name, ok in checks:
         record(f"template: {name}", ok)
