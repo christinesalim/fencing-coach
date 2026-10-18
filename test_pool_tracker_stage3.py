@@ -190,7 +190,8 @@ def main():
         # Row-based layout: one opponent per row, scales to pool-of-7+
         ("summary rendered as vertical rows (not horizontal columns)",
             'summary-rows' in tpl and 'summary-row' in tpl
-            and 'sr-num' in tpl and 'sr-name' in tpl and 'sr-scores' in tpl),
+            and 'sr-num' in tpl and 'sr-name' in tpl
+            and 'sr-mine' in tpl and 'sr-opp' in tpl),
         # Opponent's cell shown with "opp" label and FIE notation so user can
         # verify both their own row AND opponent's row on the ref's paper.
         ("row renders opponent cell with 'opp' prefix + FIE notation",
