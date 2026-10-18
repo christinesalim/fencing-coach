@@ -408,8 +408,10 @@
 
         /* Opponent rows — one row per opponent in pool-number order so the
            list matches the vertical sequence of columns on the ref's paper.
-           Vertical rather than horizontal so full last names fit on narrow
-           screens and the layout survives pool-of-7+ cases without squeezing. */
+           Both scores live on the same horizontal line in fixed-width slots
+           so Ethan can scan down "the V5 column" and "the opp D2 column"
+           independently. This matches how he reads the paper: his row = his
+           scores, each opponent's column = that opponent's scores. */
         .summary-rows { display: block; }
         .summary-row {
             display: flex;
@@ -417,7 +419,7 @@
             padding: 10px 10px;
             border-bottom: 1px solid #f0f0f0;
             cursor: pointer;
-            gap: 10px;
+            gap: 8px;
         }
         .summary-row:last-child { border-bottom: none; }
         .summary-row:active { background: #f5f7fa; }
@@ -443,29 +445,29 @@
             text-overflow: ellipsis;
             white-space: nowrap;
         }
-        .sr-scores {
-            flex: 0 0 90px;
-            text-align: right;
-            line-height: 1.1;
-        }
         .sr-mine {
+            flex: 0 0 48px;
+            text-align: center;
             font-size: 22px;
             font-weight: 800;
             letter-spacing: 0.5px;
+            line-height: 1.1;
         }
-        .sr-mine.win { color: #27ae60; }
-        .sr-mine.loss { color: #c0392b; }
+        .sr-mine.win   { color: #27ae60; }
+        .sr-mine.loss  { color: #c0392b; }
         .sr-mine.unset { color: #c0c8e0; font-weight: 500; font-size: 18px; }
         .sr-opp {
-            font-size: 15px;
+            flex: 0 0 66px;
+            text-align: center;
+            font-size: 17px;
             font-weight: 700;
-            margin-top: 3px;
             letter-spacing: 0.3px;
+            line-height: 1.1;
         }
-        .sr-opp.win  { color: #27ae60; }     /* opp won  = Ethan lost */
-        .sr-opp.loss { color: #c0392b; }     /* opp lost = Ethan won */
+        .sr-opp.win   { color: #27ae60; }     /* opp won  = Ethan lost */
+        .sr-opp.loss  { color: #c0392b; }     /* opp lost = Ethan won */
         .sr-opp.unset { color: #c0c8e0; font-weight: 500; }
-        .sr-opp .lbl { font-size: 10px; color: #999; font-weight: 500; margin-right: 2px; letter-spacing: 0.2px; }
+        .sr-opp .lbl { font-size: 9px; color: #999; font-weight: 500; margin-right: 3px; letter-spacing: 0.2px; display: block; margin-bottom: 1px; }
         .pg-hint {
             font-size: 11px;
             color: #999;
@@ -1051,7 +1053,7 @@
                     '<div class="summary-row"' + onclick + '>'
                     + '<div class="sr-num">#' + opp.pool_num + '</div>'
                     + '<div class="sr-name">' + fullName + '</div>'
-                    + '<div class="sr-scores">' + mineHtml + oppHtml + '</div>'
+                    + mineHtml + oppHtml
                     + '</div>'
                 );
             }
