@@ -957,7 +957,10 @@ def extract_pool_bout_order_from_photo(image_path):
 Extract the following:
 
 1. POOL NUMBER — look for "POOL #X" or similar heading
-2. STRIP NUMBER — look for "ON STRIP X" (may be absent — return null)
+2. STRIP — look for "ON STRIP X" (may be absent — return null).
+   Return as a STRING. Most pools are a single strip ("6"), but
+   dual-strip pools show up as "9-10" or "9/10" — keep the dash/slash
+   intact in that case.
 3. ROSTER — the numbered list of fencers (positions 1 through N, usually 1-6 for a pool of 6).
    For each fencer, extract:
      - pool_num (1-based position in the roster)
@@ -978,7 +981,7 @@ Return JSON only — no commentary:
 
 {
   "pool_number": <int or null>,
-  "strip": <int or null>,
+  "strip": <string or null>,     // e.g. "6" (single strip) or "9-10" (dual strip)
   "roster": [
     {"pool_num": 1, "last_name": "...", "first_name": "...", "club": "...", "region": "..."},
     ...
@@ -1383,7 +1386,10 @@ def api_pool_tracker_save_extraction(pool_round_id):
         if not pr:
             return jsonify({'error': 'Pool round not found'}), 404
         pr.pool_number = data.get('pool_number')
-        pr.strip_number = data.get('strip_number')
+        # Coerce strip to string: dual-strip pools come through as "9-10" from
+        # Vision; single strips are plain ints historically. Store both as str.
+        strip = data.get('strip_number')
+        pr.strip_number = None if strip is None else str(strip)
         pr.ethan_pool_num = data.get('ethan_pool_num')
         pr.roster_json = json.dumps(roster)
         pr.bout_order_json = json.dumps(bouts)

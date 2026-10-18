@@ -91,7 +91,7 @@ def main():
         pr = PoolRound(
             tournament_id=tid,
             pool_number=5,
-            strip_number=6,
+            strip_number="6",
             roster_json=json.dumps(roster),
             bout_order_json=json.dumps(bouts),
             ethan_pool_num=1,
@@ -106,7 +106,7 @@ def main():
         got = db.query(PoolRound).filter_by(id=pr_id).first()
         round_trip_ok = (
             got.pool_number == 5
-            and got.strip_number == 6
+            and got.strip_number == "6"
             and got.ethan_pool_num == 1
             and json.loads(got.roster_json or "[]") == roster
             and json.loads(got.bout_order_json or "[]") == bouts
@@ -117,6 +117,25 @@ def main():
         "db: round-trip insert + read on all new columns",
         round_trip_ok,
         "" if round_trip_ok else f"strip={got.strip_number} ethan={got.ethan_pool_num}",
+    )
+
+    # 3b. Dual-strip pool (e.g. "9-10") stores + reads back as a string ---
+    db = get_db()
+    try:
+        dual = PoolRound(tournament_id=tid, pool_number=7, strip_number="9-10")
+        db.add(dual); db.commit()
+        dual_id = dual.id
+    finally:
+        db.close()
+    db = get_db()
+    try:
+        got = db.query(PoolRound).filter_by(id=dual_id).first()
+    finally:
+        db.close()
+    record(
+        "db: dual-strip 'strip_number' stored as string (not int)",
+        got.strip_number == "9-10",
+        f"got={got.strip_number!r}",
     )
 
     # 4. Existing-row safety: a PoolRound with only old fields set still

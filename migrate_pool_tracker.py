@@ -19,7 +19,7 @@ from database import engine
 
 
 COLUMNS = [
-    ("strip_number", "INTEGER"),
+    ("strip_number", "VARCHAR(20)"),   # bumped from INTEGER — see fix_strip_number_type()
     ("roster_json", "TEXT"),
     ("bout_order_json", "TEXT"),
     ("ethan_pool_num", "INTEGER"),
@@ -40,9 +40,54 @@ def existing_columns(conn, table):
     return {r[0] for r in rows}
 
 
+def strip_number_type(conn):
+    """Return the current SQL type of pool_rounds.strip_number, or None if the
+    column doesn't exist. Used to detect if the type upgrade is needed."""
+    dialect = conn.engine.dialect.name
+    if dialect == "sqlite":
+        rows = conn.execute(text("PRAGMA table_info(pool_rounds)")).fetchall()
+        for r in rows:
+            # (cid, name, type, notnull, dflt_value, pk)
+            if r[1] == "strip_number":
+                return (r[2] or "").upper()
+        return None
+    rows = conn.execute(text(
+        "SELECT data_type FROM information_schema.columns "
+        "WHERE table_name = 'pool_rounds' AND column_name = 'strip_number'"
+    )).fetchall()
+    return rows[0][0].upper() if rows else None
+
+
+def fix_strip_number_type(conn):
+    """Bump strip_number from INTEGER to VARCHAR(20). Dual-strip pools come
+    back from Vision as strings like '9-10'; Postgres rejects those with
+    'invalid input syntax for type integer'. Returns True if a change was
+    applied, False if already string-like.
+    """
+    cur = strip_number_type(conn)
+    if cur is None or not cur.startswith("INT"):
+        return False  # column missing OR already a string type
+
+    dialect = conn.engine.dialect.name
+    if dialect == "sqlite":
+        # SQLite can't ALTER COLUMN TYPE directly. Drop + re-add is safe
+        # because no deployment has stored strip values yet (if any had,
+        # they'd be bare ints and losing them is acceptable).
+        conn.execute(text("ALTER TABLE pool_rounds DROP COLUMN strip_number"))
+        conn.execute(text("ALTER TABLE pool_rounds ADD COLUMN strip_number VARCHAR(20)"))
+    else:
+        # Postgres: USING ... :: TEXT handles any existing integer values.
+        conn.execute(text(
+            "ALTER TABLE pool_rounds ALTER COLUMN strip_number "
+            "TYPE VARCHAR(20) USING strip_number::text"
+        ))
+    return True
+
+
 def main():
     added = []
     skipped = []
+    strip_upgraded = False
     with engine.begin() as conn:
         existing = existing_columns(conn, "pool_rounds")
         for col_name, col_type in COLUMNS:
@@ -53,13 +98,16 @@ def main():
                 f"ALTER TABLE pool_rounds ADD COLUMN {col_name} {col_type}"
             ))
             added.append(col_name)
+        strip_upgraded = fix_strip_number_type(conn)
 
     print(f"Pool Tracker migration on {engine.url.get_backend_name()}:")
     if added:
         print(f"  added:   {', '.join(added)}")
     if skipped:
         print(f"  skipped (already present): {', '.join(skipped)}")
-    if not added and not skipped:
+    if strip_upgraded:
+        print("  upgraded: strip_number INTEGER -> VARCHAR(20) (dual-strip pools)")
+    if not added and not skipped and not strip_upgraded:
         print("  nothing to do (pool_rounds table missing?)")
 
 

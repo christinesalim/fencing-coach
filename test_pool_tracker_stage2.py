@@ -160,7 +160,7 @@ def main():
     # 3. Page renders tracker view when roster populated --------------
     pr_id_full = make_pool_round(
         pool_number=5,
-        strip_number=6,
+        strip_number="6",
         ethan_pool_num=3,
         roster_json=json.dumps(ROSTER),
         bout_order_json=json.dumps(BOUTS),
@@ -190,12 +190,12 @@ def main():
             f"status={r.status_code}",
         )
 
-    # 5. save-extraction happy path ----------------------------------
+    # 5. save-extraction happy path (single strip, numeric input) ----
     r = c.post(
         f"/api/pool-tracker/{pr_id}/save-extraction",
         json={
             "pool_number": 5,
-            "strip_number": 6,
+            "strip_number": 6,          # client might send int; server coerces to str
             "ethan_pool_num": 3,
             "roster": ROSTER,
             "bouts": BOUTS,
@@ -204,16 +204,34 @@ def main():
     body = r.get_json() or {}
     got = read_pool_round(pr_id)
     record(
-        "save-extraction: persists roster+bouts+scalars",
+        "save-extraction: persists roster+bouts+scalars (int strip coerced to str)",
         r.status_code == 200
         and body.get("success") is True
         and got["pool_number"] == 5
-        and got["strip_number"] == 6
+        and got["strip_number"] == "6"
         and got["ethan_pool_num"] == 3
         and got["roster"] == ROSTER
         and len(got["bouts"]) == 3
         and got["bouts"][2]["right_score"] == 2,
-        f"status={r.status_code} roster_len={len(got['roster'] or [])}",
+        f"status={r.status_code} strip={got['strip_number']!r}",
+    )
+
+    # 5b. save-extraction accepts dual-strip "9-10" without crashing ----
+    dual_id = make_pool_round()
+    r = c.post(
+        f"/api/pool-tracker/{dual_id}/save-extraction",
+        json={
+            "pool_number": 7,
+            "strip_number": "9-10",   # dual-strip pool; previously crashed Postgres
+            "ethan_pool_num": None,
+            "roster": [], "bouts": [],
+        },
+    )
+    got = read_pool_round(dual_id)
+    record(
+        "save-extraction: accepts dual-strip '9-10' as strip_number",
+        r.status_code == 200 and got["strip_number"] == "9-10",
+        f"status={r.status_code} strip={got['strip_number']!r}",
     )
 
     # 6. save-extraction: unknown id → 404 ----------------------------

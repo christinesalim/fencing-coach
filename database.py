@@ -110,7 +110,9 @@ class PoolRound(Base):
     # Pool Tracker (new). Nullable so existing rows don't need backfill.
     # SQLite picks these up via create_all on a fresh DB; Render Postgres
     # needs a manual ALTER TABLE (see migrate_pool_tracker.py).
-    strip_number = Column(Integer)
+    # strip_number is a String not Integer because double-strip pools
+    # show as "9-10" in Fencing Time Live (see project_double_strip_pools memory).
+    strip_number = Column(String(20))
     roster_json = Column(Text)         # JSON array of {pool_num, last_name, first_name, club, region}
     bout_order_json = Column(Text)     # JSON array of {order, right_num, left_num, done, score_right, score_left}
     ethan_pool_num = Column(Integer)   # Ethan's position in this pool (null if not identified)
