@@ -253,10 +253,21 @@
             font-size: 13px;
             color: #1a1a2e;
             overflow: hidden;
-            text-overflow: ellipsis;
+        }
+        .names .side > div {
             white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         .names .side .last { font-weight: 700; }
+        /* First name under last name so same-last-name fencers in a pool
+           can be distinguished at a glance (real-world case from Y12 pools). */
+        .names .side .first {
+            font-size: 11px;
+            color: #777;
+            font-weight: 500;
+            margin-top: 1px;
+        }
         .names .side.right { text-align: left; }
         .names .side.left { text-align: right; }
         .names .vs {
@@ -343,13 +354,27 @@
         }
         .modal-side { flex: 1; text-align: center; }
         .modal-side .name {
+            display: flex;
+            flex-direction: column;
+            gap: 1px;
+            margin-bottom: 6px;
+        }
+        .modal-side .n-last {
             font-size: 13px;
             color: #555;
-            margin-bottom: 6px;
             font-weight: 600;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
+        }
+        .modal-side .n-first {
+            font-size: 11px;
+            color: #999;
+            font-weight: 500;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            min-height: 13px;
         }
         .modal-side input {
             width: 100%;
@@ -584,12 +609,18 @@
             <div class="modal-title" id="modalTitle">Bout</div>
             <div class="modal-matchup">
                 <div class="modal-side">
-                    <div class="name" id="modalRightName">Right</div>
+                    <div class="name">
+                        <span class="n-last" id="modalRightName">Right</span>
+                        <span class="n-first" id="modalRightFirst"></span>
+                    </div>
                     <input type="number" id="modalRightScore" min="0" max="5" inputmode="numeric">
                 </div>
                 <div class="modal-dash">&ndash;</div>
                 <div class="modal-side">
-                    <div class="name" id="modalLeftName">Left</div>
+                    <div class="name">
+                        <span class="n-last" id="modalLeftName">Left</span>
+                        <span class="n-first" id="modalLeftFirst"></span>
+                    </div>
                     <input type="number" id="modalLeftScore" min="0" max="5" inputmode="numeric">
                 </div>
             </div>
@@ -764,10 +795,16 @@
         }
 
         function fencerShort(poolNum) {
-            // Returns {last, pnum} for the fencer at a pool position.
+            // Returns {last, first, pnum} for the fencer at a pool position.
+            // first is included so same-last-name fencers in a pool can be
+            // distinguished without clicking into the bout.
             const f = (poolState.roster || []).find(x => x.pool_num === poolNum);
-            if (!f) return { last: '?', pnum: poolNum };
-            return { last: (f.last_name || '').toUpperCase(), pnum: poolNum };
+            if (!f) return { last: '?', first: '', pnum: poolNum };
+            return {
+                last: (f.last_name || '').toUpperCase(),
+                first: f.first_name || '',
+                pnum: poolNum,
+            };
         }
 
         function ethanStats() {
@@ -815,10 +852,12 @@
             const r = fencerShort(next.right_num);
             const l = fencerShort(next.left_num);
             card.classList.remove('empty');
+            const rLabel = r.last + (r.first ? ' ' + r.first : '');
+            const lLabel = l.last + (l.first ? ' ' + l.first : '');
             card.innerHTML =
                 '<span class="tag">&#9733; ETHAN\'S NEXT</span>'
                 + '<div class="matchup">Bout ' + next.order + ' &mdash; '
-                + r.last + ' <span class="vs">vs</span> ' + l.last + '</div>';
+                + rLabel + ' <span class="vs">vs</span> ' + lLabel + '</div>';
         }
 
         function renderSectionLabel() {
@@ -863,13 +902,21 @@
                 }
 
                 const star = isEthan ? '<span class="star">&#9733;</span>' : '';
+                const rFirst = r.first ? '<div class="first">' + r.first + '</div>' : '';
+                const lFirst = l.first ? '<div class="first">' + l.first + '</div>' : '';
                 parts.push(
                     '<div class="' + classes.join(' ') + '">'
                     + '<div class="bout-num">' + b.order + star + '</div>'
                     + '<div class="names" onclick="toggleBoutDone(' + b.order + ')">'
-                      + '<div class="side right"><span class="pnum">' + r.pnum + '</span><span class="last">' + r.last + '</span></div>'
+                      + '<div class="side right">'
+                        + '<div><span class="pnum">' + r.pnum + '</span><span class="last">' + r.last + '</span></div>'
+                        + rFirst
+                      + '</div>'
                       + '<div class="vs">vs</div>'
-                      + '<div class="side left"><span class="last">' + l.last + '</span><span class="pnum">' + l.pnum + '</span></div>'
+                      + '<div class="side left">'
+                        + '<div><span class="last">' + l.last + '</span><span class="pnum">' + l.pnum + '</span></div>'
+                        + lFirst
+                      + '</div>'
                     + '</div>'
                     + scoreCell
                     + '</div>'
@@ -900,6 +947,8 @@
                 'Bout ' + order + (b.done ? ' · Editing' : '');
             document.getElementById('modalRightName').textContent = r.last;
             document.getElementById('modalLeftName').textContent = l.last;
+            document.getElementById('modalRightFirst').textContent = r.first || '';
+            document.getElementById('modalLeftFirst').textContent  = l.first || '';
             document.getElementById('modalRightScore').value = b.right_score != null ? b.right_score : '';
             document.getElementById('modalLeftScore').value  = b.left_score  != null ? b.left_score  : '';
             document.getElementById('modalMarkNotDoneBtn').style.display = b.done ? 'block' : 'none';

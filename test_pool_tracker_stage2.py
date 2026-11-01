@@ -132,6 +132,17 @@ def main():
         ("calls save-extraction",                   '/save-extraction' in tpl),
         ("calls update",                            "/update'" in tpl or '/update"' in tpl or '/update,' in tpl or 'update,' in tpl),
         ("defines openScoreModal",                  'function openScoreModal' in tpl),
+        # First names on bout rows + modal — needed to disambiguate same-last-
+        # name fencers in a pool (real-world case from Y12 tournaments).
+        ("bout row renders first name under last name",
+            '.names .side .first' in tpl and 'rFirst = r.first' in tpl),
+        ("fencerShort includes first_name from roster",
+            "first: f.first_name" in tpl),
+        ("Ethan's next card shows first + last names",
+            'rLabel = r.last' in tpl and "r.first ? ' ' + r.first" in tpl),
+        ("score modal has separate slots for last + first name",
+            'modalRightFirst' in tpl and 'modalLeftFirst' in tpl
+            and 'n-last' in tpl and 'n-first' in tpl),
         ("defines saveFromModal",                   'function saveFromModal' in tpl),
         ("defines markNotDoneFromModal",            'function markNotDoneFromModal' in tpl),
         ("defines toggleBoutDone",                  'function toggleBoutDone' in tpl),
